@@ -6,13 +6,6 @@ import * as path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  build: {
-    rollupOptions: {
-      input: {
-        editor: "pages/popup.html",
-      },
-    },
-  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src")
