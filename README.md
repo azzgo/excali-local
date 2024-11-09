@@ -1,5 +1,21 @@
 # Excali Local 
 
+## Introduction
+
+Excali Local is a local extension for [Excalidraw](https://excalidraw.com/), it provides a offline editor for Excalidraw and add presentation mode for Excalidraw.
+
+## Features
+
+### Presentation mode
+
+![Main Screen](./.assets/main-screen.png)
+
+![Slides Navbar](./.assets/slides-navbar.png)
+
+![Presentation Mode](./.assets/presentation-mode.png)
+
+## Development
+
 To install dependencies:
 
 ```bash
