@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "vite",
+    "postinstall": "bun run ./setup-excalidraw-assets.js",
     "build": "tsc && vite build --outDir=../excali-local/public/editor",
     "shadcn:add": "bunx --bun shadcn@latest add"
   },
