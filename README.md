@@ -14,6 +14,8 @@ Excali Local is a local extension for [Excalidraw](https://excalidraw.com/), it 
 
 ![Presentation Mode](./.assets/presentation-mode.png)
 
+Note: the demo upside screenshot marterial is from [unDraw](https://undraw.co/), it is very nice and free to use.
+
 ## Development
 
 To install dependencies:
