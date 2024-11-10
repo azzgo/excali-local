@@ -1,13 +1,15 @@
 {
   "name": "excali",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "scripts": {
     "page:dev": "bun --filter ./packages/excali-page dev",
     "page:build": "BUILD_FOR_EXTENSION=1 bun --filter ./packages/excali-page build",
     "local:dev": "bun --filter ./packages/excali-local dev",
     "local:build": "bun --filter ./packages/excali-local build",
-    "local:tar": "bun --filter ./packages/excali-local tar"
+    "local:clean:archive": "bun --filter ./packages/excali-local clean:archive",
+    "local:tar": "bun --filter ./packages/excali-local tar",
+    "local:zip": "bun --filter ./packages/excali-local zip"
   },
   "workspaces": [
     "packages/*"

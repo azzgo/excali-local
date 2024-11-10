@@ -72,11 +72,11 @@ const SlideNavbar = ({ excalidrawApi }: SlideQuickNavbarProps) => {
               <IconChevronDown className="size-4" />
             </Button>
           </div>
-          <div className="h-full overflow-y-auto">
+          <div className="h-full overflow-x-auto overflow-y-hidden">
             <ScrollArea className="h-full slide-navbar">
               <div className="w-max h-full space-x-8 p-4 flex">
-                {orderedSlides?.map((slide) => (
-                  <div key={slide.id} data-swapy-slot={slide.id}>
+                {orderedSlides?.map((slide, index) => (
+                  <div key={slide.id} data-swapy-slot={index}>
                     <div
                       className="shrink-0 flex flex-col space-y-4 items-center h-full"
                       data-swapy-item={slide.id}

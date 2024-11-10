@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "tar": "tar cvfz excali.tar.gz -C dist/ --exclude editor/excalidraw-assets-dev ."
+    "clean:archive": "rm excali.tar.gz excali.zip",
+    "tar": "tar cvfz excali.tar.gz -C dist/ --exclude editor/excalidraw-assets-dev .",
+    "zip": "cd dist && zip -r ../excali.zip . -x 'editor/excalidraw-assets-dev/*'"
   },
   "dependencies": {
     "clsx": "^2.1.1",
