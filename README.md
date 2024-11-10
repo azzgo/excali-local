@@ -4,6 +4,8 @@
 
 Excali Local is a local extension for [Excalidraw](https://excalidraw.com/), it provides a offline editor for Excalidraw and add presentation mode for Excalidraw.
 
+Chrome Extension Address: [Excali Local](https://chromewebstore.google.com/detail/excali-local/ebmgbhnihcbgpbcjnjeamnkkplnppddd)
+
 ## Features
 
 ### Presentation mode
