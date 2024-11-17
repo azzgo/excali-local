@@ -1,4 +1,4 @@
-import { useAtom, useAtomValue } from "jotai";
+import { useAtomValue } from "jotai";
 import {
   orderedSlidesAtom,
   showSlideQuickNavAtom,
@@ -10,37 +10,20 @@ import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/types";
 import { Button } from "@/components/ui/button";
 import { IconChevronDown } from "@tabler/icons-react";
 import { useSlide } from "../hooks/use-slide";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { createSwapy } from "swapy";
-import { Transition } from "@headlessui/react";
 
 interface SlideQuickNavbarProps {
+  close: () => void;
   excalidrawApi: ExcalidrawImperativeAPI | null;
 }
 
-const SlideNavbar = ({ excalidrawApi }: SlideQuickNavbarProps) => {
+const SlideNavbar = ({ close, excalidrawApi }: SlideQuickNavbarProps) => {
   const isSwapping = useRef(false);
   const domEl = useRef<HTMLDivElement | null>(null);
-  const [showSlideQuickNav, updateShowSlideQuickNav] = useAtom(
-    showSlideQuickNavAtom
-  );
-  const [showing, updateShowing] = useState(showSlideQuickNav);
-  const transitioning = useRef(false);
+  const showSlideQuickNav = useAtomValue(showSlideQuickNavAtom);
   const orderedSlides = useAtomValue(orderedSlidesAtom);
   const { scrollToSlide } = useSlide(excalidrawApi);
-
-  useEffect(() => {
-    if (transitioning.current) {
-      return;
-    }
-    if (!showing && showSlideQuickNav) {
-      updateShowing(true);
-    }
-
-    if (showing && !showSlideQuickNav) {
-      updateShowing(false);
-    }
-  }, [showSlideQuickNav, showing]);
 
   useEffect(() => {
     if (showSlideQuickNav && domEl.current) {
@@ -77,63 +60,42 @@ const SlideNavbar = ({ excalidrawApi }: SlideQuickNavbarProps) => {
 
   return (
     <div ref={domEl}>
-      <Transition
-        show={showing}
-        enter="transition-transform duration-300"
-        enterFrom="transform translate-y-full"
-        enterTo="transform translate-y-0"
-        leave="transition-transform duration-300"
-        leaveFrom="transform translate-y-0"
-        leaveTo="transform translate-y-full"
-        beforeEnter={() => transitioning.current = true}
-        afterEnter={() => transitioning.current = false}
-        beforeLeave={() => transitioning.current = true}
-        afterLeave={() => {
-          transitioning.current = false
-          updateShowSlideQuickNav(false)
-        }}
-      >
-        <div className="flex h-80 z-20 relative border-t pt-4">
-          <div className="absolute w-fit top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-8 z-10">
-            <Button
-              variant="outline"
-              className="rounded-full"
-              onClick={() => updateShowing(false)}
-            >
-              <IconChevronDown className="size-4" />
-            </Button>
-          </div>
-          <div className="h-full overflow-x-auto overflow-y-hidden">
-            <ScrollArea className="h-full slide-navbar">
-              <div className="w-max h-full space-x-8 p-4 flex">
-                {orderedSlides?.map((slide, index) => (
-                  <div key={slide.id} data-swapy-slot={index}>
-                    <div
-                      className="shrink-0 flex flex-col space-y-4 items-center h-full"
-                      data-swapy-item={slide.id}
-                    >
-                      <div
-                        className="cursor-pointer p-4 border rounded-sm bg-gray-50 hover:opacity-75"
-                        onClick={() =>
-                          !isSwapping.current && scrollToSlide({ id: slide.id })
-                        }
-                      >
-                        <img
-                          draggable={false}
-                          src={slide.thumbnail}
-                          className="max-h-48 object-cover aspect-video"
-                        />
-                      </div>
-                      <div className="text-sm">{slide.name}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
-          </div>
+      <div className="mt-4 flex h-full z-20 relative border-t pt-4">
+        <div className="absolute w-fit top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-8 z-10">
+          <Button variant="outline" className="rounded-full" onClick={close}>
+            <IconChevronDown className="size-4" />
+          </Button>
         </div>
-      </Transition>
+        <div className="h-full overflow-x-auto overflow-y-hidden">
+          <ScrollArea className="h-full slide-navbar">
+            <div className="w-max h-full space-x-8 p-4 flex">
+              {orderedSlides?.map((slide, index) => (
+                <div key={slide.id} data-swapy-slot={index}>
+                  <div
+                    className="shrink-0 flex flex-col space-y-4 items-center h-full"
+                    data-swapy-item={slide.id}
+                  >
+                    <div
+                      className="cursor-pointer p-4 border rounded-sm bg-gray-50 hover:opacity-75"
+                      onClick={() =>
+                        !isSwapping.current && scrollToSlide({ id: slide.id })
+                      }
+                    >
+                      <img
+                        draggable={false}
+                        src={slide.thumbnail}
+                        className="max-h-48 object-cover aspect-video"
+                      />
+                    </div>
+                    <div className="text-sm">{slide.name}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        </div>
+      </div>
     </div>
   );
 };
