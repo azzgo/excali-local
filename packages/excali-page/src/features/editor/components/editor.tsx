@@ -85,7 +85,7 @@ const Editor = () => {
   }, []);
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full max-h-svh overflow-hidden flex flex-col">
       <div className="flex-1">
         {!isLoaded && (
           <div className="h-full w-full flex items-center justify-center">
