@@ -10,8 +10,9 @@ import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/types";
 import { Button } from "@/components/ui/button";
 import { IconChevronDown } from "@tabler/icons-react";
 import { useSlide } from "../hooks/use-slide";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createSwapy } from "swapy";
+import { Transition } from "@headlessui/react";
 
 interface SlideQuickNavbarProps {
   excalidrawApi: ExcalidrawImperativeAPI | null;
@@ -23,8 +24,23 @@ const SlideNavbar = ({ excalidrawApi }: SlideQuickNavbarProps) => {
   const [showSlideQuickNav, updateShowSlideQuickNav] = useAtom(
     showSlideQuickNavAtom
   );
+  const [showing, updateShowing] = useState(showSlideQuickNav);
+  const transitioning = useRef(false);
   const orderedSlides = useAtomValue(orderedSlidesAtom);
   const { scrollToSlide } = useSlide(excalidrawApi);
+
+  useEffect(() => {
+    if (transitioning.current) {
+      return;
+    }
+    if (!showing && showSlideQuickNav) {
+      updateShowing(true);
+    }
+
+    if (showing && !showSlideQuickNav) {
+      updateShowing(false);
+    }
+  }, [showSlideQuickNav, showing]);
 
   useEffect(() => {
     if (showSlideQuickNav && domEl.current) {
@@ -61,13 +77,28 @@ const SlideNavbar = ({ excalidrawApi }: SlideQuickNavbarProps) => {
 
   return (
     <div ref={domEl}>
-      {showSlideQuickNav && (
+      <Transition
+        show={showing}
+        enter="transition-transform duration-300"
+        enterFrom="transform translate-y-full"
+        enterTo="transform translate-y-0"
+        leave="transition-transform duration-300"
+        leaveFrom="transform translate-y-0"
+        leaveTo="transform translate-y-full"
+        beforeEnter={() => transitioning.current = true}
+        afterEnter={() => transitioning.current = false}
+        beforeLeave={() => transitioning.current = true}
+        afterLeave={() => {
+          transitioning.current = false
+          updateShowSlideQuickNav(false)
+        }}
+      >
         <div className="flex h-80 z-20 relative border-t pt-4">
           <div className="absolute w-fit top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-8 z-10">
             <Button
               variant="outline"
               className="rounded-full"
-              onClick={() => updateShowSlideQuickNav(false)}
+              onClick={() => updateShowing(false)}
             >
               <IconChevronDown className="size-4" />
             </Button>
@@ -102,7 +133,7 @@ const SlideNavbar = ({ excalidrawApi }: SlideQuickNavbarProps) => {
             </ScrollArea>
           </div>
         </div>
-      )}
+      </Transition>
     </div>
   );
 };
