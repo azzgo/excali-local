@@ -58,9 +58,13 @@ const SlideNavbar = ({ close, excalidrawApi }: SlideQuickNavbarProps) => {
     }
   }, [showSlideQuickNav]);
 
+  useEffect(() => {
+    orderedSlides.length === 0 && close();
+  }, [orderedSlides]);
+
   return (
     <div ref={domEl}>
-      <div className="h-80 mt-4 flex h-full z-20 relative border-t pt-4">
+      <div className="h-80 mt-4 flex z-20 relative border-t pt-4">
         <div className="absolute w-fit top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-8 z-10">
           <Button variant="outline" className="rounded-full" onClick={close}>
             <IconChevronDown className="size-4" />

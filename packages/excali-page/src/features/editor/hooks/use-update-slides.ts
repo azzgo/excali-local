@@ -36,7 +36,7 @@ export const useUpdateSlides = () => {
   );
 
   const debouncedUpdateSlides = useMemo(() => {
-    return debounce({ delay: 500 }, updateSlides);
+    return debounce({ delay: 300 }, updateSlides);
   }, [updateSlides]);
 
   return debouncedUpdateSlides;
