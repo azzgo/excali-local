@@ -4,7 +4,7 @@ import {
   ExcalidrawImperativeAPI,
   LibraryItems,
 } from "@excalidraw/excalidraw/types/types";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { lazy } from "react";
 import {
   KeyForAppState,
@@ -25,7 +25,6 @@ import SlideNavbar from "./slide-navbar";
 import { useUpdateSlides } from "../hooks/use-update-slides";
 import { cn } from "@/lib/utils";
 import { showSlideQuickNavAtom } from "../store/presentation";
-import { Transition } from "@headlessui/react";
 import { useAtom } from "jotai";
 
 const Excalidraw = lazy(() =>
@@ -42,21 +41,6 @@ const Editor = () => {
   const [showSlideQuickNav, updateShowSlideQuickNav] = useAtom(
     showSlideQuickNavAtom
   );
-  const [showing, updateShowing] = useState(showSlideQuickNav);
-  const transitioning = useRef(false);
-
-  useEffect(() => {
-    if (transitioning.current) {
-      return;
-    }
-    if (!showing && showSlideQuickNav) {
-      updateShowing(true);
-    }
-
-    if (showing && !showSlideQuickNav) {
-      updateShowing(false);
-    }
-  }, [showSlideQuickNav, showing]);
 
   useEffect(() => {
     if (data != null) {
@@ -107,14 +91,7 @@ const Editor = () => {
 
   return (
     <div className="h-full max-h-svh overflow-hidden flex flex-col">
-      <div
-        data-state={showing ? "open" : "close"}
-        className={cn(
-          "transition-[height] duration-150 ease-in-out",
-          "data-[state=open]:h-[calc(100vh-320px)]",
-          "data-[state=close]:h-[100vh]"
-        )}
-      >
+      <div className="flex-1">
         {!isLoaded && (
           <div className="h-full w-full flex items-center justify-center">
             <IconLoader2 className="animate-spin" />
@@ -137,27 +114,12 @@ const Editor = () => {
           </Excalidraw>
         )}
       </div>
-      <Transition
-        show={showing}
-        enterFrom="h-0"
-        enterTo="h-80"
-        leaveFrom="h-80"
-        leaveTo="h-0"
-        beforeEnter={() => (transitioning.current = true)}
-        afterEnter={() => (transitioning.current = false)}
-        beforeLeave={() => (transitioning.current = true)}
-        afterLeave={() => {
-          transitioning.current = false;
-          updateShowSlideQuickNav(false);
-        }}
-      >
-        <div className="overflow-hidden transition-[height] duration-150 ease-in-out">
-          <SlideNavbar
-            excalidrawApi={excalidrawAPI}
-            close={() => updateShowing(false)}
-          />
-        </div>
-      </Transition>
+      <div className={cn(!showSlideQuickNav && "hidden")}>
+        <SlideNavbar
+          excalidrawApi={excalidrawAPI}
+          close={() => updateShowSlideQuickNav(false)}
+        />
+      </div>
     </div>
   );
 };
