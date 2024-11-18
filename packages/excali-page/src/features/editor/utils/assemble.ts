@@ -37,6 +37,10 @@ export const assembleSlides = (
       const shouldUpdate = cachedSymbolKey.updatedKey !== updatedKey;
       let thumbnail;
       if (shouldUpdate) {
+        const oldTHumbnail = cachedThumbnail.get(cachedSymbolKey);
+        if (oldTHumbnail) {
+          URL.revokeObjectURL(oldTHumbnail);
+        }
         cachedSymbolKey.updatedKey = updatedKey;
         const blob = await exportToBlob({
           elements: snapElement,
