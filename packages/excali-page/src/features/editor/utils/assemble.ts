@@ -6,8 +6,18 @@ import { isFrame } from "./filters";
 import { exportToBlob } from "@excalidraw/excalidraw";
 import { BinaryFiles } from "@excalidraw/excalidraw/types/types";
 
-const cachedThumbnail = new Map<string, string>();
+type FrameId = string;
+type FrameCacheKey = {
+  updatedKey?: string;
+};
 
+const cachedFrameMap = new Map<FrameId, FrameCacheKey>();
+const cachedThumbnail = new WeakMap<FrameCacheKey, string>();
+
+const generateThumbnailKey = (frameId: FrameId, elements: readonly ExcalidrawElement[]) => {
+  const elementPosStr = elements.map((el) => `${el.x}${el.y}`).join(",");
+  return `${frameId}-${elementPosStr}`;
+}
 export const assembleSlides = (
   elements: readonly ExcalidrawElement[],
   files: BinaryFiles
@@ -16,18 +26,29 @@ export const assembleSlides = (
 
   return Promise.all(
     frames.map(async (frame, index) => {
-      let thumbnail = cachedThumbnail.get(frame.id);
+      const hasCached = cachedFrameMap.has(frame.id);
+      if (!hasCached) {
+        cachedFrameMap.set(frame.id, {});
+      }
+      const cachedSymbolKey = cachedFrameMap.get(frame.id)!;
+      let snapElement = elements.filter((el) => el.frameId === frame.id);
 
-      if (!thumbnail) {
+      const updatedKey = generateThumbnailKey(frame.id, snapElement);
+      const shouldUpdate = cachedSymbolKey.updatedKey !== updatedKey;
+      let thumbnail;
+      if (shouldUpdate) {
+        cachedSymbolKey.updatedKey = updatedKey;
         const blob = await exportToBlob({
-          elements: elements.filter((el) => el.frameId === frame.id),
+          elements: snapElement,
           appState: {
             viewBackgroundColor: "transparent",
           },
           files,
         });
         thumbnail = URL.createObjectURL(blob);
-        cachedThumbnail.set(frame.id, thumbnail);
+        cachedThumbnail.set(cachedSymbolKey, thumbnail);
+      } else {
+        thumbnail = cachedThumbnail.get(cachedSymbolKey);
       }
 
       return {
