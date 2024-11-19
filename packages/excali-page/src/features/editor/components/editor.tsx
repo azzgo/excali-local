@@ -20,7 +20,7 @@ import { useLoadInitData } from "../hooks/use-load-initdata";
 import { IconLoader2 } from "@tabler/icons-react";
 import SlideNavigation from "./slide-navigation";
 import SlideToolbar from "./slide-toolbar";
-import { Footer } from "@excalidraw/excalidraw";
+import { Footer, WelcomeScreen } from "@excalidraw/excalidraw";
 import SlideNavbar from "./slide-navbar";
 import { useUpdateSlides } from "../hooks/use-update-slides";
 import { cn } from "@/lib/utils";
@@ -100,6 +100,7 @@ const Editor = () => {
         {data && isLoaded && (
           <Excalidraw
             autoFocus
+            langCode={navigator.language}
             initialData={data}
             excalidrawAPI={(api) => updateExcalidrawAPI(api)}
             onChange={debouncedHandleSave}
@@ -108,6 +109,7 @@ const Editor = () => {
               <SlideToolbar excalidrawApi={excalidrawAPI} />
             )}
           >
+            <WelcomeScreen />
             <Footer>
               <SlideNavigation excalidrawApi={excalidrawAPI} />
             </Footer>
