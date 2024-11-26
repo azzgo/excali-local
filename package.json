@@ -15,7 +15,5 @@
     "packages/*"
   ],
   "dependencies": {
-    "@tabler/icons-react": "^3.21.0",
-    "jotai": "^2.10.1"
   }
 }

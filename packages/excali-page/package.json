@@ -27,6 +27,8 @@
     "sonner": "^1.5.0",
     "swapy": "^0.4.2",
     "tailwind-merge": "^2.5.4",
+    "@tabler/icons-react": "^3.21.0",
+    "jotai": "^2.10.1",
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
