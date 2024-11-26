@@ -5,7 +5,6 @@ import {
   LibraryItems,
 } from "@excalidraw/excalidraw/types/types";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { lazy } from "react";
 import {
   KeyForAppState,
   KeyForElements,
@@ -26,12 +25,8 @@ import { useUpdateSlides } from "../hooks/use-update-slides";
 import { cn } from "@/lib/utils";
 import { showSlideQuickNavAtom } from "../store/presentation";
 import { useAtom } from "jotai";
+import Excalidraw from "../lib/excalidraw";
 
-const Excalidraw = lazy(() =>
-  import("@excalidraw/excalidraw").then((module) => ({
-    default: module.Excalidraw,
-  }))
-);
 const LocalEditor = () => {
   const { isLoaded, data } = useLoadInitData();
   const [excalidrawAPI, setExcalidrawAPI] =

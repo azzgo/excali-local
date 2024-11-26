@@ -19,13 +19,38 @@ import { omit } from "radash";
 import { useSetAtom } from "jotai";
 import { slideIdOrderListAtom } from "../store/presentation";
 
-export const useLoadInitData = () => {
+interface UseLoadInitDataProps {
+  onlyLibrary?: boolean;
+}
+
+export const useLoadInitData = ({
+  onlyLibrary = false,
+}: UseLoadInitDataProps = {}) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [data, updateData] = useState<ExcalidrawInitialDataState | null>(null);
   const updateSlideIdOrderList = useSetAtom(slideIdOrderListAtom);
 
   useEffect(() => {
     if (isLoaded) {
+      return;
+    }
+    const savedLibraryItems = getLocalStorageAsync<LibraryItems>(
+      KeyForLibraryItems,
+      []
+    );
+
+    if (onlyLibrary) {
+      Promise.all([savedLibraryItems]).then(
+        ([savedLibraryItems]) => {
+          updateData({
+            elements: [],
+            appState: {},
+            files: {},
+            libraryItems: savedLibraryItems,
+          });
+          setIsLoaded(true);
+        }
+      );
       return;
     }
 
@@ -37,8 +62,8 @@ export const useLoadInitData = () => {
       KeyForAppState,
       {} as any
     );
-
     const savedSlideIdListStream = getLocalStorageAsync(KeyForSlideIdList, []);
+
     const filesStream = getFiles();
     Promise.all([
       savedElementsStream,
@@ -46,10 +71,6 @@ export const useLoadInitData = () => {
       filesStream,
       savedSlideIdListStream,
     ]).then(([savedElements, savedState, fileDatas, slideIdList]) => {
-      const savedLibraryItems = getLocalStorageAsync<LibraryItems>(
-        KeyForLibraryItems,
-        []
-      );
       const files = fileDatas.reduce((binaryFiles, file) => {
         binaryFiles[file.id] = file.content;
         return binaryFiles;
