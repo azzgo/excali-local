@@ -59,3 +59,7 @@ To run the command to archive the local extension build assets, run command:
 bun run local:tar
 ```
 
+## Roadmap
+
+- [ ] Add screenshot feature
+
