@@ -6,8 +6,10 @@ import {
 } from "@tabler/icons-react";
 import IconHeader from "./IconHeader";
 import Item from "./item";
+import { useMessage } from "./hooks/useMessage";
 
 function App() {
+  const { openLocalEditor, captureVisibleTab } = useMessage();
   return (
     <section className="w-80">
       <h4 className="font-medium text-2xl border-b p-2 w-full mb-2">Excal</h4>
@@ -17,7 +19,7 @@ function App() {
           <Item
             icon={IconBrowser}
             label="Visible"
-            onClick={() => console.log("Take Screenshot")}
+            onClick={() => captureVisibleTab()}
           />
           <Item
             icon={IconCrop}
@@ -29,7 +31,9 @@ function App() {
       <div>
         <IconHeader icon={IconTools} label="Local Editor" />
         <div className="p-2">
-          <button className="w-full">Open Editor</button>
+          <button className="w-full" onClick={() => openLocalEditor()}>
+            Open Editor
+          </button>
         </div>
       </div>
     </section>
