@@ -9,7 +9,8 @@ import Item from "./item";
 import { useMessage } from "./hooks/useMessage";
 
 function App() {
-  const { openLocalEditor, captureVisibleTab } = useMessage();
+  const { openLocalEditor, captureVisibleTab, captureSelectArea } =
+    useMessage();
   return (
     <section className="w-80">
       <h4 className="font-medium text-2xl border-b p-2 w-full mb-2">Excal</h4>
@@ -24,7 +25,7 @@ function App() {
           <Item
             icon={IconCrop}
             label="Crop"
-            onClick={() => console.log("Open Editor")}
+            onClick={() => captureSelectArea()}
           />
         </div>
       </div>

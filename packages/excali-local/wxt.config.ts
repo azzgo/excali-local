@@ -21,7 +21,7 @@ export default defineConfig({
       "48": "excali.png",
       "128": "excali@128px.png",
     },
-    permissions: ['activeTab'],
+    permissions: ['activeTab', 'scripting'],
   },
   modules: ["@wxt-dev/module-react"],
   alias: {

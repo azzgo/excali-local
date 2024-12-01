@@ -7,8 +7,13 @@ export function useMessage() {
     chrome?.runtime.sendMessage({ type: "CAPTURE_VISIBLE_TAB" });
     window.close();
   };
+  const captureSelectArea = () => {
+    chrome?.runtime.sendMessage({ type: "CAPTURE_SELECT_AREA" });
+    window.close();
+  }
   return {
     openLocalEditor,
     captureVisibleTab,
+    captureSelectArea,
   };
 }

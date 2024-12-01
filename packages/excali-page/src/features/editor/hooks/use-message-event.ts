@@ -19,12 +19,10 @@ export function useMessageEvent({ excalidrawAPI }: useMessageEventProps) {
       switch (message.type) {
         case "CAPTURE_VISIBLE_TAB":
           const { dataUrl } = message;
-          console.log("[DEBUG] ", 'get dataUrl', dataUrl);
           if (!dataUrl) {
             return;
           }
           getSizeOfDataImage(dataUrl).then(({ width, height, mimeType }) => {
-            console.log("[DEBUG] get image info", { width, height, mimeType });
             updateCanvasWithScreenshot(
               excalidrawAPI,
               mimeType,
@@ -65,7 +63,7 @@ function getSizeOfDataImage(dataUrl: string) {
   return promise;
 }
 
-function updateCanvasWithScreenshot(
+async function updateCanvasWithScreenshot(
   excalidrawAPI: ExcalidrawImperativeAPI | null,
   mimeType: string,
   imageBase64: string,
@@ -93,7 +91,6 @@ function updateCanvasWithScreenshot(
       height: height,
     },
   ]);
-  console.log("[DEBUG] ", imageElements, excalidrawAPI);
   excalidrawAPI?.updateScene({
     elements: imageElements,
   });
