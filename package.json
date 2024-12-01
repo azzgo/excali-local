@@ -1,7 +1,7 @@
 {
   "name": "excali",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.3-0",
   "scripts": {
     "page:dev": "bun --filter ./packages/excali-page dev",
     "page:build": "BUILD_FOR_EXTENSION=1 bun --filter ./packages/excali-page build",
@@ -14,6 +14,5 @@
   "workspaces": [
     "packages/*"
   ],
-  "dependencies": {
-  }
+  "dependencies": {}
 }
