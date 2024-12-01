@@ -18,7 +18,7 @@ const openEditorWithImageUrl = (imageUrl: string, area?: Area) => {
       ready = Promise.withResolvers();
       ready.promise.then(() => {
         chrome.tabs.sendMessage(tab.id!, {
-          type: "CAPTURE_VISIBLE_TAB",
+          type: "UPDATE_CANVAS_WITH_SCREENSHOT",
           dataUrl: imageUrl,
           area,
         });
