@@ -8,11 +8,11 @@ interface ItemProps {
 const Item: React.FC<ItemProps> = ({ icon: IconComp, label, onClick }) => {
   return (
     <div
-      className="flex-1 flex flex-col items-center gap-2 p-2 border cursor-pointer hover:bg-gray-100 rounded-md"
+      className="flex flex-col items-center gap-2 p-4 bg-gray-100 border border-gray-300 cursor-pointer hover:bg-gray-200 transition rounded shadow-sm"
       onClick={onClick}
     >
       <IconComp />
-      <span className="text-sm text-muted">{label}</span>
+      <span className="text-sm text-gray-600">{label}</span>
     </div>
   );
 };
