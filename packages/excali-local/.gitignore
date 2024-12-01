@@ -27,3 +27,5 @@ web-ext.config.ts
 
 # generated files
 public/editor
+excali.tar.gz
+excali.zip

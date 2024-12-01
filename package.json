@@ -8,8 +8,7 @@
     "local:dev": "bun --filter ./packages/excali-local dev",
     "local:build": "bun --filter ./packages/excali-local build",
     "local:clean:archive": "bun --filter ./packages/excali-local clean:archive",
-    "local:tar": "bun --filter ./packages/excali-local tar",
-    "local:zip": "bun --filter ./packages/excali-local zip"
+    "local:tar": "bun --filter ./packages/excali-local tar"
   },
   "workspaces": [
     "packages/*"

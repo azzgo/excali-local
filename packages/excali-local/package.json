@@ -12,6 +12,8 @@
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
+    "clean:archive": "rm -f excali.tar.gz",
+    "tar": "tar cvfz excali.tar.gz -C .output/chrome-mv3 --exclude editor/excalidraw-assets-dev .",
     "postinstall": "wxt prepare"
   },
   "dependencies": {
