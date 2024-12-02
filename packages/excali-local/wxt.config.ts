@@ -20,6 +20,20 @@ export default defineConfig({
       "48": "excali.png",
       "128": "excali@128px.png",
     },
+    commands: {
+      "capture-visible-tab": {
+        suggested_key: {
+          default: "Alt+A",
+        },
+        description: "Capture visible tab",
+      },
+      "capture-select-area": {
+        suggested_key: {
+          default: "Alt+S",
+        },
+        description: "Capture select area",
+      },
+    },
     permissions: ['activeTab', 'scripting'],
   },
   modules: ["@wxt-dev/module-react"],

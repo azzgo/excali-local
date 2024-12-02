@@ -41,6 +41,13 @@ const captureSelectArea = (message: any) => {
     .then((dataUrl) => openEditorWithImageUrl(dataUrl, area));
 };
 
+function runAreaCaptureScript(tabId: number) {
+  return chrome.scripting.executeScript({
+    target: { tabId },
+    files: ["crop.js"],
+  });
+}
+
 chrome.runtime.onMessage.addListener((message, _, sendMessage) => {
   chrome.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
     const activeTab = tabs[0];
@@ -55,19 +62,21 @@ chrome.runtime.onMessage.addListener((message, _, sendMessage) => {
         return;
       case "CAPTURE_SELECT_AREA":
         if (!activeTab.id) {
-          sendMessage({ type: "CAPTURE_SELECT_AREA_ERROR", error: "No active tab" });
+          sendMessage({
+            type: "CAPTURE_SELECT_AREA_ERROR",
+            error: "No active tab",
+          });
           return;
         }
-        chrome.scripting
-          .executeScript({
-            target: { tabId: activeTab.id! },
-            files: ["crop.js"],
-          } )
+        runAreaCaptureScript(activeTab.id!)
           .then(() => {
             sendMessage(true);
           })
           .catch((e) => {
-            sendMessage({ type: "CAPTURE_SELECT_AREA_ERROR", error: e.message });
+            sendMessage({
+              type: "CAPTURE_SELECT_AREA_ERROR",
+              error: e.message,
+            });
           });
         return;
       case "CAPTURE_SELECT_AREA_END":
@@ -83,4 +92,22 @@ chrome.runtime.onMessage.addListener((message, _, sendMessage) => {
   return true;
 });
 
-export default defineBackground(() => {});
+export default defineBackground(() => {
+  chrome.commands.onCommand.addListener((command) => {
+    switch (command) {
+      case "capture-visible-tab":
+        captureVisibleTab();
+        return;
+      case "capture-select-area":
+        chrome.tabs
+          .query({ active: true, currentWindow: true })
+          .then((tabs) => {
+            const activeTab = tabs[0];
+            if (activeTab.id) {
+              runAreaCaptureScript(activeTab.id);
+            }
+          });
+        return;
+    }
+  });
+});

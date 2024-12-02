@@ -63,7 +63,7 @@ bun run local:tar
 
 - [x] Add presentation mode
 - [x] Add screenshot feature
-- [ ] Add Keymap support for screenshot feature
+- [x] Add Keymap support for screenshot feature
 - [ ] Add option page to customize
 - [ ] Add i18n support
 

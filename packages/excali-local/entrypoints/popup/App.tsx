@@ -8,6 +8,7 @@ import {
 import IconHeader from "./IconHeader";
 import Item from "./item";
 import { useMessage } from "./hooks/useMessage";
+import { useCommandList } from "./hooks/useCommandList";
 
 function App() {
   const {
@@ -17,6 +18,8 @@ function App() {
     errorMessage,
     closeErrorMessage,
   } = useMessage();
+  const commands = useCommandList();
+
   return (
     <section className="w-80 p-4">
       <h4 className="font-medium text-2xl border-b border-b-gray-300 p-2 w-full mb-2">
@@ -37,11 +40,15 @@ function App() {
           <Item
             icon={IconBrowser}
             label="Visible"
+            hoverTitle={`[${commands["capture-visible-tab"]}] Capture visible tab`}
+            ariaKeyshortcuts={commands["capture-visible-tab"]}
             onClick={() => captureVisibleTab()}
           />
           <Item
             icon={IconCrop}
             label="Crop"
+            hoverTitle={`[${commands["capture-select-area"]}] Capture select area`}
+            ariaKeyshortcuts={commands["capture-select-area"]}
             onClick={() => captureSelectArea()}
           />
         </div>
