@@ -3,6 +3,7 @@ import { nanoid } from "nanoid";
 import { FileId } from "@excalidraw/excalidraw/types/element/types";
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import { useEffect } from "react";
+import { PromsieWithResolve } from "../utils/promise";
 
 interface useMessageEventProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
@@ -55,7 +56,7 @@ type Area = {
 
 function getSizeOfDataImage(dataUrl: string, area?: Area) {
   const mimeType = dataUrl.split(",")[0].split(":")[1].split(";")[0];
-  const { promise, resolve } = Promise.withResolvers<{
+  const { promise, resolve } = PromsieWithResolve<{
     width: number;
     height: number;
     mimeType: string;

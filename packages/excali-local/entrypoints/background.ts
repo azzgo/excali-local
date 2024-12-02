@@ -1,8 +1,10 @@
+import { PromsieWithResolver, WithResolvers } from "./lib/utils";
+
 const openLocalEditor = () => {
   chrome.tabs.create({ url: "editor/index.html?type=local" });
 };
 
-let ready: ReturnType<typeof Promise.withResolvers>;
+let ready: WithResolvers<void>;
 
 type Area = {
   x: number;
@@ -15,7 +17,7 @@ const openEditorWithImageUrl = (imageUrl: string, area?: Area) => {
   chrome.tabs
     .create({ url: "editor/index.html?type=quick-marker" })
     .then((tab) => {
-      ready = Promise.withResolvers();
+      ready = PromsieWithResolver();
       ready.promise.then(() => {
         chrome.tabs.sendMessage(tab.id!, {
           type: "UPDATE_CANVAS_WITH_SCREENSHOT",

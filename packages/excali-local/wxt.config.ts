@@ -1,5 +1,4 @@
 import { defineConfig } from "wxt";
-import * as path from "path";
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
@@ -24,7 +23,5 @@ export default defineConfig({
     permissions: ['activeTab', 'scripting'],
   },
   modules: ["@wxt-dev/module-react"],
-  alias: {
-    "@": path.resolve(__dirname, "entrypoints"),
-  },
 });
+
