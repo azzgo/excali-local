@@ -61,5 +61,9 @@ bun run local:tar
 
 ## Roadmap
 
-- [ ] Add screenshot feature
+- [x] Add presentation mode
+- [x] Add screenshot feature
+- [ ] Add Keymap support for screenshot feature
+- [ ] Add option page to customize
+- [ ] Add i18n support
 
