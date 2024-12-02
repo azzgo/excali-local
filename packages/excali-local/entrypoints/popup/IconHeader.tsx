@@ -8,7 +8,7 @@ const IconHeader = ({ icon: IconComp, label }: IconHeaderProps) => {
   return (
     <div className="flex flex-row items-center p-2 w-fit border-b border-gray-200">
       <IconComp className="mr-4 size-6" />
-      <p class="font-medium text-lg">{label}</p>
+      <p className="font-medium text-lg">{label}</p>
     </div>
   );
 };

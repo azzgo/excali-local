@@ -41,30 +41,46 @@ const captureSelectArea = (message: any) => {
     .then((dataUrl) => openEditorWithImageUrl(dataUrl, area));
 };
 
-chrome.runtime.onMessage.addListener((message) => {
+chrome.runtime.onMessage.addListener((message, _, sendMessage) => {
   chrome.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
     const activeTab = tabs[0];
     switch (message.type) {
       case "OPEN_LOCAL_EDITOR":
         openLocalEditor();
-        break;
+        sendMessage(true);
+        return;
       case "CAPTURE_VISIBLE_TAB":
         captureVisibleTab();
-        break;
+        sendMessage(true);
+        return;
       case "CAPTURE_SELECT_AREA":
-        chrome.scripting.executeScript({
-          target: { tabId: activeTab.id! },
-          files: ["crop.js"],
-        });
-        break;
+        if (!activeTab.id) {
+          sendMessage({ type: "CAPTURE_SELECT_AREA_ERROR", error: "No active tab" });
+          return;
+        }
+        chrome.scripting
+          .executeScript({
+            target: { tabId: activeTab.id! },
+            files: ["crop.js"],
+          } )
+          .then(() => {
+            sendMessage(true);
+          })
+          .catch((e) => {
+            sendMessage({ type: "CAPTURE_SELECT_AREA_ERROR", error: e.message });
+          });
+        return;
       case "CAPTURE_SELECT_AREA_END":
         captureSelectArea(message);
-        break;
+        sendMessage(true);
+        return;
       case "READY":
         ready?.resolve();
-        break;
+        sendMessage(true);
+        return;
     }
   });
+  return true;
 });
 
 export default defineBackground(() => {});

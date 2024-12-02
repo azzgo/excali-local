@@ -3,19 +3,34 @@ import {
   IconCamera,
   IconCrop,
   IconTools,
+  IconXboxX,
 } from "@tabler/icons-react";
 import IconHeader from "./IconHeader";
 import Item from "./item";
 import { useMessage } from "./hooks/useMessage";
 
 function App() {
-  const { openLocalEditor, captureVisibleTab, captureSelectArea } =
-    useMessage();
+  const {
+    openLocalEditor,
+    captureVisibleTab,
+    captureSelectArea,
+    errorMessage,
+    closeErrorMessage,
+  } = useMessage();
   return (
     <section className="w-80 p-4">
       <h4 className="font-medium text-2xl border-b border-b-gray-300 p-2 w-full mb-2">
         Excal
       </h4>
+      {errorMessage && (
+        <div className="flex flex-row items-center bg-red-500 text-white p-2 rounded">
+          <p className="flex-1">{errorMessage}</p>
+          <IconXboxX
+            className="ml-1 size-4 cursor-pointer"
+            onClick={() => closeErrorMessage()}
+          />
+        </div>
+      )}
       <div>
         <IconHeader icon={IconCamera} label="Screenshot to Mark" />
         <div className="grid grid-cols-2 gap-4 my-4 p-0">
