@@ -22,7 +22,7 @@ function App() {
   const commands = useCommandList();
 
   return (
-    <section className="w-80 p-4">
+    <section className="w-80 px-4">
       <h4 className="font-medium text-2xl border-b border-b-gray-300 p-2 w-full mb-2">
         Excali
       </h4>
