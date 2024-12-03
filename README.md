@@ -8,6 +8,18 @@ Chrome Extension Address: [Excali Local](https://chromewebstore.google.com/detai
 
 ## Features
 
+<img src="./.assets/quick-view.png" title="Quick View" width="800px" />
+
+### Page Screenshot for Quicking mark
+
+#### Capture Visible Tab
+
+![Capture Visible Tab](./.assets/capture-tab.png)
+
+#### Select Area
+
+![Select Area](./.assets/select-area.png)
+
 ### Presentation mode
 
 ![Main Screen](./.assets/main-screen.png)
