@@ -20,6 +20,10 @@ function App() {
     closeErrorMessage,
   } = useMessage();
   const commands = useCommandList();
+  useEffect(() => {
+    // nothing, just make sure background script awake
+    chrome.runtime.sendMessage({ type: "POPUP_MOUNTED" });
+  }, []);
 
   return (
     <section className="w-80 px-4">
