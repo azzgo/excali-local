@@ -19,13 +19,13 @@ function addOverlay() {
   overlay.style.position = "fixed";
   overlay.style.top = "0";
   overlay.style.left = "0";
-  overlay.style.width = "100%";
-  overlay.style.height = "100%";
+  overlay.style.width = window.innerWidth + "px";
+  overlay.style.height = window.innerHeight + "px";
   overlay.style.margin = "0";
   overlay.style.padding = "0";
   overlay.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
-  overlay.style.zIndex = "999999999";
-  overlay.style.pointerEvents = "none";
+  overlay.style.zIndex = Number.MAX_SAFE_INTEGER.toString();
+  overlay.style.cursor = "crosshair";
 
   const selection = document.createElement("div");
   selection.style.position = "absolute";
@@ -37,15 +37,9 @@ function addOverlay() {
   selection.id = selectionId;
   overlay.appendChild(selection);
 
-  document.body.appendChild(overlay);
-  document.body.style.userSelect = "none";
-  // prevent scroll
-  const stopScroll = (event: Event) => {
-    event.preventDefault();
-  };
+  document.documentElement.appendChild(overlay);
 
   return () => {
-    document.body.style.userSelect = "";
     overlay?.remove();
   };
 }
