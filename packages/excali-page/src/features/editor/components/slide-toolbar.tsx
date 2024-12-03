@@ -3,6 +3,7 @@ import { IconPresentation, IconPresentationOff } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { useSlide } from "../hooks/use-slide";
 import Hint from "@/components/hint";
+import { useTranslation } from "react-i18next";
 
 interface SlideToolbarProps {
   excalidrawApi: ExcalidrawImperativeAPI | null;
@@ -10,11 +11,13 @@ interface SlideToolbarProps {
 const SlideToolbar = ({ excalidrawApi }: SlideToolbarProps) => {
   const { presentationMode, slides, handleTogglePresentation } =
     useSlide(excalidrawApi);
+  const [t] = useTranslation();
   return (
-
     <div className="flex gap-x-4">
       <Hint
-        label={presentationMode ? "Exit Presentation" : "Enter Presentation"}
+        label={
+          presentationMode ? t("Exit Presentation") : t("Enter Presentation")
+        }
         align="end"
         sideOffset={8}
       >

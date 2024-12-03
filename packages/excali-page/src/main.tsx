@@ -4,6 +4,9 @@ import "./index.css";
 import Editor from "./features/editor/components/editor";
 import { Toaster } from "sonner";
 import { Provider } from "jotai";
+import { initI18n } from "./locales/locales";
+
+initI18n();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

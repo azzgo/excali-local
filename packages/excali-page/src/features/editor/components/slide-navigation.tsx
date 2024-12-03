@@ -15,6 +15,7 @@ import {
   IconChevronUp,
 } from "@tabler/icons-react";
 import Hint from "@/components/hint";
+import { useTranslation } from "react-i18next";
 interface SlideNavigationProps {
   excalidrawApi: ExcalidrawImperativeAPI | null;
 }
@@ -52,6 +53,7 @@ const SlideNavigation = ({ excalidrawApi }: SlideNavigationProps) => {
   );
 
   useEvent("keydown", slideControlCallback);
+  const [t] = useTranslation();
 
   return (
     <>
@@ -78,7 +80,7 @@ const SlideNavigation = ({ excalidrawApi }: SlideNavigationProps) => {
             onClick={() => toggleShowSlideQuickNav(true)}
           >
             <IconChevronUp className="size-4" />
-            Edit Slides
+            {t("Edit Slides")}
           </Button>
         </div>
       )}

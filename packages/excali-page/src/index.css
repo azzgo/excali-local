@@ -16,9 +16,8 @@ html, body {
   min-width: 300px;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+#root {
+  height: 100%;
 }
 
 @layer base {
@@ -91,3 +90,4 @@ code {
    font-display: swap;
    src: local("Xiaolai SC");
 }
+

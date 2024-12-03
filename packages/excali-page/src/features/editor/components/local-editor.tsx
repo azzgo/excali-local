@@ -27,7 +27,11 @@ import { showSlideQuickNavAtom } from "../store/presentation";
 import { useAtom } from "jotai";
 import Excalidraw from "../lib/excalidraw";
 
-const LocalEditor = () => {
+interface LocalEditorProps {
+  lang: string;
+}
+
+const LocalEditor = ({ lang }: LocalEditorProps) => {
   const { isLoaded, data } = useLoadInitData();
   const [excalidrawAPI, setExcalidrawAPI] =
     useState<ExcalidrawImperativeAPI | null>(null);
@@ -94,7 +98,7 @@ const LocalEditor = () => {
         {data && isLoaded && (
           <Excalidraw
             autoFocus
-            langCode={navigator.language}
+            langCode={lang}
             initialData={data}
             excalidrawAPI={(api) => updateExcalidrawAPI(api)}
             onChange={debouncedHandleSave}

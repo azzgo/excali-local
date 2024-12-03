@@ -5,8 +5,11 @@ import { useCallback, useState } from "react";
 import { useLoadInitData } from "../hooks/use-load-initdata";
 import { IconLoader2 } from "@tabler/icons-react";
 import { useMessageEvent } from "../hooks/use-message-event";
+interface QuickMarkerEditorProps {
+  lang: string;
+}
 
-const QuickMarkerEditor = () => {
+const QuickMarkerEditor = ({ lang }: QuickMarkerEditorProps) => {
   const { isLoaded, data } = useLoadInitData({ onlyLibrary: true });
   const [excalidrawAPI, setExcalidrawAPI] =
     useState<ExcalidrawImperativeAPI | null>(null);
@@ -26,7 +29,7 @@ const QuickMarkerEditor = () => {
       {data && isLoaded && (
         <Excalidraw
           autoFocus
-          langCode={navigator.language}
+          langCode={lang}
           initialData={data}
           excalidrawAPI={(api) => updateExcalidrawAPI(api)}
         >
