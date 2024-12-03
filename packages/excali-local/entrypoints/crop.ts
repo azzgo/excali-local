@@ -91,7 +91,7 @@ function endSelection(event: MouseEvent) {
 
   setTimeout(() => {
     requestAnimationFrame(() => {
-      chrome.runtime.sendMessage({ type: "CAPTURE_SELECT_AREA_END", area });
+      browser.runtime.sendMessage({ type: "CAPTURE_SELECT_AREA_END", area });
     });
   }, 150);
 }

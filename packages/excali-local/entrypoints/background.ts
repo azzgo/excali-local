@@ -1,7 +1,7 @@
 import { PromsieWithResolver, WithResolvers } from "./lib/utils";
 
 const openLocalEditor = () => {
-  chrome.tabs.create({ url: "editor/index.html?type=local" });
+  browser.tabs.create({ url: "editor/index.html?type=local" });
 };
 
 let ready: WithResolvers<void>;
@@ -14,12 +14,12 @@ type Area = {
 };
 
 const openEditorWithImageUrl = (imageUrl: string, area?: Area) => {
-  chrome.tabs
+  browser.tabs
     .create({ url: "editor/index.html?type=quick-marker" })
     .then((tab) => {
       ready = PromsieWithResolver();
       ready.promise.then(() => {
-        chrome.tabs.sendMessage(tab.id!, {
+        browser.tabs.sendMessage(tab.id!, {
           type: "UPDATE_CANVAS_WITH_SCREENSHOT",
           dataUrl: imageUrl,
           area,
@@ -29,27 +29,27 @@ const openEditorWithImageUrl = (imageUrl: string, area?: Area) => {
 };
 
 const captureVisibleTab = () => {
-  chrome.tabs.captureVisibleTab((dataUrl) => {
+  browser.tabs.captureVisibleTab((dataUrl) => {
     openEditorWithImageUrl(dataUrl);
   });
 };
 
 const captureSelectArea = (message: any) => {
   const { area } = message;
-  chrome.tabs
+  browser.tabs
     .captureVisibleTab()
     .then((dataUrl) => openEditorWithImageUrl(dataUrl, area));
 };
 
 function runAreaCaptureScript(tabId: number) {
-  return chrome.scripting.executeScript({
+  return browser.scripting.executeScript({
     target: { tabId },
     files: ["crop.js"],
   });
 }
 
-chrome.runtime.onMessage.addListener((message, _, sendMessage) => {
-  chrome.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
+browser.runtime.onMessage.addListener((message, _, sendMessage) => {
+  browser.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
     const activeTab = tabs[0];
     switch (message.type) {
       case "OPEN_LOCAL_EDITOR":
@@ -93,13 +93,13 @@ chrome.runtime.onMessage.addListener((message, _, sendMessage) => {
 });
 
 export default defineBackground(() => {
-  chrome.commands.onCommand.addListener((command) => {
+  browser.commands.onCommand.addListener((command) => {
     switch (command) {
       case "capture-visible-tab":
         captureVisibleTab();
         return;
       case "capture-select-area":
-        chrome.tabs
+        browser.tabs
           .query({ active: true, currentWindow: true })
           .then((tabs) => {
             const activeTab = tabs[0];

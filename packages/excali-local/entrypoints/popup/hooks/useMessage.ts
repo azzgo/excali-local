@@ -12,7 +12,7 @@ export function useMessage() {
     window.close();
   };
   const captureSelectArea = () => {
-    chrome?.runtime
+    browser?.runtime
       .sendMessage({ type: "CAPTURE_SELECT_AREA" })
       .then((response) => {
         if (response === true) {
