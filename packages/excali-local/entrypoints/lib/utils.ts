@@ -18,3 +18,7 @@ export function PromsieWithResolver<T = any>() {
 
   return withResolves as WithResolvers<T>;
 }
+
+export function t(messageCode: string) {
+  return browser.i18n.getMessage(messageCode as any);
+}

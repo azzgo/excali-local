@@ -9,6 +9,7 @@ import IconHeader from "./IconHeader";
 import Item from "./item";
 import { useMessage } from "./hooks/useMessage";
 import { useCommandList } from "./hooks/useCommandList";
+import { t } from "../lib/utils";
 
 function App() {
   const {
@@ -23,7 +24,7 @@ function App() {
   return (
     <section className="w-80 p-4">
       <h4 className="font-medium text-2xl border-b border-b-gray-300 p-2 w-full mb-2">
-        Excal
+        Excali
       </h4>
       {errorMessage && (
         <div className="flex flex-row items-center bg-red-500 text-white p-2 rounded">
@@ -35,32 +36,36 @@ function App() {
         </div>
       )}
       <div>
-        <IconHeader icon={IconCamera} label="Screenshot to Mark" />
+        <IconHeader icon={IconCamera} label={t("ScreenshotToMark")} />
         <div className="grid grid-cols-2 gap-4 my-4 p-0">
           <Item
             icon={IconBrowser}
-            label="Visible"
-            hoverTitle={`[${commands["capture-visible-tab"]}] Capture visible tab`}
+            label={t("Visible")}
+            hoverTitle={`[${commands["capture-visible-tab"]}] ${t(
+              "CaptureVisibleTab"
+            )}`}
             ariaKeyshortcuts={commands["capture-visible-tab"]}
             onClick={() => captureVisibleTab()}
           />
           <Item
             icon={IconCrop}
-            label="Crop"
-            hoverTitle={`[${commands["capture-select-area"]}] Capture select area`}
+            label={t("Crop")}
+            hoverTitle={`[${commands["capture-select-area"]}] ${t(
+              "CaptureSelectArea"
+            )}`}
             ariaKeyshortcuts={commands["capture-select-area"]}
             onClick={() => captureSelectArea()}
           />
         </div>
       </div>
       <div>
-        <IconHeader icon={IconTools} label="Local Editor" />
+        <IconHeader icon={IconTools} label={t("LocalEditor")} />
         <div className="my-4">
           <button
             className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600"
             onClick={() => openLocalEditor()}
           >
-            Open Editor
+            {t("OpenEditor")}
           </button>
         </div>
       </div>

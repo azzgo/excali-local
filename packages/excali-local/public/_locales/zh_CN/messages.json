@@ -1,0 +1,33 @@
+{
+  "description": {
+    "message": "本地 Excalidraw 编辑器，尽情使用吧！"
+  },
+  "Visible": {
+    "message": "可见区域"
+  },
+  "Crop": {
+    "message": "裁剪"
+  },
+  "OpenEditor": {
+    "message": "打开编辑器"
+  },
+  "ScreenshotToMark": {
+    "message": "截图标记"
+  },
+  "LocalEditor": {
+    "message": "本地 Excalidraw"
+  },
+  "CaptureVisibleTab": {
+    "message": "截取可见标签页"
+  },
+  "CaptureSelectArea": {
+    "message": "截取选择区域"
+  },
+  "NotTheSupportedAddress": {
+    "message": "不支持的页面地址"
+  },
+  "SomethingWentWrong": {
+    "message": "出现错误，请稍后再试。"
+  }
+}
+

@@ -1,3 +1,4 @@
+import {t} from "@/entrypoints/lib/utils";
 import { useState } from "react";
 
 export function useMessage() {
@@ -25,9 +26,9 @@ export function useMessage() {
               "Cannot access a chrome:// URL",
             ].includes(response.error)
           ) {
-            setErrorMessage("Not the Supported Address");
+            setErrorMessage(t('NotTheSupportedAddress'));
           } else {
-            setErrorMessage("Something went wrong. Please try again later.");
+            setErrorMessage(t("Something went wrong. Please try again later."));
           }
           console.error(response.error);
         }

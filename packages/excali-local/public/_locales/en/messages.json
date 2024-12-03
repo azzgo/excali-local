@@ -1,0 +1,32 @@
+{
+  "description": {
+    "message": "Local Excalidraw editor, enjoy drawing!"
+  },
+  "Visible": {
+    "message": "Visible"
+  },
+  "Crop": {
+    "message": "Crop"
+  },
+  "OpenEditor": {
+    "message": "Open Editor"
+  },
+  "ScreenshotToMark": {
+    "message": "Screenshot to Mark"
+  },
+  "LocalEditor": {
+    "message": "Local Excalidraw"
+  },
+  "CaptureVisibleTab": {
+    "message": "Capture visible tab"
+  },
+  "CaptureSelectArea": {
+    "message": "Capture select area"
+  },
+  "NotTheSupportedAddress": {
+    "message": "Not the Supported Address"
+  },
+  "SomethingWentWrong": {
+    "message": "Something went wrong. Please try again later."
+  }
+}
