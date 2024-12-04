@@ -8,7 +8,7 @@ export default defineConfig({
     name: "Excali Local",
     description: "__MSG_description__",
     version: "1.0.5",
-    default_locale: 'en',
+    default_locale: "en",
     background: {
       service_worker: "src/background.ts",
       type: "module",
@@ -36,8 +36,13 @@ export default defineConfig({
         description: "Capture select area",
       },
     },
-    permissions: ['activeTab', 'scripting'],
+    permissions: ["activeTab", "scripting"],
+    browser_specific_settings: {
+      gecko: {
+        id: "ison@excali-local.top",
+        strict_min_version: "91.0",
+      },
+    },
   },
   modules: ["@wxt-dev/module-react"],
 });
-
