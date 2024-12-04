@@ -1,13 +1,11 @@
-import { defineConfig } from "wxt";
+import { ConfigEnv, UserManifest, defineConfig } from "wxt";
 
-// See https://wxt.dev/api/config.html
-export default defineConfig({
-  extensionApi: "chrome",
-  manifest: {
+function genManifest(env: ConfigEnv) {
+  const manifest: UserManifest = {
     manifest_version: 3,
     name: "Excali Local",
     description: "__MSG_description__",
-    version: "1.0.5",
+    version: "1.0.6",
     default_locale: "en",
     background: {
       service_worker: "src/background.ts",
@@ -37,12 +35,21 @@ export default defineConfig({
       },
     },
     permissions: ["activeTab", "scripting"],
-    browser_specific_settings: {
+  };
+
+  if (env.browser === "firefox") {
+    manifest.browser_specific_settings = {
       gecko: {
         id: "ison@excali-local.top",
         strict_min_version: "102.0",
       },
-    },
-  },
+    };
+  }
+  return manifest;
+}
+// See https://wxt.dev/api/config.html
+export default defineConfig({
+  extensionApi: "chrome",
+  manifest: genManifest,
   modules: ["@wxt-dev/module-react"],
 });
