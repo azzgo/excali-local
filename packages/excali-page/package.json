@@ -9,7 +9,6 @@
     "shadcn:add": "bunx --bun shadcn@latest add"
   },
   "dependencies": {
-    "@excalidraw/excalidraw": "^0.17.6",
     "@radix-ui/react-scroll-area": "^1.2.0",
     "@radix-ui/react-slot": "^1.1.0",
     "@radix-ui/react-tooltip": "^1.1.3",

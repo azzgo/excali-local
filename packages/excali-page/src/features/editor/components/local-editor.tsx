@@ -99,6 +99,7 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
           <Excalidraw
             autoFocus
             langCode={lang}
+            aiEnabled={false}
             initialData={data}
             excalidrawAPI={(api) => updateExcalidrawAPI(api)}
             onChange={debouncedHandleSave}

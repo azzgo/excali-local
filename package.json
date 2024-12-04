@@ -16,5 +16,7 @@
   "workspaces": [
     "packages/*"
   ],
-  "dependencies": {}
+  "dependencies": {
+    "@excalidraw/excalidraw": "./excalidraw"
+  }
 }

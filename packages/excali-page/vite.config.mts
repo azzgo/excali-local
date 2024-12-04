@@ -9,6 +9,8 @@ export default defineConfig({
   base: buildForExtension ? "/editor/" : "/",
   define: {
     "process.env.IS_PREACT": JSON.stringify("false"),
+    // remove some code to fit <https://developer.chrome.com/docs/extensions/develop/migrate/remote-hosted-code> requirements
+    "window.DISABLE_EMBEDDED": JSON.stringify("true"),
     "window.EXCALIDRAW_ASSET_PATH": buildForExtension ? JSON.stringify('/editor/') : JSON.stringify("/"),
   },
   server: {

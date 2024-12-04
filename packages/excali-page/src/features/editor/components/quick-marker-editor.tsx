@@ -30,6 +30,7 @@ const QuickMarkerEditor = ({ lang }: QuickMarkerEditorProps) => {
         <Excalidraw
           autoFocus
           langCode={lang}
+          aiEnabled={false}
           initialData={data}
           excalidrawAPI={(api) => updateExcalidrawAPI(api)}
         >
