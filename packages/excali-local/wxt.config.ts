@@ -40,7 +40,7 @@ export default defineConfig({
     browser_specific_settings: {
       gecko: {
         id: "ison@excali-local.top",
-        strict_min_version: "91.0",
+        strict_min_version: "102.0",
       },
     },
   },
