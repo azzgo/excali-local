@@ -22,7 +22,7 @@ function App() {
   const commands = useCommandList();
   useEffect(() => {
     // nothing, just make sure background script awake
-    chrome.runtime.sendMessage({ type: "POPUP_MOUNTED" });
+    browser.runtime.sendMessage({ type: "POPUP_MOUNTED" });
   }, []);
 
   return (

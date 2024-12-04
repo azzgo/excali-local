@@ -6,11 +6,10 @@
   "type": "module",
   "scripts": {
     "dev": "wxt",
-    "dev:firefox": "wxt -b firefox",
     "build": "wxt build",
-    "build:firefox": "wxt build -b firefox",
+    "build:firefox": "wxt build -b firefox --mv3",
     "zip": "wxt zip",
-    "zip:firefox": "wxt zip -b firefox",
+    "zip:firefox": "wxt zip -b firefox --mv3",
     "compile": "tsc --noEmit",
     "clean:archive": "rm -f excali.tar.gz",
     "tar": "tar cvfz excali.tar.gz -C .output/chrome-mv3 --exclude editor/excalidraw-assets-dev .",

@@ -4,11 +4,11 @@ import { useState } from "react";
 export function useMessage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const openLocalEditor = () => {
-    chrome?.runtime.sendMessage({ type: "OPEN_LOCAL_EDITOR" });
+    browser?.runtime.sendMessage({ type: "OPEN_LOCAL_EDITOR" });
     window.close();
   };
   const captureVisibleTab = () => {
-    chrome?.runtime.sendMessage({ type: "CAPTURE_VISIBLE_TAB" });
+    browser?.runtime.sendMessage({ type: "CAPTURE_VISIBLE_TAB" });
     window.close();
   };
   const captureSelectArea = () => {

@@ -9,6 +9,16 @@ interface useMessageEventProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
 }
 
+function getBrowser(): typeof chrome | null {
+  if (typeof (globalThis as any).browser !== "undefined") {
+    return (globalThis as any).browser;
+  }
+  if (typeof chrome !== "undefined") {
+    return chrome;
+  }
+  return null;
+}
+
 export function useMessageEvent({ excalidrawAPI }: useMessageEventProps) {
   useEffect(() => {
     if (!excalidrawAPI) {
@@ -39,10 +49,10 @@ export function useMessageEvent({ excalidrawAPI }: useMessageEventProps) {
           break;
       }
     };
-    chrome?.runtime.onMessage.addListener(lisener);
-    chrome?.runtime.sendMessage({ type: "READY" });
+    getBrowser()?.runtime.onMessage.addListener(lisener);
+    getBrowser()?.runtime.sendMessage({ type: "READY" });
     return () => {
-      chrome?.runtime.onMessage.removeListener(lisener);
+      getBrowser()?.runtime.onMessage.removeListener(lisener);
     };
   }, [excalidrawAPI]);
 }

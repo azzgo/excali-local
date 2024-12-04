@@ -9,7 +9,8 @@
     "local:build": "bun --filter ./packages/excali-local build",
     "local:clean:archive": "bun --filter ./packages/excali-local clean:archive",
     "local:tar": "bun --filter ./packages/excali-local tar",
-    "local:zip": "bun --filter ./packages/excali-local zip"
+    "local:zip": "bun --filter ./packages/excali-local zip",
+    "local:zip:firefox": "bun --filter ./packages/excali-local zip:firefox"
   },
   "workspaces": [
     "packages/*"
