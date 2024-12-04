@@ -7,7 +7,7 @@ export default defineConfig({
     manifest_version: 3,
     name: "Excali Local",
     description: "__MSG_description__",
-    version: "1.0.4",
+    version: "1.0.5",
     default_locale: 'en',
     background: {
       service_worker: "src/background.ts",
