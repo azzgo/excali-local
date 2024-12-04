@@ -10,6 +10,7 @@
     "local:build": "bun --filter ./packages/excali-local build",
     "local:build:firefox": "bun --filter ./packages/excali-local build:firefox",
     "local:tar": "bun --filter ./packages/excali-local tar",
+    "local:tar:firefox": "bun --filter ./packages/excali-local tar:firefox",
     "local:zip": "bun --filter ./packages/excali-local zip",
     "local:zip:firefox": "bun --filter ./packages/excali-local zip:firefox"
   },
