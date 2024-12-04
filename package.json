@@ -6,8 +6,9 @@
     "page:dev": "bun --filter ./packages/excali-page dev",
     "page:build": "BUILD_FOR_EXTENSION=1 bun --filter ./packages/excali-page build",
     "local:dev": "bun --filter ./packages/excali-local dev",
-    "local:build": "bun --filter ./packages/excali-local build",
     "local:clean:archive": "bun --filter ./packages/excali-local clean:archive",
+    "local:build": "bun --filter ./packages/excali-local build",
+    "local:build:firefox": "bun --filter ./packages/excali-local build:firefox",
     "local:tar": "bun --filter ./packages/excali-local tar",
     "local:zip": "bun --filter ./packages/excali-local zip",
     "local:zip:firefox": "bun --filter ./packages/excali-local zip:firefox"

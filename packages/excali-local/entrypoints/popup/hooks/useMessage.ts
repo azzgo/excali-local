@@ -1,4 +1,4 @@
-import {t} from "@/entrypoints/lib/utils";
+import { t } from "@/entrypoints/lib/utils";
 import { useState } from "react";
 
 export function useMessage() {
@@ -24,11 +24,12 @@ export function useMessage() {
             [
               "No active tab",
               "Cannot access a chrome:// URL",
+              "Missing host permission for the tab",
             ].includes(response.error)
           ) {
-            setErrorMessage(t('NotTheSupportedAddress'));
+            setErrorMessage(t("NotTheSupportedAddress"));
           } else {
-            setErrorMessage(t("Something went wrong. Please try again later."));
+            setErrorMessage(t("SomethingWentWrong"));
           }
           console.error(response.error);
         }
