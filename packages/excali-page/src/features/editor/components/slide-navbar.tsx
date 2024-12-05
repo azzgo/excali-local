@@ -10,7 +10,7 @@ import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/types";
 import { Button } from "@/components/ui/button";
 import { IconChevronDown } from "@tabler/icons-react";
 import { useSlide } from "../hooks/use-slide";
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { createSwapy } from "swapy";
 
 interface SlideQuickNavbarProps {
@@ -24,9 +24,10 @@ const SlideNavbar = ({ close, excalidrawApi }: SlideQuickNavbarProps) => {
   const showSlideQuickNav = useAtomValue(showSlideQuickNavAtom);
   const orderedSlides = useAtomValue(orderedSlidesAtom);
   const { scrollToSlide } = useSlide(excalidrawApi);
+  const slideLength = useMemo(() => orderedSlides.length, [orderedSlides]);
 
   useEffect(() => {
-    if (showSlideQuickNav && domEl.current) {
+    if (showSlideQuickNav && domEl.current && slideLength > 0) {
       const container = domEl.current.querySelector(".slide-navbar");
       if (!container) {
         return;
@@ -56,7 +57,7 @@ const SlideNavbar = ({ close, excalidrawApi }: SlideQuickNavbarProps) => {
         swapy.destroy();
       };
     }
-  }, [showSlideQuickNav]);
+  }, [showSlideQuickNav, slideLength]);
 
   useEffect(() => {
     orderedSlides.length === 0 && close();
@@ -70,8 +71,8 @@ const SlideNavbar = ({ close, excalidrawApi }: SlideQuickNavbarProps) => {
             <IconChevronDown className="size-4" />
           </Button>
         </div>
-        <div className="h-full overflow-x-auto overflow-y-hidden">
-          <ScrollArea className="h-full slide-navbar">
+        <div className="h-full w-full overflow-x-auto overflow-y-hidden">
+          <ScrollArea className="w-full h-full slide-navbar">
             <div className="w-max h-full space-x-8 p-4 flex">
               {orderedSlides?.map((slide, index) => (
                 <div key={slide.id} data-swapy-slot={index}>
@@ -88,7 +89,7 @@ const SlideNavbar = ({ close, excalidrawApi }: SlideQuickNavbarProps) => {
                       <img
                         draggable={false}
                         src={slide.thumbnail}
-                        className="max-h-48 object-cover aspect-video"
+                        className="h-48 object-cover aspect-video"
                       />
                     </div>
                     <div className="text-sm">{slide.name}</div>
