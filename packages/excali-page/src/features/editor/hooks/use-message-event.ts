@@ -1,6 +1,6 @@
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/types";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/excalidraw/types";
 import { nanoid } from "nanoid";
-import { FileId } from "@excalidraw/excalidraw/types/element/types";
+import { FileId } from "@excalidraw/excalidraw/types/excalidraw/element/types";
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import { useEffect } from "react";
 import { PromsieWithResolve } from "../utils/promise";

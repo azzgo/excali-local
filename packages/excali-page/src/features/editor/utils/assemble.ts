@@ -1,10 +1,10 @@
 import {
   ExcalidrawElement,
   ExcalidrawFrameElement,
-} from "@excalidraw/excalidraw/types/element/types";
+} from "@excalidraw/excalidraw/types/excalidraw/element/types";
 import { isFrame } from "./filters";
 import { exportToBlob } from "@excalidraw/excalidraw";
-import { BinaryFiles } from "@excalidraw/excalidraw/types/types";
+import { BinaryFiles } from "@excalidraw/excalidraw/types/excalidraw/types";
 
 type FrameId = string;
 type FrameCacheKey = {

@@ -1,4 +1,4 @@
-import {getLang} from "@/lib/utils";
+import { getLang } from "@/lib/utils";
 import LocalEditor from "./local-editor";
 import QuickMarkerEditor from "./quick-marker-editor";
 

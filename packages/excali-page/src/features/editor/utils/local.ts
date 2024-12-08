@@ -1,10 +1,7 @@
-
 export const KeyForSlideIdList = "excalidraw-slide-id-list";
 export const KeyForElements = "excalidraw";
 export const KeyForAppState = "excalidraw-state";
 export const KeyForLibraryItems = "excalidraw-libraryItems";
-
-
 
 export function setLocalStorage(key: string, value: any): void {
   localStorage.setItem(key, JSON.stringify(value));

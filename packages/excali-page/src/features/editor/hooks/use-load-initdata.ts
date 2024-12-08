@@ -3,7 +3,7 @@ import {
   BinaryFiles,
   ExcalidrawInitialDataState,
   LibraryItems,
-} from "@excalidraw/excalidraw/types/types";
+} from "@excalidraw/excalidraw/types/excalidraw/types";
 import { useEffect, useState } from "react";
 import {
   KeyForAppState,
@@ -13,7 +13,7 @@ import {
   getLocalStorageAsync,
 } from "../utils/local";
 import { getFiles } from "../utils/indexdb";
-import { ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
+import { ExcalidrawElement } from "@excalidraw/excalidraw/types/excalidraw/element/types";
 import { restoreAppState } from "@excalidraw/excalidraw";
 import { omit } from "radash";
 import { useSetAtom } from "jotai";
