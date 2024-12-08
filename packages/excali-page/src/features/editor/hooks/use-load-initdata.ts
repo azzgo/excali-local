@@ -4,6 +4,7 @@ import {
   ExcalidrawInitialDataState,
   LibraryItems,
 } from "@excalidraw/excalidraw/types/excalidraw/types";
+import { ExcalidrawElement } from "@excalidraw/excalidraw/types/excalidraw/element/types";
 import { useEffect, useState } from "react";
 import {
   KeyForAppState,
@@ -13,7 +14,6 @@ import {
   getLocalStorageAsync,
 } from "../utils/local";
 import { getFiles } from "../utils/indexdb";
-import { ExcalidrawElement } from "@excalidraw/excalidraw/types/excalidraw/element/types";
 import { restoreAppState } from "@excalidraw/excalidraw";
 import { omit } from "radash";
 import { useSetAtom } from "jotai";
@@ -40,17 +40,15 @@ export const useLoadInitData = ({
     );
 
     if (onlyLibrary) {
-      Promise.all([savedLibraryItems]).then(
-        ([savedLibraryItems]) => {
-          updateData({
-            elements: [],
-            appState: {},
-            files: {},
-            libraryItems: savedLibraryItems,
-          });
-          setIsLoaded(true);
-        }
-      );
+      Promise.all([savedLibraryItems]).then(([savedLibraryItems]) => {
+        updateData({
+          elements: [],
+          appState: {},
+          files: {},
+          libraryItems: savedLibraryItems,
+        });
+        setIsLoaded(true);
+      });
       return;
     }
 

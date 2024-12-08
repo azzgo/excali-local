@@ -5,6 +5,7 @@
   "scripts": {
     "page:dev": "bun --filter ./packages/excali-page dev",
     "page:build": "BUILD_FOR_EXTENSION=1 bun --filter ./packages/excali-page build",
+    "page:test": "bun --filter ./packages/excali-page test",
     "local:clean:editor": "bun --filter ./packages/excali-local clean:editor",
     "local:clean:output": "bun --filter ./packages/excali-local clean:output",
     "local:dev": "bun --filter ./packages/excali-local dev",
