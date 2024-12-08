@@ -1,12 +1,13 @@
-import { useAtomValue } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
 import {
   orderedSlidesAtom,
   showSlideQuickNavAtom,
+  slideIdOrderListAtom,
   slideIdOrderListRef,
 } from "../store/presentation";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/types";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/excalidraw/types";
 import { Button } from "@/components/ui/button";
 import { IconChevronDown } from "@tabler/icons-react";
 import { useSlide } from "../hooks/use-slide";
@@ -25,6 +26,7 @@ const SlideNavbar = ({ close, excalidrawApi }: SlideQuickNavbarProps) => {
   const orderedSlides = useAtomValue(orderedSlidesAtom);
   const { scrollToSlide } = useSlide(excalidrawApi);
   const slideLength = useMemo(() => orderedSlides.length, [orderedSlides]);
+  const updateSlideIdOrderList = useSetAtom(slideIdOrderListAtom);
 
   useEffect(() => {
     if (showSlideQuickNav && domEl.current && slideLength > 0) {
@@ -57,51 +59,56 @@ const SlideNavbar = ({ close, excalidrawApi }: SlideQuickNavbarProps) => {
         swapy.destroy();
       };
     }
+    if (!showSlideQuickNav && Array.isArray(slideIdOrderListRef.current)) {
+      updateSlideIdOrderList(slideIdOrderListRef.current);
+    }
   }, [showSlideQuickNav, slideLength]);
 
   useEffect(() => {
     slideLength === 0 && close();
   }, [slideLength]);
 
-  return showSlideQuickNav && (
-    <div ref={domEl}>
-      <div className="h-80 mt-4 flex z-20 relative border-t pt-4">
-        <div className="absolute w-fit top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-8 z-10">
-          <Button variant="outline" className="rounded-full" onClick={close}>
-            <IconChevronDown className="size-4" />
-          </Button>
-        </div>
-        <div className="h-full w-full overflow-x-auto overflow-y-hidden">
-          <ScrollArea className="w-full h-full slide-navbar">
-            <div className="w-max h-full space-x-8 p-4 flex">
-              {orderedSlides?.map((slide, index) => (
-                <div key={slide.id} data-swapy-slot={index}>
-                  <div
-                    className="shrink-0 flex flex-col space-y-4 items-center h-full"
-                    data-swapy-item={slide.id}
-                  >
+  return (
+    showSlideQuickNav && (
+      <div ref={domEl}>
+        <div className="h-80 mt-4 flex z-20 relative border-t pt-4">
+          <div className="absolute w-fit top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-8 z-10">
+            <Button variant="outline" className="rounded-full" onClick={close}>
+              <IconChevronDown className="size-4" />
+            </Button>
+          </div>
+          <div className="h-full w-full overflow-x-auto overflow-y-hidden">
+            <ScrollArea className="w-full h-full slide-navbar">
+              <div className="w-max h-full space-x-8 p-4 flex">
+                {orderedSlides?.map((slide, index) => (
+                  <div key={slide.id} data-swapy-slot={index}>
                     <div
-                      className="cursor-pointer p-4 border rounded-sm bg-gray-50 hover:opacity-75"
-                      onClick={() =>
-                        !isSwapping.current && scrollToSlide({ id: slide.id })
-                      }
+                      className="shrink-0 flex flex-col space-y-4 items-center h-full"
+                      data-swapy-item={slide.id}
                     >
-                      <img
-                        draggable={false}
-                        src={slide.thumbnail}
-                        className="h-48 object-cover aspect-video"
-                      />
+                      <div
+                        className="cursor-pointer p-4 border rounded-sm bg-gray-50 hover:opacity-75"
+                        onClick={() =>
+                          !isSwapping.current && scrollToSlide({ id: slide.id })
+                        }
+                      >
+                        <img
+                          draggable={false}
+                          src={slide.thumbnail}
+                          className="h-48 object-cover aspect-video"
+                        />
+                      </div>
+                      <div className="text-sm">{slide.name}</div>
                     </div>
-                    <div className="text-sm">{slide.name}</div>
                   </div>
-                </div>
-              ))}
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
+                ))}
+              </div>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </div>
         </div>
       </div>
-    </div>
+    )
   );
 };
 

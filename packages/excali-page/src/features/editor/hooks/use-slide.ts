@@ -1,4 +1,4 @@
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/types";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/excalidraw/types";
 import { useCallback } from "react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {

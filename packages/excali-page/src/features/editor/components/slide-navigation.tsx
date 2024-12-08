@@ -1,4 +1,4 @@
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/types";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/excalidraw/types";
 import { Button } from "@/components/ui/button";
 import { useSlide } from "../hooks/use-slide";
 import { useCallback } from "react";
