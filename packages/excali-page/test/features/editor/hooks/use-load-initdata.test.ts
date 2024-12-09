@@ -4,18 +4,8 @@ import { slideIdOrderListAtom } from "@/features/editor/store/presentation";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useLoadInitData } from "@/features/editor/hooks/use-load-initdata";
 
-vi.mock("@excalidraw/excalidraw", () => {
-  return {
-    restoreAppState: vi.fn().mockReturnValue({}),
-  };
-});
-
-vi.mock("@/features/editor/utils/indexdb.ts", () => {
-  return {
-    getFiles: vi.fn().mockResolvedValue([]),
-    backupFiles: vi.fn(),
-  };
-});
+vi.mock("@excalidraw/excalidraw");
+vi.mock("@/features/editor/utils/indexdb.ts");
 
 describe("use-load-initdata", () => {
   beforeEach(() => {
@@ -39,5 +29,5 @@ describe("use-load-initdata", () => {
     });
   });
 
-  test.todo('other scenarios');
+  test.todo("other scenarios");
 });
