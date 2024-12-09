@@ -12,6 +12,33 @@ let cleanOverlay: () => void;
 function selectAreaOnPage() {
   cleanOverlay = addOverlay();
   document.addEventListener("mousedown", startSelection);
+  document.addEventListener("keydown", onKeyDownCancelSelection);
+  document.addEventListener("contextmenu", onRightClickCancelSelection);
+}
+
+function cleanListeners() {
+  document.removeEventListener("mousedown", startSelection);
+  document.removeEventListener("mousemove", moveSelection);
+  document.removeEventListener("mouseup", endSelection);
+  document.removeEventListener("keydown", onKeyDownCancelSelection);
+  document.removeEventListener("contextmenu", onRightClickCancelSelection);
+}
+
+function cancelSelection() {
+  cleanOverlay();
+  cleanListeners();
+}
+
+function onKeyDownCancelSelection(event: KeyboardEvent) {
+  if (event.key === "Escape") {
+    cancelSelection();
+  }
+}
+
+function onRightClickCancelSelection(event: MouseEvent) {
+  if (event.button === 2) {
+    cancelSelection();
+  }
 }
 
 function addOverlay() {
@@ -85,9 +112,8 @@ function endSelection(event: MouseEvent) {
       y: event.clientY - 50,
       width: 100,
       height: 100,
-    }
+    };
   }
-
 
   setTimeout(() => {
     requestAnimationFrame(() => {
