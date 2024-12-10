@@ -3,6 +3,7 @@ export default defineUnlistedScript(() => {
 });
 
 const selectionId = "8ae3e065-e673-420d-a56f-6494523af2fb";
+const haloId = "920f1e34-4d16-46a4-ba7a-0976d388185a";
 let startX: number;
 let startY: number;
 let endX: number;
@@ -14,6 +15,7 @@ function selectAreaOnPage() {
   document.addEventListener("mousedown", startSelection);
   document.addEventListener("keydown", onKeyDownCancelSelection);
   document.addEventListener("contextmenu", onRightClickCancelSelection);
+  document.addEventListener("mousemove", cursorFollowEffect);
 }
 
 function cleanListeners() {
@@ -22,11 +24,21 @@ function cleanListeners() {
   document.removeEventListener("mouseup", endSelection);
   document.removeEventListener("keydown", onKeyDownCancelSelection);
   document.removeEventListener("contextmenu", onRightClickCancelSelection);
+  document.removeEventListener("mousemove", cursorFollowEffect);
 }
 
 function cancelSelection() {
   cleanOverlay();
   cleanListeners();
+}
+
+function cursorFollowEffect(event: MouseEvent) {
+  const halo = document.getElementById(haloId);
+  if (!halo) {
+    return;
+  }
+  halo.style.left = `${event.clientX - 5}px`;
+  halo.style.top = `${event.clientY - 5}px`;
 }
 
 function onKeyDownCancelSelection(event: KeyboardEvent) {
@@ -61,8 +73,25 @@ function addOverlay() {
   selection.style.pointerEvents = "none";
   selection.style.margin = "0";
   selection.style.padding = "0";
+  selection.style.zIndex = "99";
   selection.id = selectionId;
   overlay.appendChild(selection);
+
+  const halo = document.createElement("div");
+  halo.style.position = "absolute";
+  halo.style.width = "10px";
+  halo.style.height = "10px";
+  halo.style.boxSizing = "border-box";
+  halo.style.borderRadius = "50%";
+  halo.style.top = "-1000px";
+  halo.style.background = "rgba(255, 255, 255, 0.3)";
+  halo.style.border = "2px solid rgba(244, 0, 0, 0.7)";
+  halo.style.boxShadow = "0 0 10px 5px rgba(244, 0, 0, 0.7)";
+  
+  halo.style.pointerEvents = "none";
+  halo.style.zIndex = "9";
+  halo.id = haloId;
+  overlay.appendChild(halo);
 
   document.documentElement.appendChild(overlay);
 
