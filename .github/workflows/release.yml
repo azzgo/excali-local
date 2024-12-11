@@ -1,0 +1,49 @@
+name: Release
+run-name: ${{ github.actor }} Release
+on:
+  push:
+    tags:
+      - '*'
+jobs:
+  Pack-Actions:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "🎉 The job was automatically triggered by a ${{ github.event_name }} event."
+      - run: echo "🐧 This job is now running on a ${{ runner.os }} server hosted by GitHub!"
+      - run: echo "🔎 The name of your tag is ${{ github.ref }} and your repository is ${{ github.repository }}."
+      - name: Check out repository code
+        uses: actions/checkout@v4
+      - run: echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
+      - run: echo "🖥️ The workflow is now ready to test your code on the runner."
+      - name: Ensure bunjs is install
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl tar zip unzip
+          curl -fsSL https://bun.sh/install > install.sh
+          sudo bash install.sh
+      - name: Install
+        run: bun install
+      - name: Test Page
+        run: |
+          bun run 'page:test'
+      - name: Build page
+        run: |
+          bun run 'page:build'
+      - name: Build Extension
+        run: |
+          bun run local:build
+          bun run local:build:firefox
+      - name: Pack Extension
+        run: |
+          bun run local:tar
+          bun run local:tar:firefox
+          bun run local:zip
+          bun run local:zip:firefox
+          bun run local:tar
+      - name: Release
+        env:
+           GH_TOKEN: ${{ github.token }}
+           GH_REPO: ${{ github.repository }}
+        run: gh release create v${{ github.ref_name }} --draft=true ./packages/local/dist/*.zip ./packages/local/*.tar.gz
+      - run: echo "🍏 This job's status is ${{ job.status }}."
+
