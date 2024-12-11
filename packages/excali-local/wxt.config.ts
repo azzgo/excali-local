@@ -5,7 +5,7 @@ function genManifest(env: ConfigEnv) {
     manifest_version: 3,
     name: "Excali Local",
     description: "__MSG_description__",
-    version: "1.0.7",
+    version: "1.0.8",
     default_locale: "en",
     background: {
       service_worker: "src/background.ts",
