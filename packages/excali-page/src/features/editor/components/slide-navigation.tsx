@@ -44,9 +44,11 @@ const SlideNavigation = ({ excalidrawApi }: SlideNavigationProps) => {
       }
       if (event.key === "ArrowRight") {
         slideNext();
+        return;
       }
       if (event.key === "ArrowLeft") {
         slidePrev();
+        return;
       }
     },
     [presentationMode, handleTogglePresentation, slideNext, slidePrev]

@@ -12,6 +12,11 @@ const SlideToolbar = ({ excalidrawApi }: SlideToolbarProps) => {
   const { presentationMode, slides, handleTogglePresentation } =
     useSlide(excalidrawApi);
   const [t] = useTranslation();
+  const handleClick = (event: React.MouseEvent) => {
+    handleTogglePresentation();
+    event.target?.blur();
+  }
+
   return (
     <div className="flex gap-x-4">
       <Hint
@@ -24,7 +29,7 @@ const SlideToolbar = ({ excalidrawApi }: SlideToolbarProps) => {
         <Button
           disabled={slides.length === 0}
           variant="ghost"
-          onClick={handleTogglePresentation}
+          onClick={handleClick}
         >
           {presentationMode ? <IconPresentationOff /> : <IconPresentation />}
         </Button>
