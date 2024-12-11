@@ -39,6 +39,6 @@ jobs:
         env:
            GH_TOKEN: ${{ github.token }}
            GH_REPO: ${{ github.repository }}
-        run: gh release create v${{ github.ref_name }} --draft=true ./packages/local/dist/*.zip ./packages/local/*.tar.gz
+        run: gh release create v${{ github.ref_name }} --draft=true ./packages/excali-local/.output/*.zip ./packages/excali-local/*.tar.gz
       - run: echo "🍏 This job's status is ${{ job.status }}."
 
