@@ -82,5 +82,5 @@ bun run local:tar
 - [x] Add Keymap support for screenshot feature
 - [x] Add i18n support
 - [ ] Add option page to customize
-- [ ] Support dark mode
+- [x] Support dark mode
 

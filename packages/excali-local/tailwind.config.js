@@ -1,6 +1,5 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  darkMode: ["class"],
   content: ["./entrypoints/*.html", "./entrypoints/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
