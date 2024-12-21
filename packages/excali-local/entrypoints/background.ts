@@ -108,6 +108,9 @@ export default defineBackground(() => {
             }
           });
         return;
+      case "open-local-editor":
+        openLocalEditor();
+        return;
     }
   });
 });

@@ -21,6 +21,12 @@ function genManifest(env: ConfigEnv) {
       "128": "excali@128px.png",
     },
     commands: {
+      "open-local-editor": {
+        suggested_key: {
+          default: "Alt+E",
+        },
+        description: "Open local editor",
+      },
       "capture-visible-tab": {
         suggested_key: {
           default: "Alt+A",
