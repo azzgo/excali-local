@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { useLoadInitData } from "../hooks/use-load-initdata";
 import { IconLoader2 } from "@tabler/icons-react";
 import { useMessageEvent } from "../hooks/use-message-event";
+import MarkerToolbar from "./marker-toolbar";
 interface QuickMarkerEditorProps {
   lang: string;
 }
@@ -33,6 +34,9 @@ const QuickMarkerEditor = ({ lang }: QuickMarkerEditorProps) => {
           aiEnabled={false}
           initialData={data}
           excalidrawAPI={(api) => updateExcalidrawAPI(api)}
+          renderTopRightUI={() => (
+            <MarkerToolbar excalidrawApi={excalidrawAPI} />
+          )}
         >
           <WelcomeScreen />
         </Excalidraw>

@@ -49,10 +49,10 @@ export function useMessageEvent({ excalidrawAPI }: useMessageEventProps) {
           break;
       }
     };
-    getBrowser()?.runtime.onMessage.addListener(lisener);
-    getBrowser()?.runtime.sendMessage({ type: "READY" });
+    getBrowser()?.runtime?.onMessage?.addListener(lisener);
+    getBrowser()?.runtime?.sendMessage({ type: "READY" });
     return () => {
-      getBrowser()?.runtime.onMessage.removeListener(lisener);
+      getBrowser()?.runtime?.onMessage?.removeListener(lisener);
     };
   }, [excalidrawAPI]);
 }

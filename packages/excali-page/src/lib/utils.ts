@@ -6,7 +6,7 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function getLang() {
-  if (chrome) {
+  if (typeof chrome?.i18n?.getUILanguage === 'function') {
     return chrome.i18n.getUILanguage() === 'zh-CN' ? 'zh-CN' : 'en'
   }
   return navigator.language === 'zh-CN' ? 'zh-CN' : 'en'
