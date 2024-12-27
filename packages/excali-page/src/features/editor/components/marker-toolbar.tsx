@@ -104,7 +104,11 @@ const MarkerToolbar = ({ excalidrawApi }: MarkerToolbarProps) => {
   return (
     <div className="flex gap-x-4 items-center">
       <Hint label="Marker" align="end" sideOffset={8}>
-        <Button className="[&_svg]:size-6" variant="ghost" onClick={handleClick}>
+        <Button
+          className="[&_svg]:size-6"
+          variant="ghost"
+          onClick={handleClick}
+        >
           {isActivated ? <IconCircleNumber1Filled /> : <IconCircleNumber1 />}
         </Button>
       </Hint>
