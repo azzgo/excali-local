@@ -3,20 +3,11 @@ import { nanoid } from "nanoid";
 import { FileId } from "@excalidraw/excalidraw/types/excalidraw/element/types";
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import { useEffect } from "react";
-import { PromsieWithResolve } from "../utils/promise";
+import { getBrowser } from "../lib/browser";
+import { getSizeOfDataImage } from "../utils/images";
 
 interface useMessageEventProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
-}
-
-function getBrowser(): typeof chrome | null {
-  if (typeof (globalThis as any).browser !== "undefined") {
-    return (globalThis as any).browser;
-  }
-  if (typeof chrome !== "undefined") {
-    return chrome;
-  }
-  return null;
 }
 
 export function useMessageEvent({ excalidrawAPI }: useMessageEventProps) {
@@ -55,75 +46,6 @@ export function useMessageEvent({ excalidrawAPI }: useMessageEventProps) {
       getBrowser()?.runtime?.onMessage?.removeListener(lisener);
     };
   }, [excalidrawAPI]);
-}
-
-type Area = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
-
-function getSizeOfDataImage(dataUrl: string, area?: Area) {
-  const mimeType = dataUrl.split(",")[0].split(":")[1].split(";")[0];
-  const { promise, resolve } = PromsieWithResolve<{
-    width: number;
-    height: number;
-    mimeType: string;
-    imageUrl: string;
-  }>();
-
-  if (area) {
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      throw new Error("Failed to get 2d context");
-    }
-    const image = new Image();
-    image.onload = () => {
-      canvas.width = area.width;
-      canvas.height = area.height;
-      canvas.style.position = "absolute";
-      canvas.style.top = "-10000px";
-      ctx.drawImage(
-        image,
-        area.x,
-        area.y,
-        area.width,
-        area.height,
-        0,
-        0,
-        area.width,
-        area.height
-      );
-      resolve({
-        width: area.width,
-        height: area.height,
-        mimeType,
-        imageUrl: canvas.toDataURL(),
-      });
-      canvas.remove();
-    };
-    image.src = dataUrl;
-    document.body.appendChild(canvas);
-    return promise;
-  } else {
-    const image = new Image();
-    image.onload = () => {
-      resolve({
-        width: image.width,
-        height: image.height,
-        mimeType,
-        imageUrl: dataUrl,
-      });
-      image.remove();
-    };
-    image.style.position = "absolute";
-    image.style.top = "-10000px";
-    image.src = dataUrl;
-    document.body.appendChild(image);
-  }
-  return promise;
 }
 
 async function updateCanvasWithScreenshot(
