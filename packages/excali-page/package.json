@@ -7,6 +7,7 @@
     "postinstall": "bun run ./setup-excalidraw-assets.js",
     "build": "vite build --outDir=../excali-local/public/editor",
     "test": "vitest --run",
+    "test:coverage": "vitest --run --coverage",
     "shadcn:add": "bunx --bun shadcn@latest add"
   },
   "dependencies": {

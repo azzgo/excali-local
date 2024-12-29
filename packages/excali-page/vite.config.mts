@@ -12,19 +12,31 @@ export default defineConfig({
     "process.env.IS_PREACT": JSON.stringify("false"),
     // remove some code to fit <https://developer.chrome.com/docs/extensions/develop/migrate/remote-hosted-code> requirements
     "window.DISABLE_EMBEDDED": JSON.stringify("true"),
-    "window.EXCALIDRAW_ASSET_PATH": buildForExtension ? JSON.stringify('/editor/') : JSON.stringify("/"),
+    "window.EXCALIDRAW_ASSET_PATH": buildForExtension
+      ? JSON.stringify("/editor/")
+      : JSON.stringify("/"),
   },
   server: {
     port: 3000,
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "src")
+      "@": path.resolve(__dirname, "src"),
     },
   },
   plugins: [react()],
   test: {
-    environment: 'happy-dom',
+    environment: "happy-dom",
     include: ["test/**/*.test.ts", "test/**/*.test.tsx"],
+    coverage: {
+      include: ["src/**/*.ts"],
+      exclude: [
+        "src/**/*.d.ts",
+        "src/lib/utils.ts",
+        "src/locales/**/*",
+        "src/features/editor/lib/*.ts",
+        "src/features/editor/type.ts",
+      ],
+    },
   },
 });
