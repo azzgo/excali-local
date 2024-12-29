@@ -2,10 +2,10 @@ import { useSetAtom } from "jotai";
 import { slideIdOrderListAtom, slidesAtom } from "../store/presentation";
 import { useCallback, useMemo } from "react";
 import { assembleSlides } from "../utils/assemble";
-import { ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
-import { BinaryFiles } from "@excalidraw/excalidraw/types/types";
 import { debounce } from "radash";
 import { KeyForSlideIdList, setLocalStorage } from "../utils/local";
+import { ExcalidrawElement } from "@excalidraw/excalidraw/types/excalidraw/element/types";
+import { BinaryFiles } from "@excalidraw/excalidraw/types/excalidraw/types";
 
 export const useUpdateSlides = () => {
   const setSlides = useSetAtom(slidesAtom);
