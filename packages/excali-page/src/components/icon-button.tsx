@@ -5,7 +5,7 @@ interface IconBarButtonProps {
   active?: boolean;
   className?: string;
   title?: string;
-  onClick?: () => void;
+  onClick?: (event?: any) => void;
 }
 const IconButton = ({
   icon,

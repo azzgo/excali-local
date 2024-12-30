@@ -11,7 +11,7 @@ import { isNotDeleted } from "../utils/filters";
 import { useLoadInitData } from "../hooks/use-load-initdata";
 import { IconLoader2 } from "@tabler/icons-react";
 import SlideNavigation from "./slide-navigation";
-import SlideToolbar from "./slide-toolbar";
+import LocalEditorToolbar from "./local-editor-toolbar";
 import { Footer, WelcomeScreen } from "@excalidraw/excalidraw";
 import SlideNavbar from "./slide-navbar";
 import { useUpdateSlides } from "../hooks/use-update-slides";
@@ -26,6 +26,7 @@ import {
   LibraryItems,
 } from "@excalidraw/excalidraw/types/excalidraw/types";
 import { ExcalidrawElement } from "@excalidraw/excalidraw/types/excalidraw/element/types";
+import QuickMarkSidebar from "./quick-mark-sidbar";
 
 interface LocalEditorProps {
   lang: string;
@@ -105,13 +106,14 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
             onChange={debouncedHandleSave}
             onLibraryChange={debouncedHandleLibrarySave}
             renderTopRightUI={() => (
-              <SlideToolbar excalidrawApi={excalidrawAPI} />
+              <LocalEditorToolbar excalidrawApi={excalidrawAPI} />
             )}
           >
             <WelcomeScreen />
             <Footer>
               <SlideNavigation excalidrawApi={excalidrawAPI} />
             </Footer>
+            <QuickMarkSidebar excalidrawAPI={excalidrawAPI} />
           </Excalidraw>
         )}
       </div>
