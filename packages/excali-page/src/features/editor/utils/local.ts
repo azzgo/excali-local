@@ -18,8 +18,7 @@ export function getLocalStorageAsync<T = any>(
 ): Promise<T> {
   return new Promise((resolve) => {
     requestIdleCallback(() => {
-      const value = localStorage.getItem(key);
-      resolve(value ? JSON.parse(value) : defaultValue);
+      resolve(getLocalStorage(key, defaultValue));
     });
   });
 }

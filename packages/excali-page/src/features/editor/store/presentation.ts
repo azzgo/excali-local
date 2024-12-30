@@ -1,5 +1,5 @@
 import { atom } from "jotai";
-import { Slide, Slides } from "../type";
+import { Slides } from "../type";
 
 export const presentationModeAtom = atom(false);
 export const slidesAtom = atom<Slides>([]);
@@ -15,13 +15,6 @@ export const orderedSlidesAtom = atom((get) => {
     return orderIdList.indexOf(a.id) - orderIdList.indexOf(b.id);
   });
   return orderedSlides;
-});
-export const slideIdMapAtom = atom<Record<string, Slide>>((get) => {
-  const slides = get(slidesAtom);
-  return slides.reduce((acc, slide) => {
-    acc[slide.id] = slide;
-    return acc;
-  }, {} as Record<string, Slide>);
 });
 
 export const showSlideQuickNavAtom = atom(false);

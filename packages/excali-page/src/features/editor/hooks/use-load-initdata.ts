@@ -40,15 +40,13 @@ export const useLoadInitData = ({
     );
 
     if (onlyLibrary) {
-      Promise.all([savedLibraryItems]).then(([savedLibraryItems]) => {
-        updateData({
-          elements: [],
-          appState: {},
-          files: {},
-          libraryItems: savedLibraryItems,
-        });
-        setIsLoaded(true);
+      updateData({
+        elements: [],
+        appState: {},
+        files: {},
+        libraryItems: savedLibraryItems,
       });
+      setIsLoaded(true);
       return;
     }
 

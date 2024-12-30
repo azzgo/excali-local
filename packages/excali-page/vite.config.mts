@@ -36,6 +36,8 @@ export default defineConfig({
         "src/locales/**/*",
         "src/features/editor/lib/*.ts",
         "src/features/editor/type.ts",
+        "src/features/editor/utils/images.ts",
+        "src/features/editor/utils/indexdb.ts",
       ],
     },
   },

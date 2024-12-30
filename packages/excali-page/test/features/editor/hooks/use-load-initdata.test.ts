@@ -15,7 +15,7 @@ vi.mock("@/features/editor/utils/indexdb.ts");
 
 import { getFiles } from "@/features/editor/utils/indexdb";
 import { restoreAppState } from "@excalidraw/excalidraw";
-import {clone} from "radash";
+import { clone } from "radash";
 
 describe("use-load-initdata", () => {
   beforeEach(() => {
@@ -73,7 +73,7 @@ describe("use-load-initdata", () => {
     });
   });
 
-  test('useLoadInitData only load once', async () => {
+  test("useLoadInitData only load once", async () => {
     const { result, rerender } = renderHook(() => useLoadInitData(), {
       wrapper: ProviderWrapper,
     });
@@ -93,6 +93,36 @@ describe("use-load-initdata", () => {
     await waitFor(() => {
       expect(result.current.isLoaded).toBe(true);
       expect(result.current.data).toEqual(initData);
+    });
+  });
+
+  test("should only load library item when set onlyLoadLibraryItem true", async () => {
+    // prepare local storage data
+    const elements = [{ type: "rectangle" }];
+    localStorage.setItem(KeyForElements, JSON.stringify(elements));
+    const appState = { viewBackgroundColor: "#fff" };
+    localStorage.setItem(KeyForAppState, JSON.stringify(appState));
+    const slideIdList = ["slide-1"];
+    localStorage.setItem(KeyForSlideIdList, JSON.stringify(slideIdList));
+    const libraryItems = [{ type: "circle" }];
+    localStorage.setItem(KeyForLibraryItems, JSON.stringify(libraryItems));
+
+
+    const { result } = renderHook(
+      () => useLoadInitData({ onlyLibrary: true }),
+      {
+        wrapper: ProviderWrapper,
+      }
+    );
+    vi.runAllTimers();
+    await waitFor(async () => {
+      expect(result.current.isLoaded).toBe(true);
+      expect(result.current.data?.elements).toEqual([]);
+      expect(result.current.data?.appState).toEqual({});
+      expect(result.current.data?.files).toEqual({});
+      await expect(result.current.data?.libraryItems).resolves.toEqual(
+        libraryItems
+      );
     });
   });
 });

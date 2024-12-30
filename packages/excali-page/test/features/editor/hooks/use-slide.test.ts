@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, test, vi } from "vitest";
 import { ProviderWrapper, globalJotaiStore } from "./provider.helper";
 import { renderHook, waitFor } from "@testing-library/react";
 import {
+  isFirstSlideAtom,
+  isLastSlideAtom,
   presentationModeAtom,
   showSlideQuickNavAtom,
   slideGlobalIndexAtom,
@@ -51,16 +53,18 @@ describe("useSlide", () => {
     ]);
     expect(globalJotaiStore.get(slideGlobalIndexAtom)).toBe(0);
     result.current.slideNext();
-    await waitFor(() => {
+    await vi.waitFor(() => {
       expect(globalJotaiStore.get(slideGlobalIndexAtom)).toBe(1);
     });
     result.current.slidePrev();
-    await waitFor(() => {
+    await vi.waitFor(() => {
       expect(globalJotaiStore.get(slideGlobalIndexAtom)).toBe(0);
+      expect(globalJotaiStore.get(isFirstSlideAtom)).toBe(true);
     });
     result.current.scrollToSlide({ id: "slide-2" });
-    await waitFor(() => {
+    await vi.waitFor(() => {
       expect(globalJotaiStore.get(slideGlobalIndexAtom)).toBe(1);
+      expect(globalJotaiStore.get(isLastSlideAtom)).toBe(true);
     });
   });
 });
