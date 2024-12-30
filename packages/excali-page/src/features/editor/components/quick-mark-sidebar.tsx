@@ -10,7 +10,7 @@ import {
   IconLineDotted,
   IconSlash,
 } from "@tabler/icons-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useMarker } from "../hooks/use-marker";
 import { StrokeStyle } from "@excalidraw/excalidraw/types/excalidraw/element/types";
 import { useTranslation } from "react-i18next";
@@ -42,6 +42,44 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
   const [docked, setDocked] = useState(false);
   const libI18n = useI18n();
   const { isMarkerMode, toggleMarkerMode } = useMarker(excalidrawAPI);
+
+  const handleDockedChange = useCallback(
+    (docked: boolean) => {
+      if (docked) {
+        excalidrawAPI?.updateScene({
+          appState: {
+            zenModeEnabled: true,
+          },
+        });
+      } else {
+        excalidrawAPI?.updateScene({
+          appState: {
+            zenModeEnabled: false,
+          },
+        });
+      }
+      setDocked(docked);
+    },
+    [excalidrawAPI]
+  );
+  const handleStateChange = useCallback(
+    (state: { name: string; tab?: string } | null) => {
+      if (state === null) {
+        excalidrawAPI?.updateScene({
+          appState: {
+            zenModeEnabled: false,
+          },
+        });
+      } else if (docked && state.name === 'marker') {
+        excalidrawAPI?.updateScene({
+          appState: {
+            zenModeEnabled: true,
+          },
+        });
+      }
+    },
+    [excalidrawAPI, docked]
+  );
 
   const appState = excalidrawAPI?.getAppState();
   const currentTool = appState?.activeTool?.type;
@@ -99,7 +137,12 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
   const [t] = useTranslation();
 
   return (
-    <Sidebar name="marker" docked={docked} onDock={setDocked}>
+    <Sidebar
+      name="marker"
+      docked={docked}
+      onDock={handleDockedChange}
+      onStateChange={handleStateChange}
+    >
       <Sidebar.Header>
         <div className="text-[var(--color-primary)] text-[1.2em] bold text-ellipsis overflow-hidden whitespace-nowrap pr-[1em]">
           {t("Quick Marker")}
