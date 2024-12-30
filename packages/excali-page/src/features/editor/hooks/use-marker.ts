@@ -14,24 +14,6 @@ export const useMarker = (excalidrawAPI: ExcalidrawImperativeAPI | null) => {
   const [isMarkerMode, updateMarkMode] = useAtom(isMarkingModeAtom);
   const markerCount = useRef(0);
 
-  useEffect(() => {
-    () => {
-      excalidrawAPI?.setActiveTool({ type: "selection" });
-      markerUnsubscriber.current?.();
-    };
-  }, [excalidrawAPI]);
-
-  useEffect(() => {
-    return excalidrawAPI?.onChange((_, appState) => {
-      if (
-        appState.activeTool?.type !== "custom" &&
-        appState.activeTool.customType !== "marker"
-      ) {
-        updateMarkMode(false);
-      }
-    });
-  }, [excalidrawAPI]);
-
   const startMarkerModeBehavior = useCallback(() => {
     markerUnsubscriber.current?.();
     excalidrawAPI?.setActiveTool({
@@ -86,10 +68,10 @@ export const useMarker = (excalidrawAPI: ExcalidrawImperativeAPI | null) => {
     };
   }, [excalidrawAPI]);
 
-  const toggleMarkerMode = (forceOpen?: boolean) => {
+  const toggleMarkerMode = (force?: boolean) => {
     updateMarkMode((prev) => {
       markerUnsubscriber.current?.();
-      const newState = forceOpen || !prev;
+      const newState = typeof force === "boolean" ? force : !prev;
       if (newState) {
         startMarkerModeBehavior();
       } else {
