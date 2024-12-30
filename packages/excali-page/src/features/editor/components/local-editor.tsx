@@ -1,9 +1,3 @@
-import {
-  BinaryFiles,
-  AppState,
-  ExcalidrawImperativeAPI,
-  LibraryItems,
-} from "@excalidraw/excalidraw/types/types";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   KeyForAppState,
@@ -11,7 +5,6 @@ import {
   KeyForLibraryItems,
   setLocalStorage,
 } from "../utils/local";
-import { ExcalidrawElement } from "@excalidraw/excalidraw/types/element/types";
 import { batchSaveFile } from "../utils/indexdb";
 import { debounce } from "radash";
 import { isNotDeleted } from "../utils/filters";
@@ -26,6 +19,13 @@ import { cn } from "@/lib/utils";
 import { showSlideQuickNavAtom } from "../store/presentation";
 import { useAtom } from "jotai";
 import Excalidraw from "../lib/excalidraw";
+import {
+  AppState,
+  BinaryFiles,
+  ExcalidrawImperativeAPI,
+  LibraryItems,
+} from "@excalidraw/excalidraw/types/excalidraw/types";
+import { ExcalidrawElement } from "@excalidraw/excalidraw/types/excalidraw/element/types";
 
 interface LocalEditorProps {
   lang: string;

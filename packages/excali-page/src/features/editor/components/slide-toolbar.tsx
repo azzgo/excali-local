@@ -1,9 +1,9 @@
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/types";
 import { IconPresentation, IconPresentationOff } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { useSlide } from "../hooks/use-slide";
 import Hint from "@/components/hint";
 import { useTranslation } from "react-i18next";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/excalidraw/types";
 
 interface SlideToolbarProps {
   excalidrawApi: ExcalidrawImperativeAPI | null;
@@ -12,10 +12,10 @@ const SlideToolbar = ({ excalidrawApi }: SlideToolbarProps) => {
   const { presentationMode, slides, handleTogglePresentation } =
     useSlide(excalidrawApi);
   const [t] = useTranslation();
-  const handleClick = (event: React.MouseEvent) => {
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     handleTogglePresentation();
-    event.target?.blur();
-  }
+    event.currentTarget?.blur();
+  };
 
   return (
     <div className="flex gap-x-4">

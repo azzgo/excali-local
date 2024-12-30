@@ -12,7 +12,7 @@ interface MarkerToolbarProps {
 }
 
 const MarkerToolbar = ({ excalidrawApi }: MarkerToolbarProps) => {
-  const { isMarkerMode, handleClick } = useMarker(excalidrawApi);
+  const { isMarkerMode, toggleMarkerMode } = useMarker(excalidrawApi);
 
   return (
     <div className="flex gap-x-4 items-center">
@@ -20,7 +20,7 @@ const MarkerToolbar = ({ excalidrawApi }: MarkerToolbarProps) => {
         <Button
           className="[&_svg]:size-6"
           variant="ghost"
-          onClick={handleClick}
+          onClick={toggleMarkerMode}
         >
           {isMarkerMode ? <IconCircleNumber1Filled /> : <IconCircleNumber1 />}
         </Button>

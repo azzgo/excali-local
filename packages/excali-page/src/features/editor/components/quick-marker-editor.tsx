@@ -1,11 +1,12 @@
 import { WelcomeScreen } from "@excalidraw/excalidraw";
 import Excalidraw from "../lib/excalidraw";
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/types";
 import { useCallback, useState } from "react";
 import { useLoadInitData } from "../hooks/use-load-initdata";
 import { IconLoader2 } from "@tabler/icons-react";
 import { useMessageEvent } from "../hooks/use-message-event";
 import MarkerToolbar from "./marker-toolbar";
+import { useMarkerEvent } from "../hooks/use-marker-effect";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/excalidraw/types";
 interface QuickMarkerEditorProps {
   lang: string;
 }
@@ -19,6 +20,7 @@ const QuickMarkerEditor = ({ lang }: QuickMarkerEditorProps) => {
   }, []);
 
   useMessageEvent({ excalidrawAPI });
+  useMarkerEvent(excalidrawAPI);
 
   return (
     <div className="h-full max-h-svh overflow-hidden flex flex-col">
