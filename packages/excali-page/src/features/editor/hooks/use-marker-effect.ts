@@ -7,8 +7,9 @@ export function useMarkerEvent(excalidrawAPI: ExcalidrawImperativeAPI | null) {
   const updateMarkMode = useSetAtom(isMarkingModeAtom);
 
   useEffect(() => {
-    () => {
+    return () => {
       excalidrawAPI?.setActiveTool({ type: "selection" });
+      updateMarkMode(false);
       markerUnsubscriber.current?.();
     };
   }, [excalidrawAPI]);
