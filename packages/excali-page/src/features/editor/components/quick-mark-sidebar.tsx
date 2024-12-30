@@ -44,6 +44,7 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
   const { isMarkerMode, toggleMarkerMode } = useMarker(excalidrawAPI);
 
   const appState = excalidrawAPI?.getAppState();
+  const currentTool = appState?.activeTool?.type;
   const currentStrokeColor = appState?.currentItemStrokeColor;
   const currentBackgroundColor = appState?.currentItemBackgroundColor;
   const currentStorkeStyle = appState?.currentItemStrokeStyle;
@@ -76,13 +77,15 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
         currentItemEndArrowhead: "arrow",
       },
     });
+    toggleMarkerMode(false);
     excalidrawAPI?.setActiveTool({ type: "arrow" });
-    excalidrawAPI?.toggleSidebar({ name: "marker" });
+    forceUpdate({});
   };
 
   const chooseLine = () => {
+    toggleMarkerMode(false);
     excalidrawAPI?.setActiveTool({ type: "line" });
-    excalidrawAPI?.toggleSidebar({ name: "marker" });
+    forceUpdate({});
   };
 
   const changeLineType = (lineType: StrokeStyle) => {
@@ -112,11 +115,13 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
               icon={<IconCircleNumber1 />}
             />
             <IconButton
+              active={currentTool === "arrow"}
               onClick={chooseArrow}
               title="arrow"
               icon={<IconArrowNarrowRight />}
             />
             <IconButton
+              active={currentTool === "line"}
               onClick={chooseLine}
               title="line"
               icon={<IconSlash />}

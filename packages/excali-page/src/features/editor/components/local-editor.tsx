@@ -26,7 +26,7 @@ import {
   LibraryItems,
 } from "@excalidraw/excalidraw/types/excalidraw/types";
 import { ExcalidrawElement } from "@excalidraw/excalidraw/types/excalidraw/element/types";
-import QuickMarkSidebar from "./quick-mark-sidbar";
+import QuickMarkSidebar from "./quick-mark-sidebar";
 
 interface LocalEditorProps {
   lang: string;
