@@ -49,6 +49,10 @@ export const useMarker = (excalidrawApi: ExcalidrawImperativeAPI | null) => {
           const point = viewportCoordsToSceneCoords(event, appState);
           const size = defaultMarkerSize / appState.zoom.value;
           const fontSize = defaultMarkerFontSize / appState.zoom.value;
+          const markNumber = ++markerCount.current;
+          // get digtal of markNumber
+          const markDigits = String(markNumber).length;
+
           excalidrawApi?.updateScene({
             elements: excalidrawApi.getSceneElements().concat(
               convertToExcalidrawElements([
@@ -56,10 +60,10 @@ export const useMarker = (excalidrawApi: ExcalidrawImperativeAPI | null) => {
                   type: "ellipse",
                   x: point.x - size / 2,
                   y: point.y - size / 2,
-                  width: size,
+                  width: Math.max(size, markDigits * fontSize + 20),
                   height: size,
                   label: {
-                    text: `${++markerCount.current}`,
+                    text: `${markNumber}`,
                     fontSize,
                   },
                   strokeColor: appState.currentItemStrokeColor,
