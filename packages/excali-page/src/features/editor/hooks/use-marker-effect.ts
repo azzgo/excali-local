@@ -3,18 +3,18 @@ import { useSetAtom } from "jotai";
 import { useEffect } from "react";
 import { isMarkingModeAtom, markerUnsubscriber } from "../store/marker";
 
-export function useMarkerEvent(excalidrawApi: ExcalidrawImperativeAPI | null) {
+export function useMarkerEvent(excalidrawAPI: ExcalidrawImperativeAPI | null) {
   const updateMarkMode = useSetAtom(isMarkingModeAtom);
 
   useEffect(() => {
     () => {
-      excalidrawApi?.setActiveTool({ type: "selection" });
+      excalidrawAPI?.setActiveTool({ type: "selection" });
       markerUnsubscriber.current?.();
     };
-  }, [excalidrawApi]);
+  }, [excalidrawAPI]);
 
   useEffect(() => {
-    return excalidrawApi?.onChange((_, appState) => {
+    return excalidrawAPI?.onChange((_, appState) => {
       if (
         appState.activeTool?.type !== "custom" &&
         appState.activeTool.customType !== "marker"
@@ -22,5 +22,5 @@ export function useMarkerEvent(excalidrawApi: ExcalidrawImperativeAPI | null) {
         updateMarkMode(false);
       }
     });
-  }, [excalidrawApi]);
+  }, [excalidrawAPI]);
 }

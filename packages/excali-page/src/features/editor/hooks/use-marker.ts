@@ -10,19 +10,19 @@ import { useAtom } from "jotai";
 const defaultMarkerSize = 50;
 const defaultMarkerFontSize = 20;
 
-export const useMarker = (excalidrawApi: ExcalidrawImperativeAPI | null) => {
+export const useMarker = (excalidrawAPI: ExcalidrawImperativeAPI | null) => {
   const [isMarkerMode, updateMarkMode] = useAtom(isMarkingModeAtom);
   const markerCount = useRef(0);
 
   useEffect(() => {
     () => {
-      excalidrawApi?.setActiveTool({ type: "selection" });
+      excalidrawAPI?.setActiveTool({ type: "selection" });
       markerUnsubscriber.current?.();
     };
-  }, [excalidrawApi]);
+  }, [excalidrawAPI]);
 
   useEffect(() => {
-    return excalidrawApi?.onChange((_, appState) => {
+    return excalidrawAPI?.onChange((_, appState) => {
       if (
         appState.activeTool?.type !== "custom" &&
         appState.activeTool.customType !== "marker"
@@ -30,22 +30,22 @@ export const useMarker = (excalidrawApi: ExcalidrawImperativeAPI | null) => {
         updateMarkMode(false);
       }
     });
-  }, [excalidrawApi]);
+  }, [excalidrawAPI]);
 
   const startMarkerModeBehavior = useCallback(() => {
     markerUnsubscriber.current?.();
-    excalidrawApi?.setActiveTool({
+    excalidrawAPI?.setActiveTool({
       type: "custom",
       customType: "marker",
       locked: true,
     });
-    const onPointerUpUnsubscriber = excalidrawApi?.onPointerUp(
+    const onPointerUpUnsubscriber = excalidrawAPI?.onPointerUp(
       (activeTool, _, event) => {
         if (
           activeTool.type === "custom" &&
           activeTool.customType === "marker"
         ) {
-          const appState = excalidrawApi.getAppState();
+          const appState = excalidrawAPI.getAppState();
           const point = viewportCoordsToSceneCoords(event, appState);
           const size = defaultMarkerSize / appState.zoom.value;
           const fontSize = defaultMarkerFontSize / appState.zoom.value;
@@ -53,8 +53,8 @@ export const useMarker = (excalidrawApi: ExcalidrawImperativeAPI | null) => {
           // get digtal of markNumber
           const markDigits = String(markNumber).length;
 
-          excalidrawApi?.updateScene({
-            elements: excalidrawApi.getSceneElements().concat(
+          excalidrawAPI?.updateScene({
+            elements: excalidrawAPI.getSceneElements().concat(
               convertToExcalidrawElements([
                 {
                   type: "ellipse",
@@ -84,7 +84,7 @@ export const useMarker = (excalidrawApi: ExcalidrawImperativeAPI | null) => {
       onPointerUpUnsubscriber?.();
       markerCount.current = 0;
     };
-  }, [excalidrawApi]);
+  }, [excalidrawAPI]);
 
   const toggleMarkerMode = (forceOpen?: boolean) => {
     updateMarkMode((prev) => {
@@ -93,7 +93,7 @@ export const useMarker = (excalidrawApi: ExcalidrawImperativeAPI | null) => {
       if (newState) {
         startMarkerModeBehavior();
       } else {
-        excalidrawApi?.setActiveTool({ type: "selection" });
+        excalidrawAPI?.setActiveTool({ type: "selection" });
       }
       return newState;
     });

@@ -10,7 +10,7 @@ import {
   slideIdOrderListRef,
 } from "../store/presentation";
 
-export const useSlide = (excalidrawApi: ExcalidrawImperativeAPI | null) => {
+export const useSlide = (excalidrawAPI: ExcalidrawImperativeAPI | null) => {
   const [presentationMode, setPresentationMode] = useAtom(presentationModeAtom);
   const currentSlide = useAtomValue(slideGlobalIndexAtom);
   const toggleShowSlideQuickNav = useSetAtom(showSlideQuickNavAtom);
@@ -27,13 +27,13 @@ export const useSlide = (excalidrawApi: ExcalidrawImperativeAPI | null) => {
         typeof targetSlide.index === "number"
           ? targetSlide.index
           : orderedSlides.findIndex((slide) => slide.id === targetSlide.id);
-      excalidrawApi?.scrollToContent(orderedSlides[index].element, {
+      excalidrawAPI?.scrollToContent(orderedSlides[index].element, {
         animate: true,
         fitToContent: true,
       });
       updateSlideIndex(index);
     },
-    [excalidrawApi, orderedSlides, updateSlideIndex]
+    [excalidrawAPI, orderedSlides, updateSlideIndex]
   );
 
   const handleTogglePresentation = useCallback(() => {
@@ -57,11 +57,11 @@ export const useSlide = (excalidrawApi: ExcalidrawImperativeAPI | null) => {
         }
       }
       requestAnimationFrame(() => {
-        excalidrawApi?.updateScene({ appState: { viewModeEnabled: newMode } });
+        excalidrawAPI?.updateScene({ appState: { viewModeEnabled: newMode } });
       });
       return newMode;
     });
-  }, [excalidrawApi, scrollToSlide]);
+  }, [excalidrawAPI, scrollToSlide]);
 
   const slidePrev = useCallback(() => {
     const nextSlideIndex = Math.max(0, currentSlide - 1);

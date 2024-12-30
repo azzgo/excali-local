@@ -17,9 +17,9 @@ import {
 import Hint from "@/components/hint";
 import { useTranslation } from "react-i18next";
 interface SlideNavigationProps {
-  excalidrawApi: ExcalidrawImperativeAPI | null;
+  excalidrawAPI: ExcalidrawImperativeAPI | null;
 }
-const SlideNavigation = ({ excalidrawApi }: SlideNavigationProps) => {
+const SlideNavigation = ({ excalidrawAPI }: SlideNavigationProps) => {
   const isFirstSlide = useAtomValue(isFirstSlideAtom);
   const isLastSlide = useAtomValue(isLastSlideAtom);
   const {
@@ -28,7 +28,7 @@ const SlideNavigation = ({ excalidrawApi }: SlideNavigationProps) => {
     slideNext,
     slidePrev,
     handleTogglePresentation,
-  } = useSlide(excalidrawApi);
+  } = useSlide(excalidrawAPI);
   const [showSlideQuickNavbar, toggleShowSlideQuickNav] = useAtom(
     showSlideQuickNavAtom
   );

@@ -11,23 +11,23 @@ import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/excalidraw
 import { useMarker } from "../hooks/use-marker";
 
 interface SlideToolbarProps {
-  excalidrawApi: ExcalidrawImperativeAPI | null;
+  excalidrawAPI: ExcalidrawImperativeAPI | null;
 }
-const LocalEditorToolbar = ({ excalidrawApi }: SlideToolbarProps) => {
+const LocalEditorToolbar = ({ excalidrawAPI }: SlideToolbarProps) => {
   const { presentationMode, slides, handleTogglePresentation } =
-    useSlide(excalidrawApi);
+    useSlide(excalidrawAPI);
   const [t] = useTranslation();
-  const { toggleMarkerMode } = useMarker(excalidrawApi);
+  const { toggleMarkerMode } = useMarker(excalidrawAPI);
   const handlePresentationIconClick = (
     event: React.MouseEvent<HTMLButtonElement>
   ) => {
     handleTogglePresentation();
-    excalidrawApi?.toggleSidebar({ name: "marker", force: false });
+    excalidrawAPI?.toggleSidebar({ name: "marker", force: false });
     event.currentTarget?.blur();
   };
 
   const handleMarkerIconClick = () => {
-    excalidrawApi?.toggleSidebar({ name: "marker", force: true });
+    excalidrawAPI?.toggleSidebar({ name: "marker", force: true });
     toggleMarkerMode(true);
   };
 

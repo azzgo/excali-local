@@ -12,9 +12,9 @@ import {
 } from "@/features/editor/store/presentation";
 
 describe("useSlide", () => {
-  let excalidrawApi: any;
+  let excalidrawAPI: any;
   beforeEach(() => {
-    excalidrawApi = {
+    excalidrawAPI = {
       scrollToContent: vi.fn(),
       updateScene: vi.fn(),
     };
@@ -29,7 +29,7 @@ describe("useSlide", () => {
   });
 
   test("should change presentationMode", async () => {
-    const { result } = renderHook(() => useSlide(excalidrawApi), {
+    const { result } = renderHook(() => useSlide(excalidrawAPI), {
       wrapper: ProviderWrapper,
     });
     expect(result.current.presentationMode).toBe(false);
@@ -44,7 +44,7 @@ describe("useSlide", () => {
       { id: "slide-1", element: [], name: "slide-1" },
       { id: "slide-2", element: [], name: "slide-2" },
     ]);
-    const { result } = renderHook(() => useSlide(excalidrawApi), {
+    const { result } = renderHook(() => useSlide(excalidrawAPI), {
       wrapper: ProviderWrapper,
     });
     expect(result.current.slides).toEqual([

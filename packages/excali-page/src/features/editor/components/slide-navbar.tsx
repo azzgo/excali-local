@@ -16,13 +16,13 @@ import SlideSortableList from "./slide-sortable-list";
 
 interface SlideQuickNavbarProps {
   close: () => void;
-  excalidrawApi: ExcalidrawImperativeAPI | null;
+  excalidrawAPI: ExcalidrawImperativeAPI | null;
 }
 
-const SlideNavbar = ({ close, excalidrawApi }: SlideQuickNavbarProps) => {
+const SlideNavbar = ({ close, excalidrawAPI }: SlideQuickNavbarProps) => {
   const showSlideQuickNav = useAtomValue(showSlideQuickNavAtom);
   const orderedSlides = useAtomValue(orderedSlidesAtom);
-  const { scrollToSlide } = useSlide(excalidrawApi);
+  const { scrollToSlide } = useSlide(excalidrawAPI);
   const slideLength = useMemo(() => orderedSlides.length, [orderedSlides]);
   const updateSlideIdOrderList = useSetAtom(slideIdOrderListAtom);
 

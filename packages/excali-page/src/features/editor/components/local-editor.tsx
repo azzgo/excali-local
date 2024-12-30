@@ -106,12 +106,12 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
             onChange={debouncedHandleSave}
             onLibraryChange={debouncedHandleLibrarySave}
             renderTopRightUI={() => (
-              <LocalEditorToolbar excalidrawApi={excalidrawAPI} />
+              <LocalEditorToolbar excalidrawAPI={excalidrawAPI} />
             )}
           >
             <WelcomeScreen />
             <Footer>
-              <SlideNavigation excalidrawApi={excalidrawAPI} />
+              <SlideNavigation excalidrawAPI={excalidrawAPI} />
             </Footer>
             <QuickMarkSidebar excalidrawAPI={excalidrawAPI} />
           </Excalidraw>
@@ -119,7 +119,7 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
       </div>
       <div className={cn(!showSlideQuickNav && "hidden")}>
         <SlideNavbar
-          excalidrawApi={excalidrawAPI}
+          excalidrawAPI={excalidrawAPI}
           close={() => updateShowSlideQuickNav(false)}
         />
       </div>
