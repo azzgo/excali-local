@@ -1,30 +1,24 @@
-import Hint from "@/components/hint";
-import { Button } from "@/components/ui/button";
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/excalidraw/types";
-import {
-  IconCircleNumber1,
-  IconCircleNumber1Filled,
-} from "@tabler/icons-react";
+import { IconCircleNumber1 } from "@tabler/icons-react";
 import { useMarker } from "../hooks/use-marker";
+import { Sidebar } from "@excalidraw/excalidraw";
 
 interface MarkerToolbarProps {
-  excalidrawApi: ExcalidrawImperativeAPI | null;
+  excalidrawAPI: ExcalidrawImperativeAPI | null;
 }
 
-const MarkerToolbar = ({ excalidrawApi }: MarkerToolbarProps) => {
-  const { isMarkerMode, toggleMarkerMode } = useMarker(excalidrawApi);
-
+const MarkerToolbar = ({ excalidrawAPI }: MarkerToolbarProps) => {
+  const { toggleMarkerMode } = useMarker(excalidrawAPI);
   return (
     <div className="flex gap-x-4 items-center">
-      <Hint label="Marker" align="end" sideOffset={8}>
-        <Button
-          className="[&_svg]:size-6"
-          variant="ghost"
-          onClick={toggleMarkerMode}
-        >
-          {isMarkerMode ? <IconCircleNumber1Filled /> : <IconCircleNumber1 />}
-        </Button>
-      </Hint>
+      <Sidebar.Trigger
+        title="Marker"
+        className="[&_svg]:size-6"
+        name="marker"
+        onToggle={(open) => open && toggleMarkerMode(true)}
+      >
+        <IconCircleNumber1 />
+      </Sidebar.Trigger>
     </div>
   );
 };

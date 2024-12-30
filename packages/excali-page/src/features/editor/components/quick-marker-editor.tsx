@@ -7,6 +7,7 @@ import { useMessageEvent } from "../hooks/use-message-event";
 import MarkerToolbar from "./marker-toolbar";
 import { useMarkerEvent } from "../hooks/use-marker-effect";
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/excalidraw/types";
+import QuickMarkSidebar from "./quick-mark-sidbar";
 interface QuickMarkerEditorProps {
   lang: string;
 }
@@ -36,11 +37,10 @@ const QuickMarkerEditor = ({ lang }: QuickMarkerEditorProps) => {
           aiEnabled={false}
           initialData={data}
           excalidrawAPI={(api) => updateExcalidrawAPI(api)}
-          renderTopRightUI={() => (
-            <MarkerToolbar excalidrawApi={excalidrawAPI} />
-          )}
+          renderTopRightUI={() => <MarkerToolbar excalidrawAPI={excalidrawAPI} />}
         >
           <WelcomeScreen />
+          <QuickMarkSidebar excalidrawAPI={excalidrawAPI} />
         </Excalidraw>
       )}
     </div>

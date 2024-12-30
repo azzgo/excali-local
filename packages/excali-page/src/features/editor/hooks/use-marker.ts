@@ -82,10 +82,10 @@ export const useMarker = (excalidrawApi: ExcalidrawImperativeAPI | null) => {
     };
   }, [excalidrawApi]);
 
-  const toggleMarkerMode = () => {
+  const toggleMarkerMode = (forceOpen?: boolean) => {
     updateMarkMode((prev) => {
       markerUnsubscriber.current?.();
-      const newState = !prev;
+      const newState = forceOpen || !prev;
       if (newState) {
         startMarkerModeBehavior();
       } else {
