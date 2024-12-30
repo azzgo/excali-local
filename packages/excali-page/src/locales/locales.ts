@@ -10,6 +10,8 @@ export function initI18n() {
           "Exit Presentation": "Exit Presentation",
           "Enter Presentation": "Enter Presentation",
           "Edit Slides": "Edit Slides",
+          "marker": "marker",
+          "Quick Marker": "Quick Marker",
         },
       },
       "zh-CN": {
@@ -17,6 +19,8 @@ export function initI18n() {
           "Exit Presentation": "退出演示",
           "Enter Presentation": "进入演示",
           "Edit Slides": "编辑幻灯片",
+          "marker": "标记",
+          "Quick Marker": "快速标记",
         },
       },
     },

@@ -13,6 +13,7 @@ import {
 import { useState } from "react";
 import { useMarker } from "../hooks/use-marker";
 import { StrokeStyle } from "@excalidraw/excalidraw/types/excalidraw/element/types";
+import { useTranslation } from "react-i18next";
 
 const strokeColorList = [
   "#1e1e1e",
@@ -92,12 +93,13 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
     });
     forceUpdate({});
   };
+  const [t] = useTranslation();
 
   return (
     <Sidebar name="marker" docked={docked} onDock={setDocked}>
       <Sidebar.Header>
         <div className="text-[var(--color-primary)] text-[1.2em] bold text-ellipsis overflow-hidden whitespace-nowrap pr-[1em]">
-          Quick Marker
+          {t("Quick Marker")}
         </div>
       </Sidebar.Header>
       <ScrollArea>
