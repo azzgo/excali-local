@@ -62,6 +62,8 @@ function addOverlay() {
   overlay.style.height = window.innerHeight + "px";
   overlay.style.margin = "0";
   overlay.style.padding = "0";
+  overlay.style.border = "0";
+  overlay.style.borderRadius = "0";
   overlay.style.backgroundColor = "rgba(0, 0, 0, 0.5)";
   overlay.style.zIndex = Number.MAX_SAFE_INTEGER.toString();
   overlay.style.cursor = "crosshair";
@@ -74,6 +76,7 @@ function addOverlay() {
   selection.style.margin = "0";
   selection.style.padding = "0";
   selection.style.zIndex = "99";
+  selection.style.top = "-999px";
   selection.id = selectionId;
   overlay.appendChild(selection);
 
@@ -82,6 +85,8 @@ function addOverlay() {
   halo.style.width = "10px";
   halo.style.height = "10px";
   halo.style.boxSizing = "border-box";
+  halo.style.margin = "0";
+  halo.style.padding = "0";
   halo.style.borderRadius = "50%";
   halo.style.top = "-1000px";
   halo.style.background = "rgba(255, 255, 255, 0.3)";
