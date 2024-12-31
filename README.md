@@ -1,5 +1,9 @@
 # 🎉 Excali Local 🚀
 
+<p align="center">
+  <img src="./.assets/banner.jpg" alt="Banner">
+</p>
+
 ## Introduction
 
 Excali Local is a local extension for [Excalidraw](https://excalidraw.com/), it provides a offline editor for Excalidraw and add presentation mode for Excalidraw.
@@ -24,6 +28,12 @@ Demo video:
 #### Select Area
 
 ![Select Area](./.assets/select-area.png)
+
+### Mark in Whiteboard
+
+![Guide open mark sidebar](./.assets/guide-open-sidebar.png)
+
+![Mark in Whiteboard](./.assets/number-mark-tool.png)
 
 ### Presentation mode
 
