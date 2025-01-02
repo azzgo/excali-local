@@ -10,6 +10,7 @@ Excali Local is a local extension for [Excalidraw](https://excalidraw.com/), it 
 
 - Chrome: [Chrome Web Store](https://chromewebstore.google.com/detail/excali-local/ebmgbhnihcbgpbcjnjeamnkkplnppddd)
 - FireFox: [Firefox Add-ons](https://addons.mozilla.org/addon/excali-local)
+- Edge: [Edge Addons](https://microsoftedge.microsoft.com/addons/detail/excali-local/kflccadkimelkkjcmedhhfbnnlbdggol)
 
 Demo video: 
 - [Youtube](https://youtu.be/_aHWUz9Og-I)
