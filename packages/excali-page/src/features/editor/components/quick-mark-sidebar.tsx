@@ -14,6 +14,7 @@ import { useCallback, useState } from "react";
 import { useMarker } from "../hooks/use-marker";
 import { StrokeStyle } from "@excalidraw/excalidraw/types/excalidraw/element/types";
 import { useTranslation } from "react-i18next";
+import { Separator } from "@/components/ui/separator";
 
 const strokeColorList = [
   "#1e1e1e",
@@ -70,7 +71,7 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
             zenModeEnabled: false,
           },
         });
-      } else if (docked && state.name === 'marker') {
+      } else if (docked && state.name === "marker") {
         excalidrawAPI?.updateScene({
           appState: {
             zenModeEnabled: true,
@@ -181,6 +182,10 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
                   onClick={() => updateStrokeColor(color)}
                 />
               ))}
+              <div className="flex flex-row gap-x-2">
+                <Separator orientation="vertical" />
+                <ColorButton readonly color={currentStrokeColor as string} />
+              </div>
             </div>
           </div>
           <div>
@@ -194,6 +199,10 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
                   onClick={() => updateBackgroundColor(color)}
                 />
               ))}
+              <div className="flex flex-row gap-x-2">
+                <Separator orientation="vertical" />
+                <ColorButton readonly color={currentBackgroundColor as string} />
+              </div>
             </div>
           </div>
           <div>
@@ -202,19 +211,19 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
               <IconButton
                 active={currentStorkeStyle === "solid"}
                 onClick={() => changeLineType("solid")}
-                title="solid"
+                title={libI18n.t('labels.strokeStyle_solid')}
                 icon={<IconSlash />}
               />
               <IconButton
                 active={currentStorkeStyle === "dashed"}
                 onClick={() => changeLineType("dashed")}
-                title="dashed"
+                title={libI18n.t('labels.strokeStyle_dashed')}
                 icon={<IconLineDashed />}
               />
               <IconButton
                 active={currentStorkeStyle === "dotted"}
                 onClick={() => changeLineType("dotted")}
-                title="dotted"
+                title={libI18n.t('labels.strokeStyle_dotted')}
                 icon={<IconLineDotted />}
               />
             </div>

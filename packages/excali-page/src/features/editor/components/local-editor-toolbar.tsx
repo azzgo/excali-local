@@ -28,7 +28,6 @@ const LocalEditorToolbar = ({ excalidrawAPI }: SlideToolbarProps) => {
 
   const handleMarkerIconClick = () => {
     excalidrawAPI?.toggleSidebar({ name: "marker", force: true });
-    toggleMarkerMode(true);
   };
 
   return (

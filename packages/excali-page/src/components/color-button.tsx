@@ -4,13 +4,14 @@ interface ColorButtonProps {
   color: string;
   active?: boolean;
   onClick?: () => void;
+  readonly?: boolean;
 }
-const ColorButton = ({ color, active, onClick }: ColorButtonProps) => {
+const ColorButton = ({ color, active, onClick, readonly }: ColorButtonProps) => {
   return (
     <div
       className={cn(
         "size-5 rounded border border-[#d6d6d6] relative bg-left-center",
-        "hover:after:absolute hover:after:shadow-[0_0_0_1px_#d6d6d6] hover:after:left-[-2px] hover:after:right-[-2px] hover:after:top-[-2px] hover:after:bottom-[-2px] hover:after:rounded"
+        !readonly && "hover:after:absolute hover:after:shadow-[0_0_0_1px_#d6d6d6] hover:after:left-[-2px] hover:after:right-[-2px] hover:after:top-[-2px] hover:after:bottom-[-2px] hover:after:rounded",
       )}
       role="button"
       style={{

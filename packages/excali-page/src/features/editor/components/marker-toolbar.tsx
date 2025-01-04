@@ -14,7 +14,6 @@ const MarkerToolbar = ({ excalidrawAPI }: MarkerToolbarProps) => {
   const [t] = useTranslation();
   const handleMarkerIconClick = () => {
     excalidrawAPI?.toggleSidebar({ name: "marker", force: true });
-    toggleMarkerMode(true);
   };
   return (
     <div className="flex gap-x-4 items-center">
