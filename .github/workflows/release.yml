@@ -27,13 +27,10 @@ jobs:
       - name: Build Extension
         run: |
           bun run local:build
-          bun run local:build:firefox
       - name: Pack Extension
         run: |
           bun run local:tar
-          bun run local:tar:firefox
           bun run local:zip
-          bun run local:zip:firefox
           bun run local:tar
       - name: Release
         env:

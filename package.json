@@ -6,16 +6,11 @@
     "page:dev": "bun --filter ./packages/excali-page dev",
     "page:build": "BUILD_FOR_EXTENSION=1 bun --filter ./packages/excali-page build",
     "page:test": "bun --filter ./packages/excali-page test",
-    "local:clean:editor": "bun --filter ./packages/excali-local clean:editor",
-    "local:clean:output": "bun --filter ./packages/excali-local clean:output",
     "local:dev": "bun --filter ./packages/excali-local dev",
-    "local:clean:archive": "bun --filter ./packages/excali-local clean:archive",
-    "local:build": "bun --filter ./packages/excali-local build",
-    "local:build:firefox": "bun --filter ./packages/excali-local build:firefox",
-    "local:tar": "bun --filter ./packages/excali-local tar",
-    "local:tar:firefox": "bun --filter ./packages/excali-local tar:firefox",
-    "local:zip": "bun --filter ./packages/excali-local zip",
-    "local:zip:firefox": "bun --filter ./packages/excali-local zip:firefox"
+    "local:clean": "bun ./scripts/clean.ts",
+    "local:build": "bun ./scripts/build.ts",
+    "local:tar": "bun ./scripts/tar.ts",
+    "local:zip": "bun ./scripts/zip.ts"
   },
   "workspaces": [
     "packages/*"
