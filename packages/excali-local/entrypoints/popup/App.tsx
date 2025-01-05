@@ -7,8 +7,8 @@ import {
 } from "@tabler/icons-react";
 import IconHeader from "./IconHeader";
 import Item from "./item";
-import { useMessage } from "./hooks/useMessage";
-import { useCommandList } from "./hooks/useCommandList";
+import { useMessage } from "./hooks/use-message";
+import { useCommandList } from "./hooks/use-command-list";
 import { t } from "../lib/utils";
 
 function App() {

@@ -29,18 +29,6 @@
   "SomethingWentWrong": {
     "message": "出现错误，请稍后再试。"
   },
-  "Language": {
-    "message": "语言"
-  },
-  "LanguageFollowSystem": {
-    "message": "跟随系统"
-  },
-  "LanguageEnglish": {
-    "message": "英语"
-  },
-  "LanguageChinese": {
-    "message": "中文"
-  },
   "Font": {
     "message": "字体"
   },
@@ -61,6 +49,9 @@
   },
   "SaveSuccess": {
     "message": "保存成功"
+  },
+  "SaveSuccessContent": {
+    "message": "需要刷新页面才能看到保存的效果"
   },
   "SaveFailed": {
     "message": "保存失败"

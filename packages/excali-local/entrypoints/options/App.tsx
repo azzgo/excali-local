@@ -8,13 +8,11 @@ const OptionsPage = () => {
   const handleSave: FormEventHandler = useCallback((e) => {
     e.preventDefault();
     const formData = new FormData(formRef.current!);
-    const langCode = formData.get("langCode") as ExcaliLocalSetting["langCode"];
     const handwriting = formData.get("handwriting") as string;
     const normal = formData.get("normal") as string;
     const code = formData.get("code") as string;
 
     saveSetting({
-      langCode,
       font: {
         handwriting: handwriting || null,
         normal: normal || null,
@@ -24,6 +22,7 @@ const OptionsPage = () => {
       notify({
         type: "success",
         title: t("SaveSuccess"),
+        message: t("SaveSuccessContent"),
       });
     }, (error) => {
       notify({
@@ -43,20 +42,6 @@ const OptionsPage = () => {
         onSubmit={handleSave}
         className="w-full max-w-md bg-white shadow-md rounded-lg p-6 border"
       >
-        <div className="mb-4">
-          <h2 className="text-xl font-semibold mb-2">{t("Language")}</h2>
-          <div className="space-y-4">
-            <div className="flex items-center">
-              <label className="w-1/3 text-gray-700">{t("Language")}:</label>
-              <select name="langCode" className="w-2/3 p-2 border rounded-md">
-                <option value="system">{t("LanguageFollowSystem")}</option>
-                <option value="en">{t("LanguageEnglish")}</option>
-                <option value="zh_CN">{t("LanguageChinese")}</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
         <div className="mb-4">
           <h2 className="text-xl font-semibold mb-2">{t("Font")}</h2>
           <div className="space-y-4">

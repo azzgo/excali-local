@@ -29,18 +29,6 @@
   "SomethingWentWrong": {
     "message": "Something went wrong. Please try again later."
   },
-  "Language": {
-    "message": "Language"
-  },
-  "LanguageFollowSystem": {
-    "message": "Follow System"
-  },
-  "LanguageEnglish": {
-    "message": "English"
-  },
-  "LanguageChinese": {
-    "message": "Chinese"
-  },
   "Font": {
     "message": "Font"
   },
@@ -61,6 +49,9 @@
   },
   "SaveSuccess": {
     "message": "Save Success"
+  },
+  "SaveSuccessContent": {
+    "message": "Please refresh the page to see the saved content"
   },
   "SaveFailed": {
     "message": "Save Failed"

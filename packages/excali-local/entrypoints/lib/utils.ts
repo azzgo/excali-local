@@ -32,7 +32,6 @@ export function t(messageCode: string) {
 }
 
 export interface ExcaliLocalSetting {
-  langCode: "en" | "zh_CN" | "system";
   font: {
     handwriting: string | null;
     normal: string | null;
