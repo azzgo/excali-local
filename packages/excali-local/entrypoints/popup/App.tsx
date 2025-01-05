@@ -28,7 +28,7 @@ function App() {
   return (
     <section className="flex flex-col w-80 px-4 bg-white dark:bg-black">
       <h4 className="font-medium text-2xl border-b border-b-gray-300 p-2 w-full mb-2 bg:text-white">
-        Excali
+        Excali Local
       </h4>
       {errorMessage && (
         <div className="flex flex-row items-center bg-red-500 text-white p-2 rounded">

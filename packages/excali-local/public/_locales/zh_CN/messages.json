@@ -28,6 +28,41 @@
   },
   "SomethingWentWrong": {
     "message": "出现错误，请稍后再试。"
+  },
+  "Language": {
+    "message": "语言"
+  },
+  "LanguageFollowSystem": {
+    "message": "跟随系统"
+  },
+  "LanguageEnglish": {
+    "message": "英语"
+  },
+  "LanguageChinese": {
+    "message": "中文"
+  },
+  "Font": {
+    "message": "字体"
+  },
+  "Handwriting": {
+    "message": "手写字体"
+  },
+  "Normal": {
+    "message": "普通字体"
+  },
+  "Code": {
+    "message": "代码字体"
+  },
+  "FontPlaceholder": {
+    "message": "请输入有效的字体名称"
+  },
+  "Save": {
+    "message": "保存"
+  },
+  "SaveSuccess": {
+    "message": "保存成功"
+  },
+  "SaveFailed": {
+    "message": "保存失败"
   }
 }
-

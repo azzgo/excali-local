@@ -85,9 +85,3 @@ html, body {
   }
 }
 
-@font-face {
-   font-family: 'Virgil';
-   font-display: swap;
-   src: local("Xiaolai SC");
-}
-

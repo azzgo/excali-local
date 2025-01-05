@@ -40,7 +40,7 @@ function genManifest(env: ConfigEnv) {
         description: "Capture select area",
       },
     },
-    permissions: ["activeTab", "scripting"],
+    permissions: ["activeTab", "scripting", "storage"],
   };
 
   if (env.browser === "firefox") {

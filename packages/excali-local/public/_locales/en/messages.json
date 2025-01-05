@@ -28,5 +28,41 @@
   },
   "SomethingWentWrong": {
     "message": "Something went wrong. Please try again later."
+  },
+  "Language": {
+    "message": "Language"
+  },
+  "LanguageFollowSystem": {
+    "message": "Follow System"
+  },
+  "LanguageEnglish": {
+    "message": "English"
+  },
+  "LanguageChinese": {
+    "message": "Chinese"
+  },
+  "Font": {
+    "message": "Font"
+  },
+  "Handwriting": {
+    "message": "Handwriting Font Family"
+  },
+  "Normal": {
+    "message": "Normal Font Family"
+  },
+  "Code": {
+    "message": "Code Font Family"
+  },
+  "FontPlaceholder": {
+    "message": "Please input valid font name"
+  },
+  "Save": {
+    "message": "Save"
+  },
+  "SaveSuccess": {
+    "message": "Save Success"
+  },
+  "SaveFailed": {
+    "message": "Save Failed"
   }
 }
