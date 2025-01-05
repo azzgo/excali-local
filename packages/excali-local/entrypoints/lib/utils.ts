@@ -42,6 +42,6 @@ export function saveSetting(setting: ExcaliLocalSetting) {
   return storage.setItem("local:settings", setting);
 }
 
-export function getString() {
+export function getSetting() {
   return storage.getItem<ExcaliLocalSetting | null>("local:settings");
 }

@@ -8,8 +8,6 @@ import { initI18n } from "./locales/locales";
 import { rewriteFont } from "./lib/utils";
 initI18n();
 
-// rewriteFont('Virgil', 'XiaolaiSC');
-
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <Provider>

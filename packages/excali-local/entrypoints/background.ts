@@ -1,4 +1,4 @@
-import { PromsieWithResolver, WithResolvers } from "./lib/utils";
+import { PromsieWithResolver, WithResolvers, getSetting } from "./lib/utils";
 
 const openLocalEditor = () => {
   browser.tabs.create({ url: "editor/index.html?type=local" });
@@ -85,6 +85,12 @@ browser.runtime.onMessage.addListener((message, _, sendMessage) => {
         return;
       case "READY":
         ready?.resolve();
+        getSetting().then((setting) => {
+          browser.tabs.sendMessage(activeTab.id!, {
+            type: "REPLACE_FONTS",
+            fonts: setting?.font,
+          });
+        });
         sendMessage(true);
         return;
     }

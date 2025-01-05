@@ -5,6 +5,7 @@ import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import { useEffect } from "react";
 import { getBrowser } from "../lib/browser";
 import { getSizeOfDataImage } from "../utils/images";
+import { rewriteFont } from "@/lib/utils";
 
 interface useMessageEventProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
@@ -35,6 +36,27 @@ export function useMessageEvent({ excalidrawAPI }: useMessageEventProps) {
               );
             }
           );
+          break;
+        case "REPLACE_FONTS":
+          const { fonts } = message;
+          if (!fonts) {
+            return;
+          }
+          Object.keys(fonts).forEach((font) => {
+            if (fonts[font]) {
+              switch (font) {
+                case "handwriting":
+                  rewriteFont("Virgil", fonts[font]);
+                  break;
+                case "normal":
+                  rewriteFont("Helvetica", fonts[font]);
+                  break;
+                case "code":
+                  rewriteFont("Cascadia", fonts[font]);
+                  break;
+              }
+            }
+          });
           break;
         default:
           break;

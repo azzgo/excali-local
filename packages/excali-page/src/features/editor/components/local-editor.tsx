@@ -27,6 +27,7 @@ import {
 } from "@excalidraw/excalidraw/types/excalidraw/types";
 import { ExcalidrawElement } from "@excalidraw/excalidraw/types/excalidraw/element/types";
 import QuickMarkSidebar from "./quick-mark-sidebar";
+import { useMessageEvent } from "../hooks/use-message-event";
 
 interface LocalEditorProps {
   lang: string;
@@ -40,6 +41,7 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
   const [showSlideQuickNav, updateShowSlideQuickNav] = useAtom(
     showSlideQuickNavAtom
   );
+  useMessageEvent({ excalidrawAPI });
 
   useEffect(() => {
     if (data != null) {

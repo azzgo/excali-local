@@ -1,7 +1,6 @@
 import { FormEventHandler } from "react";
-import { ExcaliLocalSetting, saveSetting, t } from "../lib/utils";
+import { saveSetting, getSetting, t } from "../lib/utils";
 import { useSimpleNotify } from "../lib/hooks/use-simple-notify";
-
 
 const OptionsPage = () => {
   const formRef = useRef<HTMLFormElement>(null);
@@ -18,22 +17,45 @@ const OptionsPage = () => {
         normal: normal || null,
         code: code || null,
       },
-    }).then(() => {
-      notify({
-        type: "success",
-        title: t("SaveSuccess"),
-        message: t("SaveSuccessContent"),
-      });
-    }, (error) => {
-      notify({
-        type: "error",
-        title: t("SaveFailed"),
-        message: error.message,
-      });
-    });
+    }).then(
+      () => {
+        notify({
+          type: "success",
+          title: t("SaveSuccess"),
+          message: t("SaveSuccessContent"),
+        });
+      },
+      (error) => {
+        notify({
+          type: "error",
+          title: t("SaveFailed"),
+          message: error.message,
+        });
+      }
+    );
   }, []);
 
   const { notify, Notify } = useSimpleNotify();
+
+  useEffect(() => {
+    getSetting().then((setting) => {
+      if (setting) {
+        const handwriting = formRef.current?.querySelector(
+          'input[name="handwriting"]'
+        ) as HTMLInputElement;
+        const normal = formRef.current?.querySelector(
+          'input[name="normal"]'
+        ) as HTMLInputElement;
+        const code = formRef.current?.querySelector(
+          'input[name="code"]'
+        ) as HTMLInputElement;
+
+        handwriting.value = setting.font.handwriting || "";
+        normal.value = setting.font.normal || "";
+        code.value = setting.font.code || "";
+      }
+    });
+  }, []);
 
   return (
     <div className="flex justify-center items-center h-screen p-4 bg-gray-100">
