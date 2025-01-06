@@ -67,5 +67,8 @@
   },
   "OptionPageTitle": {
     "message": "Excali Local Customization"
+  },
+  "OpenOptions": {
+    "message": "Open Options"
   }
 }

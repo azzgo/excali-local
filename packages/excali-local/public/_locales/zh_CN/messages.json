@@ -67,5 +67,8 @@
   },
   "OptionPageTitle": {
     "message": "Excali Local 定制页"
+  },
+  "OpenOptions": {
+    "message": "打开设置"
   }
 }

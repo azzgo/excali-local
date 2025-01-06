@@ -76,6 +76,7 @@ const FontChooser = ({ className, onChoose }: FontChooserProps) => {
               <li
                 key={font.postscriptName}
                 onClick={() => setSelectedFont(font)}
+                style={{ contentVisibility: "auto" }}
                 className={`cursor-pointer p-2 hover:bg-gray-200 ${
                   selectedFont?.postscriptName === font.postscriptName &&
                   "bg-gray-300"
