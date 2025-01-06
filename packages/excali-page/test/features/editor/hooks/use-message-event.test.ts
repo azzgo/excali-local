@@ -1,13 +1,12 @@
 import { useMessageEvent } from "@/features/editor/hooks/use-message-event";
-import { getBrowser } from "@/features/editor/lib/browser";
+import { getBrowser } from "@/lib/utils";
 import { getSizeOfDataImage } from "@/features/editor/utils/images";
-import { rewriteFont } from "@/lib/utils";
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("@excalidraw/excalidraw");
 vi.mock("@/features/editor/utils/images");
-vi.mock("@/features/editor/lib/browser", () => {
+vi.mock("@/lib/utils", () => {
   let runtime = {
     onMessage: {
       addListener: vi.fn(),
@@ -21,10 +20,6 @@ vi.mock("@/features/editor/lib/browser", () => {
     }),
   };
 });
-
-vi.mock("@/lib/utils", () => ({
-  rewriteFont: vi.fn(),
-}));
 
 describe("useMessageEvent", () => {
   let listener: (() => void) | undefined;
@@ -98,36 +93,6 @@ describe("useMessageEvent", () => {
         ],
       });
       expect(excalidrawAPI.scrollToContent).toHaveBeenCalled();
-    });
-  });
-
-  test('should replace fonts when "REPLACE_FONTS" message received', async () => {
-    const excalidrawAPI = {
-      updateScene: vi.fn(),
-      scrollToContent: vi.fn(),
-      addFiles: vi.fn(),
-    } as any;
-    renderHook(() => useMessageEvent({ excalidrawAPI }));
-    // @ts-expect-error mocked
-    listener({
-      type: "REPLACE_FONTS",
-      fonts: {
-        handwriting: "handwriting font family",
-        normal: "normal font family",
-        code: "code font family",
-      },
-    });
-
-    await vi.waitFor(() => {
-      expect(rewriteFont).toHaveBeenCalledWith(
-        "Virgil",
-        "handwriting font family"
-      );
-      expect(rewriteFont).toHaveBeenCalledWith(
-        "Helvetica",
-        "normal font family"
-      );
-      expect(rewriteFont).toHaveBeenCalledWith("Cascadia", "code font family");
     });
   });
 });

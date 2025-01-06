@@ -83,14 +83,13 @@ browser.runtime.onMessage.addListener((message, _, sendMessage) => {
         captureSelectArea(message);
         sendMessage(true);
         return;
+      case "GET_FONTS_SETTINGS":
+        getSetting().then((setting) => {
+          sendMessage(setting?.font);
+        });
+        break;
       case "READY":
         ready?.resolve();
-        getSetting().then((setting) => {
-          browser.tabs.sendMessage(activeTab.id!, {
-            type: "REPLACE_FONTS",
-            fonts: setting?.font,
-          });
-        });
         sendMessage(true);
         return;
     }
