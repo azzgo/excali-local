@@ -47,6 +47,15 @@
   "Save": {
     "message": "Save"
   },
+  "Cancel": {
+    "message": "Cancel"
+  },
+  "FontSearch": {
+    "message": "Search font..."
+  },
+  "ChooseAFont": {
+    "message": "Choose a font"
+  },
   "SaveSuccess": {
     "message": "Save Success"
   },
@@ -55,5 +64,8 @@
   },
   "SaveFailed": {
     "message": "Save Failed"
+  },
+  "OptionPageTitle": {
+    "message": "Excali Local Customization"
   }
 }

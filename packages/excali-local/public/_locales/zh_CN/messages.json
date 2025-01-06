@@ -47,6 +47,15 @@
   "Save": {
     "message": "保存"
   },
+  "Cancel": {
+    "message": "取消"
+  },
+  "FontSearch": {
+    "message": "搜索字体..."
+  },
+  "ChooseAFont": {
+    "message": "选择字体"
+  },
   "SaveSuccess": {
     "message": "保存成功"
   },
@@ -55,5 +64,8 @@
   },
   "SaveFailed": {
     "message": "保存失败"
+  },
+  "OptionPageTitle": {
+    "message": "Excali Local 定制页"
   }
 }
