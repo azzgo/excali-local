@@ -1,11 +1,13 @@
 import { ConfigEnv, UserManifest, defineConfig } from "wxt";
 
+import packageJson from "./package.json";
+
 function genManifest(env: ConfigEnv) {
   const manifest: UserManifest = {
     manifest_version: 3,
     name: "Excali Local",
     description: "__MSG_description__",
-    version: "1.2.0",
+    version: packageJson.version,
     default_locale: "en",
     background: {
       service_worker: "src/background.ts",
