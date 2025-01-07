@@ -14,6 +14,8 @@ declare global {
   }
 }
 
+const canUseQueryLocalFont = "queryLocalFonts" in window;
+
 const FontChooser = ({ className, onChoose }: FontChooserProps) => {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [fontList, setFontList] = useState<FontData[]>([]);
@@ -51,6 +53,10 @@ const FontChooser = ({ className, onChoose }: FontChooserProps) => {
       ),
     [fontList, searchText]
   );
+
+  if (!canUseQueryLocalFont) {
+    return null;
+  }
 
   return (
     <>

@@ -88,7 +88,7 @@ const OptionsPage = () => {
                 type="text"
                 id="handwriting-font"
                 className="w-2/3 p-2 border rounded outline-none focus:border-blue-500"
-                placeholder={t("HandwritingFontPlaceholder")}
+                placeholder={t("FontPlaceholder")}
               />
               <span className="cursor-pointer absolute inset-y-0 end-0 grid w-10 place-content-center text-gray-700 group">
                 <FontChooser
@@ -106,7 +106,7 @@ const OptionsPage = () => {
                 name="normal"
                 id="normal-font"
                 className="w-2/3 p-2 border rounded outline-none focus:border-blue-500"
-                placeholder={t("HandwritingFontPlaceholder")}
+                placeholder={t("FontPlaceholder")}
               />
               <span className="cursor-pointer absolute inset-y-0 end-0 grid w-10 place-content-center text-gray-700 group">
                 <FontChooser
@@ -124,7 +124,7 @@ const OptionsPage = () => {
                 name="code"
                 id="code-font"
                 className="w-2/3 p-2 border rounded outline-none focus:border-blue-500"
-                placeholder={t("HandwritingFontPlaceholder")}
+                placeholder={t("FontPlaceholder")}
               />
               <span className="cursor-pointer absolute inset-y-0 end-0 grid w-10 place-content-center text-gray-700 group">
                 <FontChooser
