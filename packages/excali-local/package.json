@@ -21,6 +21,7 @@
     "@tabler/icons-react": "^3.23.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "sonner": "^1.7.1",
     "tailwind-merge": "^2.5.3",
     "tailwindcss-animate": "^1.0.7"
   },

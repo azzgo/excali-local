@@ -1,8 +1,9 @@
 import { FormEventHandler } from "react";
 import { saveSetting, getSetting, t } from "../lib/utils";
-import { useSimpleNotify } from "../lib/hooks/use-simple-notify";
 import FontChooser from "./FontChooser";
 import { FontData } from "./type";
+import { toast } from "sonner";
+import { IconCheck, IconX } from "@tabler/icons-react";
 
 const OptionsPage = () => {
   const formRef = useRef<HTMLFormElement>(null);
@@ -21,23 +22,21 @@ const OptionsPage = () => {
       },
     }).then(
       () => {
-        notify({
-          type: "success",
-          title: t("SaveSuccess"),
-          message: t("SaveSuccessContent"),
+        toast(t("SaveSuccess"), {
+          icon: <IconCheck className="text-green-500 size-4" />,
+          description: t("SaveSuccessContent"),
+          duration: 3000,
         });
       },
       (error) => {
-        notify({
-          type: "error",
-          title: t("SaveFailed"),
-          message: error.message,
+        toast(t("SaveFailed"), {
+          icon: <IconX className="text-red-500 size-4" />,
+          description: error.message,
+          duration: 3000,
         });
       }
     );
   }, []);
-
-  const { notify, Notify } = useSimpleNotify();
 
   useEffect(() => {
     getSetting().then((setting) => {
@@ -144,7 +143,6 @@ const OptionsPage = () => {
           </button>
         </div>
       </form>
-      <Notify />
     </div>
   );
 };
