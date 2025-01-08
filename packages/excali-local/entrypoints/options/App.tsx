@@ -25,7 +25,8 @@ const OptionsPage = () => {
         toast(t("SaveSuccess"), {
           icon: <IconCheck className="text-green-500 size-4" />,
           description: t("SaveSuccessContent"),
-          duration: 3000,
+          id: "save-success",
+          duration: 1500,
         });
       },
       (error) => {

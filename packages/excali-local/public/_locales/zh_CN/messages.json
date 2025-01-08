@@ -70,5 +70,11 @@
   },
   "OpenOptions": {
     "message": "打开设置"
+  },
+  "LocalFontPermissionDenied": {
+    "message": "本地字体权限被拒绝"
+  },
+  "LocalFontPermissionDeniedContent": {
+    "message": "请在设置中开启本地字体权限"
   }
 }

@@ -1,7 +1,8 @@
 import { useState, useRef, MouseEventHandler } from "react";
-import { IconLetterCase } from "@tabler/icons-react";
+import { IconAlertTriangle, IconLetterCase } from "@tabler/icons-react";
 import { FontData } from "./type";
 import { t } from "../lib/utils";
+import { toast } from "sonner";
 
 export interface FontChooserProps {
   onChoose?: (font: FontData) => void;
@@ -26,6 +27,20 @@ const FontChooser = ({ className, onChoose }: FontChooserProps) => {
   const openDialog = async () => {
     if (fontList.length === 0) {
       const fonts = await window.queryLocalFonts();
+      const permitResult = await navigator.permissions.query({
+        name: "local-fonts",
+      });
+      if (permitResult.state === "denied") {
+        toast(t("LocalFontPermissionDenied"), {
+          icon: <IconAlertTriangle className="text-yellow-500 size-4" />,
+          description: t("LocalFontPermissionDeniedContent"),
+          duration: 5000,
+          closeButton: true,
+          dismissible: true,
+          id: "local-font-permission-denied",
+        });
+        return;
+      }
       setFontList(fonts);
     }
     dialogRef.current?.showModal();

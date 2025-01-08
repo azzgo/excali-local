@@ -70,5 +70,11 @@
   },
   "OpenOptions": {
     "message": "Open Options"
+  },
+  "LocalFontPermissionDenied": {
+    "message": "Local font permission denied"
+  },
+  "LocalFontPermissionDeniedContent": {
+    "message": "Please enable the permission to use local fonts"
   }
 }
