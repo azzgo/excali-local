@@ -17,7 +17,7 @@ export function useMarkerEvent(excalidrawAPI: ExcalidrawImperativeAPI | null) {
   useEffect(() => {
     return excalidrawAPI?.onChange((_, appState) => {
       if (
-        appState.activeTool?.type !== "custom" &&
+        appState.activeTool?.type !== "custom" ||
         appState.activeTool.customType !== "marker"
       ) {
         updateMarkMode(false);

@@ -36,7 +36,7 @@ const rewriteFont = (fontFamily: string, fontUrl: string) => {
 
 export const replaceAllFonts = async () => {
   return getBrowser()
-    ?.runtime.sendMessage({ type: "GET_FONTS_SETTINGS" })
+    ?.runtime?.sendMessage({ type: "GET_FONTS_SETTINGS" })
     .then((fonts) => {
       if (!fonts) {
         return;
