@@ -25,7 +25,7 @@ function genManifest(env: ConfigEnv) {
     commands: {
       "open-local-editor": {
         suggested_key: {
-          default: "Alt+E",
+          default: "Alt+L",
         },
         description: "Open local editor",
       },
