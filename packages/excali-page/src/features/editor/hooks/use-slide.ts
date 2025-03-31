@@ -44,8 +44,6 @@ export const useSlide = (excalidrawAPI: ExcalidrawImperativeAPI | null) => {
           // issue: the id order changed, but the cached orderedSlides in scrollToSlide function is not updated yet
           const slideId = slideIdOrderListRef.current[0];
 
-          updateFrameElements(excalidrawAPI!, slideIdOrderListRef.current);
-
           slideIdOrderListRef.current = null;
           requestAnimationFrame(() => {
             scrollToSlide({ id: slideId });
