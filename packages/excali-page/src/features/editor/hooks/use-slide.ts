@@ -2,21 +2,20 @@ import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/excalidraw
 import { useCallback } from "react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
-  orderedSlidesAtom,
   presentationModeAtom,
   showSlideQuickNavAtom,
   slideGlobalIndexAtom,
-  slideIdOrderListAtom,
   slideIdOrderListRef,
+  slidesAtom,
 } from "../store/presentation";
+import { updateFrameElements } from "../utils/excalidraw-api.helper";
 
 export const useSlide = (excalidrawAPI: ExcalidrawImperativeAPI | null) => {
   const [presentationMode, setPresentationMode] = useAtom(presentationModeAtom);
   const currentSlide = useAtomValue(slideGlobalIndexAtom);
   const toggleShowSlideQuickNav = useSetAtom(showSlideQuickNavAtom);
   const updateSlideIndex = useSetAtom(slideGlobalIndexAtom);
-  const orderedSlides = useAtomValue(orderedSlidesAtom);
-  const updateSlideIdOrderList = useSetAtom(slideIdOrderListAtom);
+  const slides = useAtomValue(slidesAtom);
 
   const scrollToSlide = useCallback(
     (targetSlide: { index?: number; id?: string }) => {
@@ -26,14 +25,14 @@ export const useSlide = (excalidrawAPI: ExcalidrawImperativeAPI | null) => {
       const index =
         typeof targetSlide.index === "number"
           ? targetSlide.index
-          : orderedSlides.findIndex((slide) => slide.id === targetSlide.id);
-      excalidrawAPI?.scrollToContent(orderedSlides[index].element, {
+          : slides.findIndex((slide) => slide.id === targetSlide.id);
+      excalidrawAPI?.scrollToContent(slides[index].element, {
         animate: true,
         fitToContent: true,
       });
       updateSlideIndex(index);
     },
-    [excalidrawAPI, orderedSlides, updateSlideIndex]
+    [excalidrawAPI, slides, updateSlideIndex]
   );
 
   const handleTogglePresentation = useCallback(() => {
@@ -42,9 +41,11 @@ export const useSlide = (excalidrawAPI: ExcalidrawImperativeAPI | null) => {
       if (newMode) {
         toggleShowSlideQuickNav(false);
         if (Array.isArray(slideIdOrderListRef.current)) {
-          updateSlideIdOrderList(slideIdOrderListRef.current);
           // issue: the id order changed, but the cached orderedSlides in scrollToSlide function is not updated yet
           const slideId = slideIdOrderListRef.current[0];
+
+          updateFrameElements(excalidrawAPI!, slideIdOrderListRef.current);
+
           slideIdOrderListRef.current = null;
           requestAnimationFrame(() => {
             scrollToSlide({ id: slideId });
@@ -69,13 +70,13 @@ export const useSlide = (excalidrawAPI: ExcalidrawImperativeAPI | null) => {
   }, [currentSlide, scrollToSlide]);
 
   const slideNext = useCallback(() => {
-    const nextSlideIndex = Math.min(orderedSlides.length - 1, currentSlide + 1);
+    const nextSlideIndex = Math.min(slides.length - 1, currentSlide + 1);
     scrollToSlide({ index: nextSlideIndex });
-  }, [currentSlide, orderedSlides, scrollToSlide]);
+  }, [currentSlide, slides, scrollToSlide]);
 
   return {
     presentationMode,
-    slides: orderedSlides,
+    slides,
     scrollToSlide,
     slidePrev,
     slideNext,

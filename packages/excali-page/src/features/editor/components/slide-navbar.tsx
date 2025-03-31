@@ -1,9 +1,8 @@
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import {
-  orderedSlidesAtom,
   showSlideQuickNavAtom,
-  slideIdOrderListAtom,
   slideIdOrderListRef,
+  slidesAtom,
 } from "../store/presentation";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
@@ -13,6 +12,7 @@ import { IconChevronDown } from "@tabler/icons-react";
 import { useSlide } from "../hooks/use-slide";
 import { useEffect, useMemo } from "react";
 import SlideSortableList from "./slide-sortable-list";
+import {updateFrameElements} from "../utils/excalidraw-api.helper";
 
 interface SlideQuickNavbarProps {
   close: () => void;
@@ -21,14 +21,13 @@ interface SlideQuickNavbarProps {
 
 const SlideNavbar = ({ close, excalidrawAPI }: SlideQuickNavbarProps) => {
   const showSlideQuickNav = useAtomValue(showSlideQuickNavAtom);
-  const orderedSlides = useAtomValue(orderedSlidesAtom);
+  const orderedSlides = useAtomValue(slidesAtom);
   const { scrollToSlide } = useSlide(excalidrawAPI);
   const slideLength = useMemo(() => orderedSlides.length, [orderedSlides]);
-  const updateSlideIdOrderList = useSetAtom(slideIdOrderListAtom);
 
   useEffect(() => {
     if (!showSlideQuickNav && Array.isArray(slideIdOrderListRef.current)) {
-      updateSlideIdOrderList(slideIdOrderListRef.current);
+      updateFrameElements(excalidrawAPI!, slideIdOrderListRef.current);
     }
   }, [showSlideQuickNav, slideLength]);
 

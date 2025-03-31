@@ -4,7 +4,6 @@ import {
   presentationModeAtom,
   showSlideQuickNavAtom,
   slideGlobalIndexAtom,
-  slideIdOrderListAtom,
   slidesAtom,
 } from "@/features/editor/store/presentation";
 import { useUpdateSlides } from "@/features/editor/hooks/use-update-slides";
@@ -21,7 +20,6 @@ describe("useUpdateSlides", () => {
     globalJotaiStore.set(presentationModeAtom, false);
     globalJotaiStore.set(showSlideQuickNavAtom, false);
     globalJotaiStore.set(slideGlobalIndexAtom, 0);
-    globalJotaiStore.set(slideIdOrderListAtom, []);
     vi.useFakeTimers({ toFake: ["requestAnimationFrame", "setTimeout"] });
   });
 
@@ -68,7 +66,6 @@ describe("useUpdateSlides", () => {
           name: "slide-1",
         },
       ]);
-      expect(globalJotaiStore.get(slideIdOrderListAtom)).toEqual(["slide-1"]);
     });
   });
 });

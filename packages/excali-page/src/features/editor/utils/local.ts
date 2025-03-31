@@ -1,4 +1,3 @@
-export const KeyForSlideIdList = "excalidraw-slide-id-list";
 export const KeyForElements = "excalidraw";
 export const KeyForAppState = "excalidraw-state";
 export const KeyForLibraryItems = "excalidraw-libraryItems";

@@ -5,6 +5,7 @@ import {
 import { isFrame } from "./filters";
 import { exportToBlob } from "@excalidraw/excalidraw";
 import { BinaryFiles } from "@excalidraw/excalidraw/types/excalidraw/types";
+import { orderAttributeLabel } from "../type";
 
 type FrameId = string;
 type FrameCacheKey = {
@@ -14,15 +15,21 @@ type FrameCacheKey = {
 const cachedFrameMap = new Map<FrameId, FrameCacheKey>();
 const cachedThumbnail = new WeakMap<FrameCacheKey, string>();
 
-const generateThumbnailKey = (frameId: FrameId, elements: readonly ExcalidrawElement[]) => {
+const generateThumbnailKey = (
+  frameId: FrameId,
+  elements: readonly ExcalidrawElement[]
+) => {
   const elementPosStr = elements.map((el) => `${el.x}${el.y}`).join(",");
   return `${frameId}-${elementPosStr}`;
-}
+};
 export const assembleSlides = (
   elements: readonly ExcalidrawElement[],
   files: BinaryFiles
 ) => {
   const frames = elements.filter(isFrame) as ExcalidrawFrameElement[];
+  frames.sort((a, b) => {
+    return a.customData?.[orderAttributeLabel] - b.customData?.[orderAttributeLabel];
+  });
 
   return Promise.all(
     frames.map(async (frame, index) => {

@@ -8,14 +8,14 @@ export function getBrowser(): typeof chrome | null {
   if (typeof (globalThis as any).browser !== "undefined") {
     return (globalThis as any).browser;
   }
-  if (typeof chrome !== "undefined") {
+  if (globalThis.chrome && typeof chrome !== "undefined") {
     return chrome;
   }
   return null;
 }
 
 export function getLang() {
-  if (typeof chrome?.i18n?.getUILanguage === "function") {
+  if (globalThis.chrome && typeof chrome?.i18n?.getUILanguage === "function") {
     return chrome.i18n.getUILanguage() === "zh-CN" ? "zh-CN" : "en";
   }
   return navigator.language === "zh-CN" ? "zh-CN" : "en";

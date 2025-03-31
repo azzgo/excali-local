@@ -1,13 +1,11 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { ProviderWrapper, globalJotaiStore } from "./provider.helper";
-import { slideIdOrderListAtom } from "@/features/editor/store/presentation";
+import { ProviderWrapper } from "./provider.helper";
 import { renderHook, waitFor } from "@testing-library/react";
 import { useLoadInitData } from "@/features/editor/hooks/use-load-initdata";
 import {
   KeyForAppState,
   KeyForElements,
   KeyForLibraryItems,
-  KeyForSlideIdList,
 } from "@/features/editor/utils/local";
 
 vi.mock("@excalidraw/excalidraw");
@@ -36,7 +34,6 @@ describe("use-load-initdata", () => {
       expect(result.current.data?.appState).toEqual({});
       expect(result.current.data?.files).toEqual({});
       await expect(result.current.data?.libraryItems).resolves.toEqual([]);
-      expect(globalJotaiStore.get(slideIdOrderListAtom)).toEqual([]);
     });
   });
 
@@ -46,8 +43,6 @@ describe("use-load-initdata", () => {
     localStorage.setItem(KeyForElements, JSON.stringify(elements));
     const appState = { viewBackgroundColor: "#fff" };
     localStorage.setItem(KeyForAppState, JSON.stringify(appState));
-    const slideIdList = ["slide-1"];
-    localStorage.setItem(KeyForSlideIdList, JSON.stringify(slideIdList));
     const libraryItems = [{ type: "circle" }];
     localStorage.setItem(KeyForLibraryItems, JSON.stringify(libraryItems));
     // @ts-expect-error it mocked
@@ -69,7 +64,6 @@ describe("use-load-initdata", () => {
       await expect(result.current.data?.libraryItems).resolves.toEqual(
         libraryItems
       );
-      expect(globalJotaiStore.get(slideIdOrderListAtom)).toEqual(slideIdList);
     });
   });
 
@@ -103,7 +97,6 @@ describe("use-load-initdata", () => {
     const appState = { viewBackgroundColor: "#fff" };
     localStorage.setItem(KeyForAppState, JSON.stringify(appState));
     const slideIdList = ["slide-1"];
-    localStorage.setItem(KeyForSlideIdList, JSON.stringify(slideIdList));
     const libraryItems = [{ type: "circle" }];
     localStorage.setItem(KeyForLibraryItems, JSON.stringify(libraryItems));
 

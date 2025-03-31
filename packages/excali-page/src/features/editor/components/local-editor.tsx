@@ -64,8 +64,10 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
       appState: AppState,
       files: BinaryFiles
     ) => {
+      console.log("[DEBUG] change", elements.filter(el => el.type === 'frame'));
       setLocalStorage(KeyForElements, elements.filter(isNotDeleted));
       setLocalStorage(KeyForAppState, appState);
+      updateSlides(elements, files);
       await batchSaveFile(
         Object.keys(files).map((key) => {
           return { id: key, content: files[key] };

@@ -10,14 +10,11 @@ import {
   KeyForAppState,
   KeyForElements,
   KeyForLibraryItems,
-  KeyForSlideIdList,
   getLocalStorageAsync,
 } from "../utils/local";
 import { getFiles } from "../utils/indexdb";
 import { restoreAppState } from "@excalidraw/excalidraw";
 import { omit } from "radash";
-import { useSetAtom } from "jotai";
-import { slideIdOrderListAtom } from "../store/presentation";
 
 interface UseLoadInitDataProps {
   onlyLibrary?: boolean;
@@ -28,7 +25,6 @@ export const useLoadInitData = ({
 }: UseLoadInitDataProps = {}) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [data, updateData] = useState<ExcalidrawInitialDataState | null>(null);
-  const updateSlideIdOrderList = useSetAtom(slideIdOrderListAtom);
 
   useEffect(() => {
     if (isLoaded) {
@@ -58,21 +54,17 @@ export const useLoadInitData = ({
       KeyForAppState,
       {} as any
     );
-    const savedSlideIdListStream = getLocalStorageAsync(KeyForSlideIdList, []);
 
     const filesStream = getFiles();
     Promise.all([
       savedElementsStream,
       savedStateStream,
       filesStream,
-      savedSlideIdListStream,
-    ]).then(([savedElements, savedState, fileDatas, slideIdList]) => {
+    ]).then(([savedElements, savedState, fileDatas]) => {
       const files = fileDatas.reduce((binaryFiles, file) => {
         binaryFiles[file.id] = file.content;
         return binaryFiles;
       }, {} as BinaryFiles);
-
-      updateSlideIdOrderList(slideIdList);
 
       updateData({
         elements: savedElements,

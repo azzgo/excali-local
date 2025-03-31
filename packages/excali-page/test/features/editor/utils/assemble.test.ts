@@ -1,3 +1,4 @@
+import { orderAttributeLabel } from "@/features/editor/type";
 import { assembleSlides } from "@/features/editor/utils/assemble";
 import { ExcalidrawElement } from "@excalidraw/excalidraw/types/excalidraw/element/types";
 import { BinaryFiles } from "@excalidraw/excalidraw/types/excalidraw/types";
@@ -50,7 +51,10 @@ describe("assemble", () => {
     };
   });
   test("should assemble slide thumbnails", async () => {
-    const frames = await assembleSlides(elements as ExcalidrawElement[], files as any);
+    const frames = await assembleSlides(
+      elements as ExcalidrawElement[],
+      files as any
+    );
     expect(frames).toEqual([
       {
         id: "frame-1",
@@ -68,8 +72,40 @@ describe("assemble", () => {
   });
 
   test("should assemble slide thumbnails with cache", async () => {
-    const frames_1 = await assembleSlides(elements as ExcalidrawElement[], files as any);
-    const frames_2 = await assembleSlides(elements as ExcalidrawElement[], files as any);
+    const frames_1 = await assembleSlides(
+      elements as ExcalidrawElement[],
+      files as any
+    );
+    const frames_2 = await assembleSlides(
+      elements as ExcalidrawElement[],
+      files as any
+    );
     expect(frames_2).toEqual(frames_1);
+  });
+
+  test("should order slides by custom order attribute", async () => {
+    let elementsWithOrderAttribute = [
+      {
+        type: "frame",
+        id: "frame-1",
+        customData: {
+          [orderAttributeLabel]: 1,
+        },
+        isDeleted: false,
+      },
+      {
+        type: "frame",
+        id: "frame-2",
+        customData: {
+          [orderAttributeLabel]: 0,
+        },
+        isDeleted: false,
+      },
+    ];
+    const frames = await assembleSlides(
+      elementsWithOrderAttribute as ExcalidrawElement[],
+      files as any
+    );
+    expect(frames.map((f) => f.id)).toEqual(["frame-2", "frame-1"]);
   });
 });
