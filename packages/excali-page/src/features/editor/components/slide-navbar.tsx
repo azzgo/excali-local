@@ -50,6 +50,7 @@ const SlideNavbar = ({ close, excalidrawAPI }: SlideQuickNavbarProps) => {
                 <SlideSortableList
                   initialSlides={orderedSlides}
                   onSlideClick={(slide) => scrollToSlide({ id: slide.id })}
+                  onOrderChange={(slideIdOrderList) => updateFrameElements(excalidrawAPI!, slideIdOrderList)}
                 />
               </div>
               <ScrollBar orientation="horizontal" />

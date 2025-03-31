@@ -12,10 +12,12 @@ import SlideItem from "./slide-item";
 interface SlideSortableListProps {
   initialSlides: Slide[];
   onSlideClick?: (slide: Slide) => void;
+  onOrderChange?: (slideIdOrderList: string[]) => void;
 }
 const SlideSortableList = ({
   initialSlides,
   onSlideClick,
+  onOrderChange,
 }: SlideSortableListProps) => {
   const isSwapping = useRef(false);
   const [localSlideList, updateLocalSlideList] = useState(initialSlides);
@@ -39,6 +41,7 @@ const SlideSortableList = ({
             );
             let newSlides = arrayMove(slides, oldIndex, newIndex);
             slideIdOrderListRef.current = newSlides.map((it) => it.id);
+            onOrderChange && onOrderChange(slideIdOrderListRef.current);
             return newSlides;
           });
         }
