@@ -133,6 +133,11 @@ function endSelection(event: MouseEvent) {
   document.removeEventListener("mouseup", endSelection);
   document.removeEventListener("mousedown", startSelection);
   cleanOverlay();
+  
+  // 获取设备像素比
+  const devicePixelRatio = window.devicePixelRatio || 1;
+  
+  // 使用视口坐标（因为captureVisibleTab只截取可视区域）
   let area = {
     x: Math.min(startX, endX),
     y: Math.min(startY, endY),
@@ -148,10 +153,19 @@ function endSelection(event: MouseEvent) {
       height: 100,
     };
   }
+  
+  // 考虑设备像素比，将坐标和尺寸按比例调整
+  const adjustedArea = {
+    x: Math.round(area.x * devicePixelRatio),
+    y: Math.round(area.y * devicePixelRatio),
+    width: Math.round(area.width * devicePixelRatio),
+    height: Math.round(area.height * devicePixelRatio),
+    devicePixelRatio: devicePixelRatio
+  };
 
   setTimeout(() => {
     requestAnimationFrame(() => {
-      browser.runtime.sendMessage({ type: "CAPTURE_SELECT_AREA_END", area });
+      browser.runtime.sendMessage({ type: "CAPTURE_SELECT_AREA_END", area: adjustedArea });
     });
   }, 150);
 }

@@ -26,12 +26,16 @@ export function useMessageEvent({ excalidrawAPI }: useMessageEventProps) {
           }
           getSizeOfDataImage(dataUrl, area).then(
             ({ imageUrl, width, height, mimeType }) => {
+              // 如果有设备像素比信息，需要相应调整显示尺寸
+              const displayWidth = area?.devicePixelRatio ? width / area.devicePixelRatio : width;
+              const displayHeight = area?.devicePixelRatio ? height / area.devicePixelRatio : height;
+              
               updateCanvasWithScreenshot(
                 excalidrawAPI,
                 mimeType,
                 imageUrl,
-                width,
-                height
+                displayWidth,
+                displayHeight
               );
             }
           );
