@@ -1,9 +1,14 @@
 export default defineUnlistedScript(() => {
+  if (checkGlobalFlag()) {
+    return;
+  }
   selectAreaOnPage();
 });
 
 const selectionId = "8ae3e065-e673-420d-a56f-6494523af2fb";
 const haloId = "920f1e34-4d16-46a4-ba7a-0976d388185a";
+const OVERLAY_ID = 'excali-local-crop-overlay';
+const SELECTION_FLAG = '__EXCALI_LOCAL_CROP_ACTIVE__';
 let startX: number;
 let startY: number;
 let endX: number;
@@ -12,28 +17,29 @@ let cleanOverlay: () => void;
 
 function selectAreaOnPage() {
   cleanOverlay = addOverlay();
-  document.addEventListener("mousedown", startSelection);
-  document.addEventListener("keydown", onKeyDownCancelSelection);
-  document.addEventListener("contextmenu", onRightClickCancelSelection);
-  document.addEventListener("mousemove", cursorFollowEffect);
+  document.addEventListener("mousedown", startSelection, { capture: true });
+  document.addEventListener("keydown", onKeyDownCancelSelection, { capture: true });
+  document.addEventListener("contextmenu", onRightClickCancelSelection, { capture: true });
+  document.addEventListener("mousemove", cursorFollowEffect, { capture: true });
 }
 
 function cleanListeners() {
-  document.removeEventListener("mousedown", startSelection);
-  document.removeEventListener("mousemove", moveSelection);
-  document.removeEventListener("mouseup", endSelection);
-  document.removeEventListener("keydown", onKeyDownCancelSelection);
-  document.removeEventListener("contextmenu", onRightClickCancelSelection);
-  document.removeEventListener("mousemove", cursorFollowEffect);
+  document.removeEventListener("mousedown", startSelection, { capture: true } as any);
+  document.removeEventListener("mousemove", moveSelection, { capture: true } as any);
+  document.removeEventListener("mouseup", endSelection, { capture: true } as any);
+  document.removeEventListener("keydown", onKeyDownCancelSelection, { capture: true } as any);
+  document.removeEventListener("contextmenu", onRightClickCancelSelection, { capture: true } as any);
+  document.removeEventListener("mousemove", cursorFollowEffect, { capture: true } as any);
 }
 
 function cancelSelection() {
-  cleanOverlay();
+  try { cleanOverlay && cleanOverlay(); } catch {}
   cleanListeners();
+  resetGlobalFlag();
 }
 
 function cursorFollowEffect(event: MouseEvent) {
-  const halo = document.getElementById(haloId);
+  const halo = document.getElementById(haloId) as HTMLDivElement | null;
   if (!halo) {
     return;
   }
@@ -54,7 +60,13 @@ function onRightClickCancelSelection(event: MouseEvent) {
 }
 
 function addOverlay() {
+  const exist = document.getElementById(OVERLAY_ID);
+  if (exist) {
+    return () => exist.remove();
+  }
+
   const overlay = document.createElement("div");
+  overlay.id = OVERLAY_ID;
   overlay.style.position = "fixed";
   overlay.style.top = "0";
   overlay.style.left = "0";
@@ -109,8 +121,8 @@ function startSelection(event: MouseEvent) {
   startX = event.clientX;
   startY = event.clientY;
 
-  document.addEventListener("mousemove", moveSelection);
-  document.addEventListener("mouseup", endSelection);
+  document.addEventListener("mousemove", moveSelection, { capture: true });
+  document.addEventListener("mouseup", endSelection, { capture: true });
 }
 
 function moveSelection(event: MouseEvent) {
@@ -129,10 +141,10 @@ function moveSelection(event: MouseEvent) {
 function endSelection(event: MouseEvent) {
   endX = event.clientX;
   endY = event.clientY;
-  document.removeEventListener("mousemove", moveSelection);
-  document.removeEventListener("mouseup", endSelection);
-  document.removeEventListener("mousedown", startSelection);
-  cleanOverlay();
+  document.removeEventListener("mousemove", moveSelection, { capture: true } as any);
+  document.removeEventListener("mouseup", endSelection, { capture: true } as any);
+  document.removeEventListener("mousedown", startSelection, { capture: true } as any);
+  try { cleanOverlay && cleanOverlay(); } catch {}
   
   // 获取设备像素比
   const devicePixelRatio = window.devicePixelRatio || 1;
@@ -166,6 +178,20 @@ function endSelection(event: MouseEvent) {
   setTimeout(() => {
     requestAnimationFrame(() => {
       browser.runtime.sendMessage({ type: "CAPTURE_SELECT_AREA_END", area: adjustedArea });
+      resetGlobalFlag();
     });
   }, 150);
+}
+function checkGlobalFlag() {
+  // Prevent multiple instances across executeScript invocations
+  // If overlay already exists or flag set, do nothing
+  if ((window as any)[SELECTION_FLAG] || document.getElementById(OVERLAY_ID)) {
+    return true;
+  }
+  (window as any)[SELECTION_FLAG] = true;
+  return false;
+}
+
+function resetGlobalFlag() {
+  delete (window as any)[SELECTION_FLAG];
 }
