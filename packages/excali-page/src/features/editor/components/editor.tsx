@@ -1,3 +1,4 @@
+import "@excalidraw/excalidraw/index.css";
 import { getLang } from "@/lib/utils";
 import LocalEditor from "./local-editor";
 import QuickMarkerEditor from "./quick-marker-editor";

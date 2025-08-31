@@ -38,7 +38,7 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
     useState<ExcalidrawImperativeAPI | null>(null);
   const updateSlides = useUpdateSlides();
   const [showSlideQuickNav, updateShowSlideQuickNav] = useAtom(
-    showSlideQuickNavAtom
+    showSlideQuickNavAtom,
   );
 
   useEffect(() => {
@@ -62,7 +62,7 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
     async (
       elements: readonly ExcalidrawElement[],
       appState: AppState,
-      files: BinaryFiles
+      files: BinaryFiles,
     ) => {
       setLocalStorage(KeyForElements, elements.filter(isNotDeleted));
       setLocalStorage(KeyForAppState, appState);
@@ -70,11 +70,11 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
       await batchSaveFile(
         Object.keys(files).map((key) => {
           return { id: key, content: files[key] };
-        })
+        }),
       );
       updateSlides(elements, files);
     },
-    []
+    [],
   );
 
   const debouncedHandleSave = useMemo(() => {
