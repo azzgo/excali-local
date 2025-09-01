@@ -22,15 +22,15 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "sonner": "^1.7.1",
-    "tailwind-merge": "^2.5.3",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwind-merge": "^2.5.3"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.12",
     "@types/chrome": "^0.0.280",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@wxt-dev/module-react": "^1.1.1",
-    "tailwindcss": "^3.4.14",
+    "tailwindcss": "^4.1.12",
     "typescript": "^5.6.3",
     "wxt": "^0.19.13"
   }

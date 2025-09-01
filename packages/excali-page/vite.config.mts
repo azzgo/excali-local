@@ -2,6 +2,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import * as path from "path";
+import tailwindcss from '@tailwindcss/vite'
 
 const buildForExtension = process.env.BUILD_FOR_EXTENSION === "1";
 
@@ -24,7 +25,7 @@ export default defineConfig({
       "@": path.resolve(__dirname, "src"),
     },
   },
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   test: {
     environment: "happy-dom",
     include: ["test/**/*.test.ts", "test/**/*.test.tsx"],
