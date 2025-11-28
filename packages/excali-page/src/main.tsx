@@ -5,11 +5,14 @@ import Editor from "./features/editor/components/editor";
 import { Toaster } from "sonner";
 import { Provider } from "jotai";
 import { initI18n } from "./locales/locales";
-import { replaceAllFonts } from "./lib/utils";
+import { injectCustomFonts } from "./lib/font-injector";
 
 initI18n();
 
-replaceAllFonts().then(() => {
+// Inject custom fonts before Excalidraw initializes
+// This ensures CSS @font-face rules are available when Excalidraw tries to use fonts
+// Requirements: 1.1, 2.1, 4.1
+injectCustomFonts().then(() => {
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
       <Provider>
