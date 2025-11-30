@@ -41,7 +41,7 @@ const FONT_FAMILY_MAP: Record<string, keyof FontConfig> = {
 export async function getFontConfig(): Promise<FontConfig | null> {
   try {
     // Check if chrome.runtime is available (extension context)
-    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage) {
+    if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.sendMessage || location.href.startsWith('http')) {
       console.warn('[Font Injector] Chrome runtime not available, skipping font injection');
       return null;
     }

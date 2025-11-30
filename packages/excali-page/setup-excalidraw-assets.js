@@ -10,13 +10,13 @@ const rootDir = path.resolve(__dirname, "../../");
 // In version 0.18.0, assets are in prod and dev folders
 const sourceAssetsPath = path.join(
   rootDir,
-  "node_modules/@excalidraw/excalidraw/dist/prod"
+  "node_modules/@azzgo/excalidraw/dist/prod"
 );
 const destAssetsPath = path.resolve("public/excalidraw-assets");
 
 const sourceAssetsDevPath = path.join(
   rootDir,
-  "node_modules/@excalidraw/excalidraw/dist/dev"
+  "node_modules/@azzgo/excalidraw/dist/dev"
 );
 const destAssetsDevPath = path.resolve("public/excalidraw-assets-dev");
 
