@@ -76,10 +76,10 @@ const FontChooser = ({ className, onChoose }: FontChooserProps) => {
   return (
     <>
       <IconLetterCase onClick={openDialog} className={className} />
-      <dialog ref={dialogRef} className="w-[800px]">
+      <dialog ref={dialogRef} className="w-[800px] m-auto cursor-auto">
         <div className="flex justify-between items-center p-4 border-b">
           <h2 className="text-lg font-semibold">{t("ChooseAFont")}</h2>
-          <button onClick={closeDialog} className="text-lg font-bold">
+          <button onClick={closeDialog} className="text-lg font-bold cursor-pointer">
             &times;
           </button>
         </div>
@@ -111,13 +111,13 @@ const FontChooser = ({ className, onChoose }: FontChooserProps) => {
         <div className="flex justify-end p-4 border-t">
           <button
             onClick={closeDialog}
-            className="px-4 py-2 mr-2 border rounded"
+            className="px-4 py-2 mr-2 border rounded cursor-pointer hover:bg-gray-200"
           >
             {t("Cancel")}
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-2 bg-blue-500 text-white rounded"
+            className="px-4 py-2 bg-blue-500 text-white rounded cursor-pointer hover:bg-blue-600"
           >
             {t("Save")}
           </button>

@@ -138,7 +138,7 @@ const OptionsPage = () => {
         <div className="mt-4">
           <button
             type="submit"
-            className="w-full px-4 py-2 rounded bg-blue-500 text-white hover:bg-blue-600"
+            className="w-full px-4 cursor-pointer py-2 rounded bg-blue-500 text-white hover:bg-blue-600"
           >
             {t("Save")}
           </button>
