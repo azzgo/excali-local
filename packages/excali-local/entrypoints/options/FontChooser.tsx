@@ -1,4 +1,4 @@
-import { useState, useRef, MouseEventHandler } from "react";
+import { useState, useRef, MouseEventHandler, useMemo } from "react";
 import { IconAlertTriangle, IconLetterCase } from "@tabler/icons-react";
 import { FontData } from "./type";
 import { t } from "../lib/utils";
@@ -76,10 +76,10 @@ const FontChooser = ({ className, onChoose }: FontChooserProps) => {
   return (
     <>
       <IconLetterCase onClick={openDialog} className={className} />
-      <dialog ref={dialogRef} className="w-[800px] m-auto cursor-auto">
-        <div className="flex justify-between items-center p-4 border-b">
+      <dialog ref={dialogRef} className="w-[800px] m-auto cursor-auto bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="flex justify-between items-center p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold">{t("ChooseAFont")}</h2>
-          <button onClick={closeDialog} className="text-lg font-bold cursor-pointer">
+          <button onClick={closeDialog} className="text-lg font-bold cursor-pointer text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200">
             &times;
           </button>
         </div>
@@ -90,7 +90,7 @@ const FontChooser = ({ className, onChoose }: FontChooserProps) => {
             placeholder={t("FontSearch")}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            className="p-2 border rounded w-full mb-4"
+            className="p-2 border border-gray-300 dark:border-gray-600 rounded w-full mb-4 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
           />
           <ul className="font-list overflow-y-auto h-64">
             {filteredFonts.map((font) => (
@@ -98,9 +98,9 @@ const FontChooser = ({ className, onChoose }: FontChooserProps) => {
                 key={font.postscriptName}
                 onClick={() => setSelectedFont(font)}
                 style={{ contentVisibility: "auto" }}
-                className={`cursor-pointer p-2 hover:bg-gray-200 ${
+                className={`cursor-pointer p-2 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 ${
                   selectedFont?.postscriptName === font.postscriptName &&
-                  "bg-gray-300"
+                  "bg-gray-300 dark:bg-gray-600"
                 }`}
               >
                 {font.family} - {font.style}
@@ -108,16 +108,16 @@ const FontChooser = ({ className, onChoose }: FontChooserProps) => {
             ))}
           </ul>
         </div>
-        <div className="flex justify-end p-4 border-t">
+        <div className="flex justify-end p-4 border-t border-gray-200 dark:border-gray-700">
           <button
             onClick={closeDialog}
-            className="px-4 py-2 mr-2 border rounded cursor-pointer hover:bg-gray-200"
+            className="px-4 py-2 mr-2 border border-gray-300 dark:border-gray-600 rounded cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors duration-200"
           >
             {t("Cancel")}
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-2 bg-blue-500 text-white rounded cursor-pointer hover:bg-blue-600"
+            className="px-4 py-2 bg-blue-500 hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700 text-white rounded cursor-pointer transition-colors duration-200"
           >
             {t("Save")}
           </button>
