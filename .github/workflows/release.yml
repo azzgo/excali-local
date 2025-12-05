@@ -109,7 +109,7 @@ jobs:
            GH_REPO: ${{ github.repository }}
         run: |
           gh release create ${{ github.ref_name }} \
-            --title "🎉 Excali Local v${{ github.ref_name }}" \
+            --title "🎉 Excali Local ${{ github.ref_name }}" \
             --notes "$RELEASE_NOTES" \
             --draft=false \
             ./packages/excali-local/.output/*.zip \
