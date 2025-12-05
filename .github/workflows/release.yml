@@ -16,11 +16,28 @@ jobs:
       - run: echo "💡 The ${{ github.repository }} repository has been cloned to the runner."
       - run: echo "🖥️ The workflow is now ready to test your code on the runner."
       - uses: oven-sh/setup-bun@v2
-      - name: Setup .npmrc for GitHub Package Registry
+      - name: Write project .npmrc with scope + token
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # or use secrets.NPM_AUTH_TOKEN (PAT)
+          GITHUB_WORKSPACE: ${{ github.workspace }}
         run: |
-          echo "@azzgo:registry=https://npm.pkg.github.com" >> ~/.npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
-          echo "always-auth=true" >> ~/.npmrc
+          echo "Writing project .npmrc to $GITHUB_WORKSPACE/.npmrc"
+          echo "@azzgo:registry=https://npm.pkg.github.com" >> $GITHUB_WORKSPACE/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> $GITHUB_WORKSPACE/.npmrc
+          echo "always-auth=true" >> $GITHUB_WORKSPACE/.npmrc
+          echo "----- .npmrc -----"
+          sed -n '1,120p' "$GITHUB_WORKSPACE/.npmrc"
+
+      - name: Verify token can fetch package tarball (GET)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # or secrets.NPM_AUTH_TOKEN
+        run: |
+          # Try GET (not HEAD) to exercise same request method bun will use.
+          echo "Testing GET to package tarball (will mask token)"
+          curl -v -H "Authorization: token ${NODE_AUTH_TOKEN}" \
+            "https://npm.pkg.github.com/download/@azzgo/excalidraw/0.18.0-csp.6/614380f1f7a537cda31386a048e5222bdd29252b" \
+            --fail --output /dev/null || echo "curl GET failed (non-zero exit)"
+
       - name: Install
         run: bun install
       - name: Test Page
