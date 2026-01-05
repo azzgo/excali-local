@@ -68,6 +68,7 @@ bun run local:tar     # Archive build assets
 - [x] Internationalization (i18n)
 - [x] Dark mode support
 - [x] Settings customization
+- [ ] Canvas collection management in local
 
 ---
 
