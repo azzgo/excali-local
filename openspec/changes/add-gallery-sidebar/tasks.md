@@ -3,29 +3,29 @@
 ## Phase 1: Core Storage (MVP)
 
 ### 1.1 Database Schema
-- [ ] 1.1.1 Upgrade IndexedDB from v1 to v2 in `utils/indexdb.ts`
-- [ ] 1.1.2 Create `drawings` object store with indexes
-- [ ] 1.1.3 Create `collections` object store with indexes
-- [ ] 1.1.4 Implement database migration logic
-- [ ] 1.1.5 Define TypeScript interfaces for Drawing and Collection
+- [x] 1.1.1 Upgrade IndexedDB from v1 to v2 in `utils/indexdb.ts`
+- [x] 1.1.2 Create `drawings` object store with indexes
+- [x] 1.1.3 Create `collections` object store with indexes
+- [x] 1.1.4 Implement database migration logic
+- [x] 1.1.5 Define TypeScript interfaces for Drawing and Collection
 
 ### 1.2 Drawing CRUD Operations
-- [ ] 1.2.1 Implement `saveDrawing()` function
-- [ ] 1.2.2 Implement `getDrawings()` function with filtering
-- [ ] 1.2.3 Implement `updateDrawing()` function
-- [ ] 1.2.4 Implement `deleteDrawing()` function
-- [ ] 1.2.5 Create `use-drawing-crud.ts` hook
+- [x] 1.2.1 Implement `saveDrawing()` function
+- [x] 1.2.2 Implement `getDrawings()` function with filtering
+- [x] 1.2.3 Implement `updateDrawing()` function
+- [x] 1.2.4 Implement `deleteDrawing()` function
+- [x] 1.2.5 Create `use-drawing-crud.ts` hook
 
 ### 1.3 Thumbnail Generation
-- [ ] 1.3.1 Implement `use-thumbnail.ts` hook using Excalidraw's exportToBlob
-- [ ] 1.3.2 Configure WebP format with quality 0.5
-- [ ] 1.3.3 Set fixed height of 200px for thumbnails
+- [x] 1.3.1 Implement `use-thumbnail.ts` hook using Excalidraw's exportToBlob
+- [x] 1.3.2 Configure WebP format with quality 0.5
+- [x] 1.3.3 Set fixed height of 200px for thumbnails
 
 ### 1.4 Gallery State Management
-- [ ] 1.4.1 Create `gallery-atoms.ts` with required Jotai atoms
-- [ ] 1.4.2 Implement `currentLoadedDrawingIdAtom` for tracking loaded drawings
-- [ ] 1.4.3 Implement `drawingsListAtom` as async atom
-- [ ] 1.4.4 Create `use-gallery.ts` facade hook
+- [x] 1.4.1 Create `gallery-atoms.ts` with required Jotai atoms
+- [x] 1.4.2 Implement `currentLoadedDrawingIdAtom` for tracking loaded drawings
+- [x] 1.4.3 Implement `drawingsListAtom` as async atom
+- [x] 1.4.4 Create `use-gallery.ts` facade hook
 
 ### 1.5 Basic UI Components
 - [ ] 1.5.1 Create `gallery-sidebar.tsx` with Sidebar wrapper
