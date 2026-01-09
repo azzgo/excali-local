@@ -9,7 +9,10 @@ export const searchQueryAtom = atom("");
 
 export const currentLoadedDrawingIdAtom = atom<string | null>(null);
 
+export const galleryRefreshAtom = atom(0);
+
 export const drawingsListAtom = atom(async (get) => {
+  get(galleryRefreshAtom);
   const collectionId = get(selectedCollectionIdAtom);
   const searchQuery = get(searchQueryAtom);
   

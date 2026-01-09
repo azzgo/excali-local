@@ -2,6 +2,7 @@ import {
   IconCircleNumber1,
   IconPresentation,
   IconPresentationOff,
+  IconLayoutGrid,
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { useSlide } from "../hooks/use-slide";
@@ -30,8 +31,21 @@ const LocalEditorToolbar = ({ excalidrawAPI }: SlideToolbarProps) => {
     excalidrawAPI?.toggleSidebar({ name: "marker", force: true });
   };
 
+  const handleGalleryIconClick = () => {
+    excalidrawAPI?.toggleSidebar({ name: "gallery", force: true });
+  };
+
   return (
     <div className="flex gap-x-2">
+      <Hint label={t("Gallery")} align="end" sideOffset={8}>
+        <Button
+          disabled={presentationMode}
+          variant="ghost"
+          onClick={handleGalleryIconClick}
+        >
+          <IconLayoutGrid className="size-4" />
+        </Button>
+      </Hint>
       <Hint label={t("Marker")} align="end" sideOffset={8}>
         <Button
           disabled={presentationMode}

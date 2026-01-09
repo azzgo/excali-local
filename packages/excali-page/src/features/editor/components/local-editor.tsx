@@ -28,6 +28,10 @@ import {
 import { ExcalidrawElement } from "@excalidraw/excalidraw/types/excalidraw/element/types";
 import QuickMarkSidebar from "./quick-mark-sidebar";
 
+import GallerySidebar from "../../gallery/components/gallery-sidebar";
+import { useAtomValue } from "jotai";
+import { currentLoadedDrawingIdAtom } from "../../gallery/store/gallery-atoms";
+
 interface LocalEditorProps {
   lang: string;
 }
@@ -40,6 +44,12 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
   const [showSlideQuickNav, updateShowSlideQuickNav] = useAtom(
     showSlideQuickNavAtom,
   );
+  
+  // Watch for loaded drawing changes to update API if needed
+  // Note: Most loading happens inside GallerySidebar via direct API call,
+  // but we might need to react to external state changes here if we add more features.
+  // For now, this is just to ensure the atom is consumed.
+  const currentLoadedId = useAtomValue(currentLoadedDrawingIdAtom);
 
   useEffect(() => {
     if (data != null) {
@@ -115,6 +125,7 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
               <SlideNavigation excalidrawAPI={excalidrawAPI} />
             </Footer>
             <QuickMarkSidebar excalidrawAPI={excalidrawAPI} />
+            <GallerySidebar excalidrawAPI={excalidrawAPI} />
           </Excalidraw>
         )}
       </div>

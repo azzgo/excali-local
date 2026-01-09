@@ -1,5 +1,5 @@
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/excalidraw/types";
-import { IconCircleNumber1 } from "@tabler/icons-react";
+import { IconCircleNumber1, IconLayoutGrid } from "@tabler/icons-react";
 import { useMarker } from "../hooks/use-marker";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -15,8 +15,16 @@ const MarkerToolbar = ({ excalidrawAPI }: MarkerToolbarProps) => {
   const handleMarkerIconClick = () => {
     excalidrawAPI?.toggleSidebar({ name: "marker", force: true });
   };
+  const handleGalleryIconClick = () => {
+    excalidrawAPI?.toggleSidebar({ name: "gallery", force: true });
+  };
   return (
     <div className="flex gap-x-4 items-center">
+      <Hint label={t("Gallery")} align="end" sideOffset={8}>
+        <Button variant="ghost" onClick={handleGalleryIconClick}>
+          <IconLayoutGrid className="size-4" />
+        </Button>
+      </Hint>
       <Hint label={t("Marker")} align="end" sideOffset={8}>
         <Button variant="ghost" onClick={handleMarkerIconClick}>
           <IconCircleNumber1 className="size-4" />
