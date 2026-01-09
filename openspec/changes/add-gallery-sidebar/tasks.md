@@ -28,16 +28,16 @@
 - [x] 1.4.4 Create `use-gallery.ts` facade hook
 
 ### 1.5 Basic UI Components
-- [ ] 1.5.1 Create `gallery-sidebar.tsx` with Sidebar wrapper
-- [ ] 1.5.2 Create `drawing-card.tsx` for thumbnail display
-- [ ] 1.5.3 Implement basic list view with load functionality
-- [ ] 1.5.4 Add "Save" button and basic save dialog
+- [x] 1.5.1 Create `gallery-sidebar.tsx` with Sidebar wrapper
+- [x] 1.5.2 Create `drawing-card.tsx` for thumbnail display
+- [x] 1.5.3 Implement basic list view with load functionality
+- [x] 1.5.4 Add "Save" button and basic save dialog
 
 ### 1.6 Editor Integration
-- [ ] 1.6.1 Integrate GallerySidebar into LocalEditor
-- [ ] 1.6.2 Integrate GallerySidebar into QuickMarkerEditor
-- [ ] 1.6.3 Implement load drawing functionality
-- [ ] 1.6.4 Implement explicit save functionality
+- [x] 1.6.1 Integrate GallerySidebar into LocalEditor
+- [x] 1.6.2 Integrate GallerySidebar into QuickMarkerEditor
+- [x] 1.6.3 Implement load drawing functionality
+- [x] 1.6.4 Implement explicit save functionality
 
 ## Phase 2: Collections & Search
 
