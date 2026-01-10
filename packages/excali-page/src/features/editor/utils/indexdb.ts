@@ -122,6 +122,25 @@ export async function createCollection(collection: Collection): Promise<void> {
   await tx.done;
 }
 
+export async function updateCollection(id: string, updates: Partial<Collection>): Promise<void> {
+  const db = await initDB();
+  const tx = db.transaction(COLLECTIONS_STORE, "readwrite");
+  const existing = await tx.store.get(id);
+  
+  if (existing) {
+    await tx.store.put({ ...existing, ...updates });
+  }
+  
+  await tx.done;
+}
+
+export async function deleteCollection(id: string): Promise<void> {
+  const db = await initDB();
+  const tx = db.transaction(COLLECTIONS_STORE, "readwrite");
+  await tx.store.delete(id);
+  await tx.done;
+}
+
 export async function getCollections(): Promise<Collection[]> {
   const db = await initDB();
   const tx = db.transaction(COLLECTIONS_STORE, "readonly");

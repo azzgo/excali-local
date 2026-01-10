@@ -48,43 +48,49 @@
 - [x] 2.1.3 Create `collection-manager.tsx` component
 - [x] 2.1.4 Add collection dropdown to sidebar header
 - [x] 2.1.5 Implement "Add to Collection" functionality
-- [ ] 2.1.6 Refactor collection-manager.tsx to sidebar list layout (excalisave-style)
-- [ ] 2.1.7 Add "Collections" section header with "+" icon button
-- [ ] 2.1.8 Implement collection list items with folder icons and drawing counts
-- [ ] 2.1.9 Add "..." menu icon to each collection with rename/delete options
-- [ ] 2.1.10 Implement rename collection functionality
-- [ ] 2.1.11 Implement delete collection functionality with confirmation
-- [ ] 2.1.12 Add collection section collapse/expand functionality
-- [ ] 2.1.13 Use shadcn UI Input component in rename/create dialogs
+- [x] 2.1.6 Refactor collection-manager.tsx to sidebar list layout (excalisave-style)
+- [x] 2.1.7 Add "Collections" section header with "+" icon button
+- [x] 2.1.8 Implement collection list items with folder icons and drawing counts
+- [x] 2.1.9 Add "..." menu icon to each collection with rename/delete options
+- [x] 2.1.10 Implement rename collection functionality
+- [x] 2.1.11 Implement delete collection functionality with confirmation
+- [x] 2.1.12 Add collection section collapse/expand functionality
+- [x] 2.1.13 Use shadcn UI Input component in rename/create dialogs
 
 ### 2.2 Search Functionality
 - [x] 2.2.1 Create `search-bar.tsx` component
 - [x] 2.2.2 Implement real-time filtering by drawing name
 - [x] 2.2.3 Update `drawingsListAtom` to handle search queries
 - [x] 2.2.4 Add search query state management
-- [ ] 2.2.5 Add shadcn UI Input component to `@/components/ui/input.tsx`
-- [ ] 2.2.6 Replace native input in search-bar.tsx with shadcn Input component
-- [ ] 2.2.7 Implement 300ms debounce for search input
+- [x] 2.2.5 Add shadcn UI Input component to `@/components/ui/input.tsx`
+- [x] 2.2.6 Replace native input in search-bar.tsx with shadcn Input component
+- [x] 2.2.7 Implement 300ms debounce for search input
 
 ### 2.3 Enhanced Save UX
 - [x] 2.3.1 Create `save-dialog.tsx` with "Overwrite" vs "Save as New" options
 - [x] 2.3.2 Implement logic to detect if current canvas is a loaded drawing
 - [x] 2.3.3 Add collection selector to save dialog
 - [x] 2.3.4 Implement name input with auto-generation fallback
-- [ ] 2.3.5 Refactor save button to text+icon button with conditional dropdown
-- [ ] 2.3.6 Implement split button behavior: main action + dropdown menu
-- [ ] 2.3.7 Add "Save as New Drawing" option in dropdown menu
-- [ ] 2.3.8 Implement quick save (direct update without dialog) for loaded drawings
-- [ ] 2.3.9 Add toast notifications for save/update success/error
-- [ ] 2.3.10 Update save dialog to use "Save As" mode only (remove overwrite option from dialog)
+- [x] 2.3.5 Refactor save button to text+icon button with conditional dropdown
+- [x] 2.3.6 Implement split button behavior: main action + dropdown menu
+- [x] 2.3.7 Add "Save as New Drawing" option in dropdown menu
+- [x] 2.3.8 Implement quick save (direct update without dialog) for loaded drawings
+- [x] 2.3.9 Add toast notifications for save/update success/error
+- [x] 2.3.10 Update save dialog to use "Save As" mode only (remove overwrite option from dialog)
 
 ### 2.4 Drawing Management
-- [ ] 2.4.1 Add "..." menu icon to each drawing card
-- [ ] 2.4.2 Implement drawing card menu with Rename/Add to Collection/Overwrite/Delete options
-- [ ] 2.4.3 Implement rename drawing functionality with dialog
-- [ ] 2.4.4 Implement "Overwrite with current canvas" functionality
-- [ ] 2.4.5 Update delete functionality to trigger from menu (remove old trigger method)
-- [ ] 2.4.6 Add confirmation dialogs for destructive actions (overwrite, delete)
+- [x] 2.4.1 Add "..." menu icon to each drawing card
+- [x] 2.4.2 Implement drawing card menu with Rename/Add to Collection/Overwrite/Delete options
+- [x] 2.4.3 Implement rename drawing functionality with dialog
+- [x] 2.4.4 Implement "Overwrite with current canvas" functionality
+- [x] 2.4.5 Update delete functionality to trigger from menu (remove old trigger method)
+- [x] 2.4.6 Add confirmation dialogs for destructive actions (overwrite, delete)
+
+### 2.5 Layout & Spacing Optimization
+- [x] 2.5.1 Adjust sidebar spacing for wider layout (increased padding and gaps)
+- [x] 2.5.2 Implement two-column grid layout for drawing cards
+- [x] 2.5.3 Update header spacing and component sizes for better visual balance
+- [x] 2.5.4 Adjust collection manager spacing for consistency
 
 ## Phase 3: Polish & Optimization
 

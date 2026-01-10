@@ -8,6 +8,8 @@ import {
   deleteDrawing,
   createCollection as createCollectionDB,
   getCollections as getCollectionsDB,
+  updateCollection as updateCollectionDB,
+  deleteCollection as deleteCollectionDB,
 } from "../../editor/utils/indexdb";
 
 export function useDrawingCrud() {
@@ -41,6 +43,21 @@ export function useDrawingCrud() {
     return await getCollectionsDB();
   }, []);
 
+  const updateCollection = useCallback(async (id: string, updates: Partial<Collection>) => {
+    await updateCollectionDB(id, updates);
+  }, []);
+
+  const deleteCollection = useCallback(async (id: string) => {
+    await deleteCollectionDB(id);
+    const drawings = await getDrawings();
+    for (const drawing of drawings) {
+      if (drawing.collectionIds?.includes(id)) {
+        const newCollectionIds = drawing.collectionIds.filter(cid => cid !== id);
+        await updateDrawing(drawing.id, { collectionIds: newCollectionIds });
+      }
+    }
+  }, []);
+
   return {
     save,
     getAll,
@@ -48,5 +65,7 @@ export function useDrawingCrud() {
     remove,
     createCollection,
     getCollections,
+    updateCollection,
+    deleteCollection,
   };
 }

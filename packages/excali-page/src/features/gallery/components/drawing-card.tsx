@@ -4,21 +4,28 @@ import { cn } from "@/lib/utils";
 import { MouseEvent, useState, useRef, useEffect } from "react";
 import { Hint } from "@/components/ui/hint";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { IconDots } from "@tabler/icons-react";
 import { useDrawingCrud } from "../hooks/use-drawing-crud";
 import { useAtomValue, useSetAtom } from "jotai";
 import { collectionsListAtom, collectionsRefreshAtom, galleryRefreshAtom } from "../store/gallery-atoms";
+import { toast } from "sonner";
 
 interface DrawingCardProps {
   drawing: Drawing;
   isActive: boolean;
   onClick: (drawing: Drawing) => void;
+  onOverwrite: (drawingId: string) => Promise<void>;
 }
 
-const DrawingCard = ({ drawing, isActive, onClick }: DrawingCardProps) => {
+const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardProps) => {
   const [showMenu, setShowMenu] = useState(false);
   const [showCollectionDialog, setShowCollectionDialog] = useState(false);
+  const [showRenameDialog, setShowRenameDialog] = useState(false);
+  const [showOverwriteDialog, setShowOverwriteDialog] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedCollections, setSelectedCollections] = useState<string[]>(drawing.collectionIds || []);
+  const [newName, setNewName] = useState(drawing.name);
   const menuRef = useRef<HTMLDivElement>(null);
   const { update, remove } = useDrawingCrud();
   const collections = useAtomValue(collectionsListAtom);
@@ -48,11 +55,54 @@ const DrawingCard = ({ drawing, isActive, onClick }: DrawingCardProps) => {
 
   const handleDelete = async (e: MouseEvent) => {
     e.stopPropagation();
-    if (confirm(`Delete "${drawing.name}"?`)) {
+    setShowDeleteDialog(true);
+    setShowMenu(false);
+  };
+
+  const handleDeleteConfirm = async () => {
+    try {
       await remove(drawing.id);
       setGalleryRefresh((prev) => prev + 1);
+      toast.success("Drawing deleted successfully");
+    } catch (error) {
+      console.error("Failed to delete drawing:", error);
+      toast.error("Failed to delete drawing");
     }
+    setShowDeleteDialog(false);
+  };
+
+  const handleRename = (e: MouseEvent) => {
+    e.stopPropagation();
+    setNewName(drawing.name);
+    setShowRenameDialog(true);
     setShowMenu(false);
+  };
+
+  const handleRenameConfirm = async () => {
+    try {
+      await update(drawing.id, { name: newName });
+      setGalleryRefresh((prev) => prev + 1);
+      toast.success("Drawing renamed successfully");
+    } catch (error) {
+      console.error("Failed to rename drawing:", error);
+      toast.error("Failed to rename drawing");
+    }
+    setShowRenameDialog(false);
+  };
+
+  const handleOverwrite = (e: MouseEvent) => {
+    e.stopPropagation();
+    setShowOverwriteDialog(true);
+    setShowMenu(false);
+  };
+
+  const handleOverwriteConfirm = async () => {
+    try {
+      await onOverwrite(drawing.id);
+      setShowOverwriteDialog(false);
+    } catch (error) {
+      console.error("Failed to overwrite drawing:", error);
+    }
   };
 
   const handleAddToCollection = (e: MouseEvent) => {
@@ -80,7 +130,7 @@ const DrawingCard = ({ drawing, isActive, onClick }: DrawingCardProps) => {
       <Hint label={`Updated: ${format(new Date(drawing.updatedAt), "PP p")}`}>
         <div
           className={cn(
-            "group relative flex flex-col gap-2 p-2 rounded-lg border transition-all cursor-pointer",
+            "group relative flex flex-col gap-2 p-3 rounded-lg border transition-all cursor-pointer h-full",
             "hover:bg-[var(--button-hover-bg)] hover:border-[var(--color-primary)]",
             isActive
               ? "bg-[var(--button-hover-bg)] border-[var(--color-primary)] ring-1 ring-[var(--color-primary)]"
@@ -117,10 +167,22 @@ const DrawingCard = ({ drawing, isActive, onClick }: DrawingCardProps) => {
                 >
                   <div className="py-1">
                     <button
+                      onClick={handleRename}
+                      className="block w-full text-left px-4 py-2 text-sm text-[var(--text-primary-color)] hover:bg-[var(--button-hover-bg)] transition-colors"
+                    >
+                      Rename
+                    </button>
+                    <button
                       onClick={handleAddToCollection}
                       className="block w-full text-left px-4 py-2 text-sm text-[var(--text-primary-color)] hover:bg-[var(--button-hover-bg)] transition-colors"
                     >
                       Add to Collection
+                    </button>
+                    <button
+                      onClick={handleOverwrite}
+                      className="block w-full text-left px-4 py-2 text-sm text-[var(--text-primary-color)] hover:bg-[var(--button-hover-bg)] transition-colors"
+                    >
+                      Overwrite with current canvas
                     </button>
                     <button
                       onClick={handleDelete}
@@ -207,6 +269,108 @@ const DrawingCard = ({ drawing, isActive, onClick }: DrawingCardProps) => {
                 Cancel
               </Button>
               <Button onClick={handleSaveCollections}>Save</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRenameDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setShowRenameDialog(false)}
+        >
+          <div
+            className="bg-card rounded-lg p-6 w-full max-w-md mx-4 border border-border shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-2">
+              Rename Drawing
+            </h2>
+            <p className="text-sm text-[var(--text-secondary-color)] mb-4">
+              Enter a new name for this drawing
+            </p>
+            <Input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="Drawing name"
+              className="mb-4"
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleRenameConfirm();
+                }
+              }}
+            />
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="ghost"
+                onClick={() => setShowRenameDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleRenameConfirm} disabled={!newName.trim()}>
+                Rename
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showOverwriteDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setShowOverwriteDialog(false)}
+        >
+          <div
+            className="bg-card rounded-lg p-6 w-full max-w-md mx-4 border border-border shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-2">
+              Overwrite Drawing
+            </h2>
+            <p className="text-sm text-[var(--text-secondary-color)] mb-4">
+              Overwrite "{drawing.name}" with current canvas? This cannot be undone.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="ghost"
+                onClick={() => setShowOverwriteDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleOverwriteConfirm} variant="destructive">
+                Overwrite
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setShowDeleteDialog(false)}
+        >
+          <div
+            className="bg-card rounded-lg p-6 w-full max-w-md mx-4 border border-border shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-2">
+              Delete Drawing
+            </h2>
+            <p className="text-sm text-[var(--text-secondary-color)] mb-4">
+              Delete "{drawing.name}"? This cannot be undone.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button
+                variant="ghost"
+                onClick={() => setShowDeleteDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleDeleteConfirm} variant="destructive">
+                Delete
+              </Button>
             </div>
           </div>
         </div>
