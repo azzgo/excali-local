@@ -14,6 +14,9 @@ import {
 import { useDrawingCrud } from "../hooks/use-drawing-crud";
 import { useThumbnail } from "../hooks/use-thumbnail";
 import DrawingCard from "./drawing-card";
+import CollectionManager from "./collection-manager";
+import SearchBar from "./search-bar";
+import SaveDialog from "./save-dialog";
 import { Suspense, useCallback, useState, useEffect } from "react";
 import { IconLoader2 } from "@tabler/icons-react";
 import { Drawing } from "../../editor/utils/indexdb";
@@ -71,6 +74,8 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
   const { generateThumbnail } = useThumbnail();
   const setRefresh = useSetAtom(galleryRefreshAtom);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [currentName, setCurrentName] = useState("");
 
   const handleStateChange = useCallback(
     (state: { name: string; tab?: string } | null) => {
@@ -95,7 +100,16 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
     }
   };
 
-  const handleSave = async () => {
+  const onSaveClick = async () => {
+    if (!excalidrawAPI) return;
+    const name = currentLoadedId 
+      ? await getDrawingName(currentLoadedId)
+      : `Drawing ${format(Date.now(), "yyyy-MM-dd HH:mm")}`;
+    setCurrentName(name);
+    setSaveDialogOpen(true);
+  };
+
+  const handleSave = async (name: string, collectionIds: string[], saveAsNew: boolean) => {
     if (!excalidrawAPI) return;
     setIsSaving(true);
 
@@ -108,9 +122,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
       const now = Date.now();
 
       const drawingData = {
-        name: currentLoadedId
-          ? await getDrawingName(currentLoadedId)
-          : `Drawing ${format(now, "yyyy-MM-dd HH:mm")}`,
+        name,
         elements: JSON.stringify(elements),
         appState: JSON.stringify(appState),
         files: JSON.stringify(files),
@@ -118,7 +130,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
         updatedAt: now,
       };
 
-      if (currentLoadedId) {
+      if (currentLoadedId && !saveAsNew) {
         await update(currentLoadedId, drawingData);
       } else {
         const newId = nanoid();
@@ -126,7 +138,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
           id: newId,
           ...drawingData,
           createdAt: now,
-          collectionIds: [],
+          collectionIds,
         } as Drawing);
         setCurrentLoadedId(newId);
       }
@@ -183,35 +195,39 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
       onStateChange={handleStateChange}
     >
       <Sidebar.Header>
-        <div className="flex items-center justify-between w-full pr-2">
-          <div className="text-[var(--color-primary)] text-[1.2em] font-bold">
-            Gallery
+        <div className="flex flex-col w-full gap-2 pr-2">
+          <div className="flex items-center justify-between w-full">
+            <div className="text-[var(--color-primary)] text-[1.2em] font-bold">
+              Gallery
+            </div>
+            <div className="flex gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={handleNew}
+                title="New Drawing"
+              >
+                <IconPlus className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={onSaveClick}
+                disabled={isSaving}
+                title="Save"
+              >
+                {isSaving ? (
+                  <IconLoader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <IconDeviceFloppy className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={handleNew}
-              title="New Drawing"
-            >
-              <IconPlus className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={handleSave}
-              disabled={isSaving}
-              title="Save"
-            >
-              {isSaving ? (
-                <IconLoader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <IconDeviceFloppy className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
+          <CollectionManager />
+          <SearchBar />
         </div>
       </Sidebar.Header>
       <ScrollArea className="h-full w-full">
@@ -225,6 +241,13 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
           <GalleryList onLoad={handleLoad} currentId={currentLoadedId} />
         </Suspense>
       </ScrollArea>
+      <SaveDialog
+        isOpen={saveDialogOpen}
+        onClose={() => setSaveDialogOpen(false)}
+        onSave={handleSave}
+        currentLoadedDrawingId={currentLoadedId}
+        defaultName={currentName}
+      />
     </Sidebar>
   );
 };

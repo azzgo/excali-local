@@ -42,23 +42,23 @@
 ## Phase 2: Collections & Search
 
 ### 2.1 Collection Management
-- [ ] 2.1.1 Implement `createCollection()` function
-- [ ] 2.1.2 Implement `getCollections()` function
-- [ ] 2.1.3 Create `collection-manager.tsx` component
-- [ ] 2.1.4 Add collection dropdown to sidebar header
-- [ ] 2.1.5 Implement "Add to Collection" functionality
+- [x] 2.1.1 Implement `createCollection()` function
+- [x] 2.1.2 Implement `getCollections()` function
+- [x] 2.1.3 Create `collection-manager.tsx` component
+- [x] 2.1.4 Add collection dropdown to sidebar header
+- [x] 2.1.5 Implement "Add to Collection" functionality
 
 ### 2.2 Search Functionality
-- [ ] 2.2.1 Create `search-bar.tsx` component
-- [ ] 2.2.2 Implement real-time filtering by drawing name
-- [ ] 2.2.3 Update `drawingsListAtom` to handle search queries
-- [ ] 2.2.4 Add search query state management
+- [x] 2.2.1 Create `search-bar.tsx` component
+- [x] 2.2.2 Implement real-time filtering by drawing name
+- [x] 2.2.3 Update `drawingsListAtom` to handle search queries
+- [x] 2.2.4 Add search query state management
 
 ### 2.3 Enhanced Save UX
-- [ ] 2.3.1 Create `save-dialog.tsx` with "Overwrite" vs "Save as New" options
-- [ ] 2.3.2 Implement logic to detect if current canvas is a loaded drawing
-- [ ] 2.3.3 Add collection selector to save dialog
-- [ ] 2.3.4 Implement name input with auto-generation fallback
+- [x] 2.3.1 Create `save-dialog.tsx` with "Overwrite" vs "Save as New" options
+- [x] 2.3.2 Implement logic to detect if current canvas is a loaded drawing
+- [x] 2.3.3 Add collection selector to save dialog
+- [x] 2.3.4 Implement name input with auto-generation fallback
 
 ## Phase 3: Polish & Optimization
 

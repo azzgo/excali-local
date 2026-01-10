@@ -1,5 +1,5 @@
 import { atom } from "jotai";
-import { Drawing, getDrawings } from "../../editor/utils/indexdb";
+import { Drawing, getDrawings, getCollections } from "../../editor/utils/indexdb";
 
 export const galleryIsOpenAtom = atom(false);
 
@@ -10,6 +10,8 @@ export const searchQueryAtom = atom("");
 export const currentLoadedDrawingIdAtom = atom<string | null>(null);
 
 export const galleryRefreshAtom = atom(0);
+
+export const collectionsRefreshAtom = atom(0);
 
 export const drawingsListAtom = atom(async (get) => {
   get(galleryRefreshAtom);
@@ -25,4 +27,9 @@ export const drawingsListAtom = atom(async (get) => {
   }
   
   return drawings;
+});
+
+export const collectionsListAtom = atom(async (get) => {
+  get(collectionsRefreshAtom);
+  return await getCollections();
 });

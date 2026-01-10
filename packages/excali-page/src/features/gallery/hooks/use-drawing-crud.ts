@@ -1,10 +1,13 @@
 import { useCallback } from "react";
 import {
   Drawing,
+  Collection,
   saveDrawing,
   getDrawings,
   updateDrawing,
   deleteDrawing,
+  createCollection as createCollectionDB,
+  getCollections as getCollectionsDB,
 } from "../../editor/utils/indexdb";
 
 export function useDrawingCrud() {
@@ -24,10 +27,26 @@ export function useDrawingCrud() {
     await deleteDrawing(id);
   }, []);
 
+  const createCollection = useCallback(async (name: string) => {
+    const collection: Collection = {
+      id: crypto.randomUUID(),
+      name,
+      createdAt: Date.now(),
+    };
+    await createCollectionDB(collection);
+    return collection;
+  }, []);
+
+  const getCollections = useCallback(async () => {
+    return await getCollectionsDB();
+  }, []);
+
   return {
     save,
     getAll,
     update,
     remove,
+    createCollection,
+    getCollections,
   };
 }
