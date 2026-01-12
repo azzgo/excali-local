@@ -20,6 +20,7 @@ export function initI18n() {
           "Search drawings...": "Search drawings...",
           "No drawings yet.": "No drawings yet.",
           "Create one to get started!": "Create one to get started!",
+          "Load More": "Load More",
           
           "Save": "Save",
           "Update": "Update",
@@ -69,6 +70,15 @@ export function initI18n() {
           "Drawing saved successfully": "Drawing saved successfully",
           "Failed to save drawing": "Failed to save drawing",
           "Failed to load drawing": "Failed to load drawing",
+          
+          "More Actions": "More Actions",
+          "Clean Up Storage": "Clean Up Storage",
+          "Storage Cleaned": "Storage Cleaned",
+          "Cleaned {{count}} orphaned files": "Cleaned {{count}} orphaned files",
+          "Storage Clean": "Storage Clean",
+          "No orphaned files found": "No orphaned files found",
+          "Cleanup Failed": "Cleanup Failed",
+          "Failed to cleanup storage": "Failed to cleanup storage",
         },
       },
       "zh-CN": {
@@ -86,6 +96,8 @@ export function initI18n() {
           "Search drawings...": "搜索画布...",
           "No drawings yet.": "还没有画布。",
           "Create one to get started!": "创建一个开始吧！",
+          "Load More": "加载更多",
+          
           "Save": "保存",
           "Update": "更新",
           "Cancel": "取消",
@@ -134,6 +146,15 @@ export function initI18n() {
           "Drawing saved successfully": "画布保存成功",
           "Failed to save drawing": "保存画布失败",
           "Failed to load drawing": "加载画布失败",
+          
+          "More Actions": "更多操作",
+          "Clean Up Storage": "清理存储",
+          "Storage Cleaned": "存储已清理",
+          "Cleaned {{count}} orphaned files": "已清理 {{count}} 个孤立文件",
+          "Storage Clean": "存储干净",
+          "No orphaned files found": "未发现孤立文件",
+          "Cleanup Failed": "清理失败",
+          "Failed to cleanup storage": "清理存储失败",
         },
       },
     },

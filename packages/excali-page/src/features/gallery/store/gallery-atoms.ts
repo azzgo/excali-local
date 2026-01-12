@@ -13,10 +13,14 @@ export const galleryRefreshAtom = atom(0);
 
 export const collectionsRefreshAtom = atom(0);
 
+export const currentPageAtom = atom(1);
+export const pageSize = 20;
+
 export const drawingsListAtom = atom(async (get) => {
   get(galleryRefreshAtom);
   const collectionId = get(selectedCollectionIdAtom);
   const searchQuery = get(searchQueryAtom);
+  const page = get(currentPageAtom);
   
   let drawings = await getDrawings(collectionId ?? undefined);
   
@@ -26,7 +30,15 @@ export const drawingsListAtom = atom(async (get) => {
     );
   }
   
-  return drawings;
+  const startIndex = 0;
+  const endIndex = page * pageSize;
+  const hasMore = drawings.length > endIndex;
+  
+  return {
+    drawings: drawings.slice(startIndex, endIndex),
+    hasMore,
+    total: drawings.length,
+  };
 });
 
 export const collectionsListAtom = atom(async (get) => {

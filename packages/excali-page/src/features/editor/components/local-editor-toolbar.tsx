@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button";
 import { useSlide } from "../hooks/use-slide";
 import Hint from "@/components/hint";
 import { useTranslation } from "react-i18next";
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/excalidraw/types";
 import { useMarker } from "../hooks/use-marker";
+import { useAtomValue } from "jotai";
+import { galleryIsOpenAtom } from "../../gallery/store/gallery-atoms";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
 
 interface SlideToolbarProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
@@ -19,8 +21,10 @@ const LocalEditorToolbar = ({ excalidrawAPI }: SlideToolbarProps) => {
     useSlide(excalidrawAPI);
   const [t] = useTranslation();
   const { toggleMarkerMode } = useMarker(excalidrawAPI);
+  const isGalleryOpen = useAtomValue(galleryIsOpenAtom);
+
   const handlePresentationIconClick = (
-    event: React.MouseEvent<HTMLButtonElement>
+    event: React.MouseEvent<HTMLButtonElement>,
   ) => {
     handleTogglePresentation();
     excalidrawAPI?.toggleSidebar({ name: "marker", force: false });
@@ -37,15 +41,17 @@ const LocalEditorToolbar = ({ excalidrawAPI }: SlideToolbarProps) => {
 
   return (
     <div className="flex gap-x-2">
-      <Hint label={t("Gallery")} align="end" sideOffset={8}>
-        <Button
-          disabled={presentationMode}
-          variant="ghost"
-          onClick={handleGalleryIconClick}
-        >
-          <IconLayoutGrid className="size-4" />
-        </Button>
-      </Hint>
+      {!isGalleryOpen && (
+        <Hint label={t("Gallery")} align="end" sideOffset={8}>
+          <Button
+            disabled={presentationMode}
+            variant="ghost"
+            onClick={handleGalleryIconClick}
+          >
+            <IconLayoutGrid className="size-4" />
+          </Button>
+        </Hint>
+      )}
       <Hint label={t("Marker")} align="end" sideOffset={8}>
         <Button
           disabled={presentationMode}

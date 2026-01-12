@@ -3,8 +3,8 @@ import {
   BinaryFiles,
   ExcalidrawInitialDataState,
   LibraryItems,
-} from "@excalidraw/excalidraw/types/excalidraw/types";
-import { ExcalidrawElement } from "@excalidraw/excalidraw/types/excalidraw/element/types";
+} from "@excalidraw/excalidraw/dist/types/excalidraw/types";
+import { ExcalidrawElement } from "@excalidraw/excalidraw/dist/types/element/src/types";
 import { useEffect, useState } from "react";
 import {
   KeyForAppState,

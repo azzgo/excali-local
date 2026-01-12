@@ -1,6 +1,6 @@
-import { useAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import { useEffect, useState } from "react";
-import { searchQueryAtom } from "../store/gallery-atoms";
+import { searchQueryAtom, currentPageAtom } from "../store/gallery-atoms";
 import { IconSearch, IconX } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -11,14 +11,16 @@ const SearchBar = () => {
   const [t] = useTranslation();
   const [query, setQuery] = useAtom(searchQueryAtom);
   const [inputValue, setInputValue] = useState(query);
+  const setCurrentPage = useSetAtom(currentPageAtom);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setQuery(inputValue);
+      setCurrentPage(1);
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [inputValue, setQuery]);
+  }, [inputValue, setQuery, setCurrentPage]);
 
   useEffect(() => {
     setInputValue(query);
@@ -27,6 +29,7 @@ const SearchBar = () => {
   const handleClear = () => {
     setInputValue("");
     setQuery("");
+    setCurrentPage(1);
   };
 
   return (

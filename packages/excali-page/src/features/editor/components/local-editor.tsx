@@ -31,6 +31,7 @@ import QuickMarkSidebar from "./quick-mark-sidebar";
 import GallerySidebar from "../../gallery/components/gallery-sidebar";
 import { useAtomValue } from "jotai";
 import { currentLoadedDrawingIdAtom } from "../../gallery/store/gallery-atoms";
+import { useFileCleanup } from "../../gallery/hooks/use-file-cleanup";
 
 interface LocalEditorProps {
   lang: string;
@@ -44,11 +45,8 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
   const [showSlideQuickNav, updateShowSlideQuickNav] = useAtom(
     showSlideQuickNavAtom,
   );
+  const { runCleanupIfNeeded } = useFileCleanup();
   
-  // Watch for loaded drawing changes to update API if needed
-  // Note: Most loading happens inside GallerySidebar via direct API call,
-  // but we might need to react to external state changes here if we add more features.
-  // For now, this is just to ensure the atom is consumed.
   const currentLoadedId = useAtomValue(currentLoadedDrawingIdAtom);
 
   useEffect(() => {
@@ -56,6 +54,12 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
       updateSlides(data?.elements ?? [], data.files ?? {});
     }
   }, [data]);
+
+  useEffect(() => {
+    runCleanupIfNeeded().catch((error) => {
+      console.error("Failed to run file cleanup:", error);
+    });
+  }, [runCleanupIfNeeded]);
 
   const updateExcalidrawAPI = useCallback((api: ExcalidrawImperativeAPI) => {
     setExcalidrawAPI(api);

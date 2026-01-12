@@ -5,6 +5,7 @@ import {
   collectionsRefreshAtom,
   drawingsListAtom,
   galleryRefreshAtom,
+  currentPageAtom,
 } from "../store/gallery-atoms";
 import { useDrawingCrud } from "../hooks/use-drawing-crud";
 import { Suspense, useState, useEffect, MouseEvent } from "react";
@@ -43,6 +44,7 @@ const CollectionItem = ({
   const { updateCollection, deleteCollection } = useDrawingCrud();
   const setCollectionsRefresh = useSetAtom(collectionsRefreshAtom);
   const setGalleryRefresh = useSetAtom(galleryRefreshAtom);
+  const setCurrentPage = useSetAtom(currentPageAtom);
 
   const handleDelete = async (e: MouseEvent) => {
     e.stopPropagation();
@@ -50,6 +52,7 @@ const CollectionItem = ({
       await deleteCollection(collection.id);
       setCollectionsRefresh((prev) => prev + 1);
       setGalleryRefresh((prev) => prev + 1);
+      setCurrentPage(1);
       
       if (isSelected) {
         onClick(); 
@@ -166,6 +169,7 @@ const CollectionsList = () => {
   const [newCollectionName, setNewCollectionName] = useState("");
   const { createCollection } = useDrawingCrud();
   const setCollectionsRefresh = useSetAtom(collectionsRefreshAtom);
+  const setCurrentPage = useSetAtom(currentPageAtom);
   
   const [counts, setCounts] = useState<Record<string, number>>({});
   const { getAll } = useDrawingCrud();
@@ -199,12 +203,18 @@ const CollectionsList = () => {
       const collection = await createCollection(newCollectionName.trim());
       setCollectionsRefresh((prev) => prev + 1);
       setSelectedId(collection.id);
+      setCurrentPage(1);
       setNewCollectionName("");
       setIsCreateDialogOpen(false);
       setIsExpanded(true); 
     } catch (error) {
       console.error("Failed to create collection:", error);
     }
+  };
+
+  const handleSelectCollection = (id: string | null) => {
+    setSelectedId(id);
+    setCurrentPage(1);
   };
 
   return (
@@ -237,7 +247,7 @@ const CollectionsList = () => {
                 ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
                 : "text-[var(--text-secondary-color)] hover:bg-[var(--button-hover-bg)] hover:text-[var(--text-primary-color)]"
             )}
-            onClick={() => setSelectedId(null)}
+            onClick={() => handleSelectCollection(null)}
           >
             <IconFolder className={cn("h-4 w-4 shrink-0", selectedId === null ? "fill-[var(--color-primary)]/20" : "")} />
             <span className="flex-1">{t("All Drawings")}</span>
@@ -248,7 +258,7 @@ const CollectionsList = () => {
               key={collection.id}
               collection={collection}
               isSelected={selectedId === collection.id}
-              onClick={() => setSelectedId(collection.id)}
+              onClick={() => handleSelectCollection(collection.id)}
               count={counts[collection.id] || 0}
             />
           ))}

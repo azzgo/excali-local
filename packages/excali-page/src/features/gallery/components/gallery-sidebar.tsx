@@ -5,6 +5,7 @@ import {
   IconDeviceFloppy,
   IconPlus,
   IconChevronDown,
+  IconTrash,
 } from "@tabler/icons-react";
 import { restoreAppState } from "@excalidraw/excalidraw";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
@@ -13,10 +14,13 @@ import {
   currentLoadedDrawingIdAtom,
   galleryIsOpenAtom,
   galleryRefreshAtom,
+  currentPageAtom,
 } from "../store/gallery-atoms";
 import { useDrawingCrud } from "../hooks/use-drawing-crud";
 import { useThumbnail } from "../hooks/use-thumbnail";
+import { useFileCleanup } from "../hooks/use-file-cleanup";
 import DrawingCard from "./drawing-card";
+import DrawingCardSkeleton from "./drawing-card-skeleton";
 import CollectionManager from "./collection-manager";
 import SearchBar from "./search-bar";
 import SaveDialog from "./save-dialog";
@@ -50,12 +54,17 @@ const GalleryList = ({
   currentId: string | null;
 }) => {
   const [t] = useTranslation();
-  const drawings = useAtomValue(drawingsListAtom);
-  const sortedDrawings = [...drawings].sort(
+  const drawingsData = useAtomValue(drawingsListAtom);
+  const [currentPage, setCurrentPage] = useAtom(currentPageAtom);
+  const sortedDrawings = [...drawingsData.drawings].sort(
     (a, b) => b.updatedAt - a.updatedAt,
   );
 
-  if (drawings.length === 0) {
+  const handleLoadMore = () => {
+    setCurrentPage(currentPage + 1);
+  };
+
+  if (drawingsData.total === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center text-[var(--text-secondary-color)]">
         <p className="text-sm">{t("No drawings yet.")}</p>
@@ -65,16 +74,30 @@ const GalleryList = ({
   }
 
   return (
-    <div className="grid grid-cols-2 gap-4 p-4">
-      {sortedDrawings.map((drawing) => (
-        <DrawingCard
-          key={drawing.id}
-          drawing={drawing}
-          isActive={drawing.id === currentId}
-          onClick={onLoad}
-          onOverwrite={onOverwrite}
-        />
-      ))}
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-4 p-4">
+        {sortedDrawings.map((drawing) => (
+          <DrawingCard
+            key={drawing.id}
+            drawing={drawing}
+            isActive={drawing.id === currentId}
+            onClick={onLoad}
+            onOverwrite={onOverwrite}
+          />
+        ))}
+      </div>
+      {drawingsData.hasMore && (
+        <div className="flex justify-center pb-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleLoadMore}
+            className="w-[200px]"
+          >
+            {t("Load More")} ({drawingsData.drawings.length} / {drawingsData.total})
+          </Button>
+        </div>
+      )}
     </div>
   );
 };
@@ -88,10 +111,12 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
   );
   const { save, update, getAll } = useDrawingCrud();
   const { generateThumbnail } = useThumbnail();
+  const { cleanupOrphanedFiles } = useFileCleanup();
   const setRefresh = useSetAtom(galleryRefreshAtom);
   const [isSaving, setIsSaving] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [currentName, setCurrentName] = useState("");
+  const [isCleaningUp, setIsCleaningUp] = useState(false);
 
   const handleStateChange = useCallback(
     (state: { name: string; tab?: string } | null) => {
@@ -273,9 +298,8 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
             ]),
             null,
           ),
-          files,
-          commitToHistory: true,
         });
+        excalidrawAPI.addFiles(files)
 
         setCurrentLoadedId(drawing.id);
       } catch (error) {
@@ -291,6 +315,29 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
     excalidrawAPI.resetScene();
     setCurrentLoadedId(null);
   }, [excalidrawAPI, setCurrentLoadedId]);
+
+  const handleCleanup = useCallback(async () => {
+    setIsCleaningUp(true);
+    try {
+      const result = await cleanupOrphanedFiles();
+      if (result.cleaned > 0) {
+        toast.success(t("Storage Cleaned"), {
+          description: t("Cleaned {{count}} orphaned files", { count: result.cleaned }),
+        });
+      } else {
+        toast.success(t("Storage Clean"), {
+          description: t("No orphaned files found"),
+        });
+      }
+    } catch (error) {
+      console.error("Failed to cleanup storage:", error);
+      toast.error(t("Cleanup Failed"), {
+        description: t("Failed to cleanup storage"),
+      });
+    } finally {
+      setIsCleaningUp(false);
+    }
+  }, [cleanupOrphanedFiles, t]);
 
   return (
     <Sidebar
@@ -308,15 +355,32 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
             </div>
             <SearchBar />
             <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                onClick={handleNew}
-                title={t("New Drawing")}
-              >
-                <IconPlus className="h-5 w-5" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    title={t("More Actions")}
+                  >
+                    <IconChevronDown className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={handleNew}>
+                    <IconPlus className="mr-2 h-4 w-4" />
+                    <span>{t("New Drawing")}</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleCleanup} disabled={isCleaningUp}>
+                    {isCleaningUp ? (
+                      <IconLoader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <IconTrash className="mr-2 h-4 w-4" />
+                    )}
+                    <span>{t("Clean Up Storage")}</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               <div className="flex items-center bg-secondary rounded-md border-border h-9">
                 <Button
@@ -366,8 +430,10 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
       <ScrollArea className="h-full w-full">
         <Suspense
           fallback={
-            <div className="flex items-center justify-center p-8">
-              <IconLoader2 className="animate-spin text-[var(--text-secondary-color)]" />
+            <div className="grid grid-cols-2 gap-4 p-4">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <DrawingCardSkeleton key={index} />
+              ))}
             </div>
           }
         >

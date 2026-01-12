@@ -1,6 +1,6 @@
 import { WelcomeScreen } from "@excalidraw/excalidraw";
 import Excalidraw from "../lib/excalidraw";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useLoadInitData } from "../hooks/use-load-initdata";
 import { IconLoader2 } from "@tabler/icons-react";
 import { useMessageEvent } from "../hooks/use-message-event";
@@ -9,6 +9,7 @@ import { useMarkerEvent } from "../hooks/use-marker-effect";
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/excalidraw/types";
 import QuickMarkSidebar from "./quick-mark-sidebar";
 import GallerySidebar from "../../gallery/components/gallery-sidebar";
+import { useFileCleanup } from "../../gallery/hooks/use-file-cleanup";
 
 interface QuickMarkerEditorProps {
   lang: string;
@@ -18,12 +19,20 @@ const QuickMarkerEditor = ({ lang }: QuickMarkerEditorProps) => {
   const { isLoaded, data } = useLoadInitData({ onlyLibrary: true });
   const [excalidrawAPI, setExcalidrawAPI] =
     useState<ExcalidrawImperativeAPI | null>(null);
+  const { runCleanupIfNeeded } = useFileCleanup();
+  
   const updateExcalidrawAPI = useCallback((api: ExcalidrawImperativeAPI) => {
     setExcalidrawAPI(api);
   }, []);
 
   useMessageEvent({ excalidrawAPI });
   useMarkerEvent(excalidrawAPI);
+
+  useEffect(() => {
+    runCleanupIfNeeded().catch((error) => {
+      console.error("Failed to run file cleanup:", error);
+    });
+  }, [runCleanupIfNeeded]);
 
   return (
     <div className="h-full max-h-svh overflow-hidden flex flex-col">

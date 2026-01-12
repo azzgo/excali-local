@@ -38,7 +38,7 @@
 - [x] 1.6.2 Integrate GallerySidebar into QuickMarkerEditor
 - [x] 1.6.3 Implement load drawing functionality
 - [x] 1.6.4 Implement explicit save functionality
-- [ ] 1.6.5 Implement sidebar trigger button hide/show behavior based on sidebar open state
+- [x] 1.6.5 Implement sidebar trigger button hide/show behavior based on sidebar open state
 
 ## Phase 2: Collections & Search
 
@@ -95,20 +95,20 @@
 ## Phase 3: Polish & Optimization
 
 ### 3.1 Performance Optimization
-- [ ] 3.1.1 Implement pagination for drawing list (load 20 at a time)
-- [ ] 3.1.2 Add loading states and skeleton UI
-- [ ] 3.1.3 Optimize thumbnail generation performance
+- [x] 3.1.1 Implement pagination for drawing list (load 20 at a time)
+- [x] 3.1.2 Add loading states and skeleton UI
+- [x] 3.1.3 Optimize thumbnail generation performance
 
 ### 3.2 File Cleanup
-- [ ] 3.2.1 Create `use-file-cleanup.ts` hook
-- [ ] 3.2.2 Implement background cleanup algorithm
-- [ ] 3.2.3 Add cleanup on app startup (debounced, once per 24 hours)
+- [x] 3.2.1 Create `use-file-cleanup.ts` hook
+- [x] 3.2.2 Implement background cleanup algorithm
+- [x] 3.2.3 Add cleanup on app startup (debounced, once per 24 hours)
 - [ ] 3.2.4 Add manual "Clean Up Storage" button in settings (optional)
 
 ### 3.3 Internationalization
-- [ ] 3.3.1 Add i18n keys for all Gallery UI strings (including new save/rename/overwrite messages)
-- [ ] 3.3.2 Add Chinese translations for all keys
-- [ ] 3.3.3 Add English translations for all keys
+- [x] 3.3.1 Add i18n keys for all Gallery UI strings (including new save/rename/overwrite messages)
+- [x] 3.3.2 Add Chinese translations for all keys
+- [x] 3.3.3 Add English translations for all keys
 
 ### 3.4 Testing & Validation
 - [ ] 3.4.1 Test database migration from v1 to v2
