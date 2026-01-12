@@ -109,6 +109,28 @@ The Excali Local application currently only persists a single working canvas to 
 - Aligns with user mental model ("Save" means permanent)
 - Reduces storage churn
 
+### Decision 8: Lazy Drawing Data Loading (Phase 4 Optimization)
+**What:** Separate drawing queries into metadata-only and full-data fetches. Gallery list loads only metadata (id, name, thumbnail, timestamps, collectionIds). Full data (elements, appState, files) is fetched only when user loads to canvas.
+
+**Why:**
+- Gallery UI never uses elements, appState, or files until canvas load
+- Loading full data for 100+ drawings wastes memory and slows rendering
+- elements, appState, files are JSON strings that can be 100KB+ per drawing
+- Metadata fields are small (<5KB per drawing including thumbnail)
+- Significantly improves gallery list load time and memory footprint
+
+**Alternatives considered:**
+- Keep single `getDrawings()` returning all fields: Simple but inefficient at scale (100+ drawings)
+- Virtual scrolling with full data: Still loads too much data unnecessarily
+- Compression: Doesn't solve the problem of loading unused data
+
+**Implementation:**
+- `getDrawings()` → returns `DrawingMetadata[]` (metadata only)
+- `getDrawingFullData(id)` → returns full data for single drawing
+- `getDrawingsFilesOnly()` → returns `{ id, files }[]` for cleanup
+- No database schema changes required (query optimization only)
+- Transparent to save/update operations (still persist all fields)
+
 ## Risks / Trade-offs
 
 ### Risk 1: IndexedDB Storage Limits
@@ -135,13 +157,16 @@ The Excali Local application currently only persists a single working canvas to 
 **Trade-off:** Cannot recover from catastrophic migration failure without user data loss. Consider adding export feature in future.
 
 ### Risk 3: Performance with Large Drawing Count
-**Issue:** Loading 1000+ drawings could slow down UI.
+**Issue:** Loading 100+ drawings with full data (elements, appState, files) could slow down UI and consume excessive memory.
 
 **Mitigation:**
-- Implement pagination (20 drawings per page) in Phase 3.1
+- **Phase 4 Optimization (RECOMMENDED):** Implement lazy loading - gallery list loads only metadata, full data fetched on canvas load
+- Implement pagination (20 drawings per page) already completed in Phase 3.1
 - Use IndexedDB indexes for efficient filtering
-- Lazy-load thumbnails
+- Lazy-load thumbnails (already using DataURLs)
 - Search filters reduce visible set
+
+**Trade-off:** Lazy loading adds one extra query per canvas load, but saves significant memory and initial load time. Net performance gain for users with 50+ drawings.
 
 **Trade-off:** Pagination adds UI complexity. Most users won't have >100 drawings in MVP timeframe.
 

@@ -38,14 +38,22 @@ Users need a way to save and organize multiple Excalidraw drawings locally. Curr
     - Overwrite drawing → update specific card only (no full refresh)
   - All lightweight operations use optimistic updates with targeted DOM updates
   - `galleryRefreshAtom` only used for filter changes, not individual card operations
+- **Lazy drawing data loading optimization**:
+  - `getDrawings()` returns only metadata (id, name, thumbnail, collectionIds, timestamps) for gallery list display
+  - `getDrawingFullData(id)` fetches full drawing data (elements, appState, files) only when loading to canvas
+  - `getDrawingsFilesOnly()` fetches only id and files for file cleanup operations
+  - Reduces memory usage and improves gallery list rendering performance
 
 ## Impact
-- **Affected specs**: gallery-storage, gallery-ui, storage-isolation
+- **Affected specs**: gallery-storage, gallery-ui, storage-isolation, **lazy-drawing-load**
 - **Affected code**: 
-  - `packages/excali-page/src/features/editor/utils/indexdb.ts` (database upgrade)
+  - `packages/excali-page/src/features/editor/utils/indexdb.ts` (database upgrade, **lazy loading functions**)
   - `packages/excali-page/src/features/editor/components/local-editor.tsx` (sidebar integration)
   - `packages/excali-page/src/features/editor/components/quick-marker-editor.tsx` (sidebar integration)
   - New feature directory: `packages/excali-page/src/features/gallery/`
   - `packages/excali-page/src/components/ui/` (add Input component)
+  - `packages/excali-page/src/features/gallery/hooks/use-drawing-crud.ts` (**lazy loading integration**)
+  - `packages/excali-page/src/features/gallery/hooks/use-file-cleanup.ts` (**optimize with files-only query**)
+  - `packages/excali-page/src/features/gallery/components/gallery-sidebar.tsx` (**use lazy loading for canvas load**)
 - **Dependencies**: Existing `idb` library, existing Jotai state management, shadcn UI Input component
-- **Breaking changes**: None (database migration is additive, existing auto-save behavior unchanged)
+- **Breaking changes**: None (database migration is additive, existing auto-save behavior unchanged, **query optimization is transparent**)

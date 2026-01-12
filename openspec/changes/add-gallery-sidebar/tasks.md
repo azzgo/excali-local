@@ -252,6 +252,88 @@
   - Cards update in place via targeted callbacks ✓
   - Only filtering (collection/search) triggers data reload ✓
 
+## Phase 4: Lazy Drawing Data Loading Optimization
+
+### 4.1 IndexedDB Query Optimization
+- [ ] 4.1.1 Create `DrawingMetadata` TypeScript interface in `indexdb.ts`
+  - Export interface with fields: id, name, thumbnail, collectionIds, createdAt, updatedAt
+  - Keep existing `Drawing` interface unchanged with all fields
+- [ ] 4.1.2 Modify `getDrawings()` to return metadata only
+  - Update query to select only metadata fields (id, name, thumbnail, collectionIds, createdAt, updatedAt)
+  - Exclude elements, appState, files from query result
+  - Keep same filtering logic (collectionId, search)
+  - Keep same sorting logic (updatedAt descending)
+  - Update return type to `Promise<DrawingMetadata[]>`
+- [ ] 4.1.3 Implement `getDrawingFullData(drawingId: string)` function
+  - Query single drawing by ID from IndexedDB
+  - Return only: id, elements, appState, files
+  - Throw error "Drawing not found" if ID doesn't exist
+  - Return type: `Promise<{ id: string; elements: string; appState: string; files: string }>`
+- [ ] 4.1.4 Implement `getDrawingsFilesOnly()` function
+  - Query all drawings from IndexedDB
+  - Return only: id, files
+  - Return type: `Promise<{ id: string; files: string }[]>`
+  - Used for file cleanup operations
+
+### 4.2 Hook Integration
+- [ ] 4.2.1 Update `use-drawing-crud.ts` to support lazy loading
+  - Keep `getAll()` returning metadata only (via updated `getDrawings()`)
+  - Add new `getFullData(id)` function wrapping `getDrawingFullData()`
+  - Add new `getFilesOnly()` function wrapping `getDrawingsFilesOnly()`
+  - Export all three functions
+- [ ] 4.2.2 Update `use-file-cleanup.ts` to use files-only query
+  - Replace `getDrawings()` call with `getDrawingsFilesOnly()`
+  - Update code to work with `{ id, files }[]` instead of full `Drawing[]`
+  - Verify cleanup logic still correctly identifies orphaned files
+
+### 4.3 Gallery Component Updates
+- [ ] 4.3.1 Update `gallery-sidebar.tsx` state types
+  - Change `allDrawings` state type from `Drawing[]` to `DrawingMetadata[]`
+  - Update `GalleryListProps.drawings` type to `DrawingMetadata[]`
+  - Update all references to drawings to use `DrawingMetadata` type
+- [ ] 4.3.2 Update `handleLoad` function to fetch full data
+  - Import `getFullData` from `useDrawingCrud`
+  - Before parsing, call `const fullDrawing = await getFullData(drawing.id)`
+  - Parse elements, appState, files from `fullDrawing` instead of `drawing`
+  - Keep error handling with toast notification
+- [ ] 4.3.3 Update `getDrawingName` helper function
+  - Keep using `getAll()` since it returns metadata with name field
+  - No changes needed (metadata includes name)
+
+### 4.4 Type Safety Updates
+- [ ] 4.4.1 Update `drawing-card.tsx` prop types
+  - Change `drawing` prop type from `Drawing` to `DrawingMetadata`
+  - Verify all accessed fields (name, thumbnail, updatedAt, collectionIds) exist in `DrawingMetadata`
+  - TypeScript should prevent accessing elements, appState, files
+- [ ] 4.4.2 Update `save-dialog.tsx` if needed
+  - Review if it accesses any drawing data
+  - Update types if necessary
+
+### 4.5 Testing & Validation
+- [ ] 4.5.1 Test gallery list loading with metadata only
+  - Open gallery sidebar with 50+ drawings
+  - Verify list renders correctly showing thumbnails and names
+  - Verify no elements/appState/files data is loaded
+  - Check browser DevTools → Application → IndexedDB for query results
+- [ ] 4.5.2 Test canvas loading with full data fetch
+  - Click on a drawing card
+  - Verify `getDrawingFullData()` is called
+  - Verify drawing loads correctly to canvas with all elements and files
+  - Check console for any parsing errors
+- [ ] 4.5.3 Test file cleanup with files-only query
+  - Trigger file cleanup (or wait 24 hours)
+  - Verify cleanup runs without errors
+  - Verify orphaned files are correctly identified and removed
+  - Check console logs for cleanup statistics
+- [ ] 4.5.4 Performance testing
+  - Compare gallery list load time before/after optimization
+  - Measure memory usage with 100+ drawings before/after
+  - Verify canvas load time is not significantly affected
+- [ ] 4.5.5 Error handling testing
+  - Try loading a drawing that doesn't exist (edge case)
+  - Verify error toast is displayed
+  - Verify app doesn't crash
+
 ## Dependencies & Sequencing
 - Phase 1 tasks must be completed sequentially (1.1 → 1.2 → 1.3 → 1.4 → 1.5 → 1.6)
 - Phase 2 can start after Phase 1 is complete
@@ -263,6 +345,9 @@
 - **Phase 3.5 (Optimistic Updates & Targeted Updates) must be done before Phase 3.6 testing** ✓ COMPLETED
 - Phase 3.4 and 3.5 can be done in parallel
 - Phase 3.5 requires significant state management refactoring (local state for both collections and drawings) ✓ COMPLETED
+- **Phase 4 (Lazy Loading) can be implemented independently after Phase 1 is complete**
+- **Phase 4 is OPTIONAL for MVP but RECOMMENDED for performance at scale (100+ drawings)**
+- Phase 4 requires Phase 3.5 to be completed (centralized state management)
 
 ## Phase 3.5 Implementation Summary (Completed)
 
