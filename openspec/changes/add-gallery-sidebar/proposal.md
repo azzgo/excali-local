@@ -26,6 +26,18 @@ Users need a way to save and organize multiple Excalidraw drawings locally. Curr
 - **Drawing card menu enhancements**:
   - Add "Rename" functionality for drawings
   - Add "Overwrite with current canvas" to replace any drawing with current canvas state
+- **Polish improvements**:
+  - Fix event bubbling issues in dropdown menus (prevent unwanted parent clicks)
+  - Implement optimistic UI updates for instant feedback on collection and drawing operations
+  - Use local React state for both collections and drawings (minimal Suspense usage)
+  - Suspense only for initial load and filter changes (collection/search), not for card operations
+  - Collections collapsed by default, always visible, no loading states
+  - Targeted updates for heavy operations to avoid full gallery refresh:
+    - Save new drawing → prepend card to list (no full refresh)
+    - Update existing drawing → update specific card only (no full refresh)
+    - Overwrite drawing → update specific card only (no full refresh)
+  - All lightweight operations use optimistic updates with targeted DOM updates
+  - `galleryRefreshAtom` only used for filter changes, not individual card operations
 
 ## Impact
 - **Affected specs**: gallery-storage, gallery-ui, storage-isolation
