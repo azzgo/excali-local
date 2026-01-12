@@ -5,8 +5,10 @@ import { IconSearch, IconX } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useTranslation } from "react-i18next";
 
 const SearchBar = () => {
+  const [t] = useTranslation();
   const [query, setQuery] = useAtom(searchQueryAtom);
   const [inputValue, setInputValue] = useState(query);
 
@@ -36,7 +38,7 @@ const SearchBar = () => {
         type="text"
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
-        placeholder="Search drawings..."
+        placeholder={t("Search drawings...")}
         className={cn(
           "w-full h-9 !pl-9 pr-9 text-sm bg-[var(--color-surface-low)]",
           "border border-transparent hover:border-[var(--color-primary)]",

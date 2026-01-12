@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { IconDeviceFloppy, IconPlus } from "@tabler/icons-react";
+import { useTranslation } from "react-i18next";
 
 interface SaveDialogProps {
   isOpen: boolean;
@@ -20,6 +21,7 @@ const SaveDialog = ({
   currentLoadedDrawingId,
   defaultName,
 }: SaveDialogProps) => {
+  const [t] = useTranslation();
   const collections = useAtomValue(collectionsListAtom);
   const [name, setName] = useState(defaultName);
   const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
@@ -66,13 +68,13 @@ const SaveDialog = ({
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-4">
-          {currentLoadedDrawingId ? "Save as New Drawing" : "Save New Drawing"}
+          {currentLoadedDrawingId ? t("Save as New Drawing") : t("Save New Drawing")}
         </h2>
 
         <div className="flex flex-col gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium text-[var(--text-primary-color)]">
-              Name
+              {t("Name")}
             </label>
             <input
               type="text"
@@ -91,12 +93,12 @@ const SaveDialog = ({
 
           <div className="space-y-2">
             <label className="text-sm font-medium text-[var(--text-primary-color)]">
-              Collections
+              {t("Collections")}
             </label>
             <div className="max-h-48 overflow-y-auto border border-border rounded-md p-2 bg-muted">
               {collections.length === 0 ? (
                 <p className="text-xs text-[var(--text-secondary-color)] text-center py-2">
-                  No collections found
+                  {t("No collections found")}
                 </p>
               ) : (
                 <div className="space-y-1">
@@ -123,10 +125,10 @@ const SaveDialog = ({
 
           <div className="flex gap-2 justify-end mt-2">
             <Button variant="ghost" onClick={onClose} disabled={isSaving}>
-              Cancel
+              {t("Cancel")}
             </Button>
             <Button onClick={() => handleSave(true)} disabled={isSaving || !name.trim()}>
-              Save
+              {t("Save")}
             </Button>
           </div>
         </div>

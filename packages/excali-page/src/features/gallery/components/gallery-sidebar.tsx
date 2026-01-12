@@ -1,4 +1,4 @@
-import { Sidebar, useI18n } from "@excalidraw/excalidraw";
+import { Sidebar } from "@excalidraw/excalidraw";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +26,7 @@ import { Drawing } from "../../editor/utils/indexdb";
 import { format } from "date-fns";
 import { nanoid } from "nanoid";
 import { omit } from "radash";
+import { useTranslation } from "react-i18next";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,6 +49,7 @@ const GalleryList = ({
   onOverwrite: (drawingId: string) => Promise<void>;
   currentId: string | null;
 }) => {
+  const [t] = useTranslation();
   const drawings = useAtomValue(drawingsListAtom);
   const sortedDrawings = [...drawings].sort(
     (a, b) => b.updatedAt - a.updatedAt,
@@ -56,8 +58,8 @@ const GalleryList = ({
   if (drawings.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center text-[var(--text-secondary-color)]">
-        <p className="text-sm">No drawings yet.</p>
-        <p className="text-xs opacity-70 mt-1">Create one to get started!</p>
+        <p className="text-sm">{t("No drawings yet.")}</p>
+        <p className="text-xs opacity-70 mt-1">{t("Create one to get started!")}</p>
       </div>
     );
   }
@@ -78,7 +80,7 @@ const GalleryList = ({
 };
 
 const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
-  const t = useI18n();
+  const [t] = useTranslation();
   const [docked, setDocked] = useState(false);
   const [isOpen, setIsOpen] = useAtom(galleryIsOpenAtom);
   const [currentLoadedId, setCurrentLoadedId] = useAtom(
@@ -161,10 +163,10 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
 
       await update(currentLoadedId, drawingData);
       setRefresh((prev) => prev + 1);
-      toast.success("Drawing updated successfully");
+      toast.success(t("Drawing updated successfully"));
     } catch (error) {
       console.error("Failed to update drawing:", error);
-      toast.error("Failed to update drawing");
+      toast.error(t("Failed to update drawing"));
     } finally {
       setIsSaving(false);
     }
@@ -197,10 +199,8 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
 
       if (currentLoadedId && !saveAsNew) {
         // This branch should technically not be reached with the current flow logic
-        // (save button does quick save, dialog is only for new/save as),
-        // but keeping it for safety/completeness
         await update(currentLoadedId, drawingData);
-        toast.success("Drawing updated successfully");
+        toast.success(t("Drawing updated successfully"));
       } else {
         const newId = nanoid();
         await save({
@@ -210,13 +210,13 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
           collectionIds,
         } as Drawing);
         setCurrentLoadedId(newId);
-        toast.success("Drawing saved successfully");
+        toast.success(t("Drawing saved successfully"));
       }
 
       setRefresh((prev) => prev + 1);
     } catch (error) {
       console.error("Failed to save drawing:", error);
-      toast.error("Failed to save drawing");
+      toast.error(t("Failed to save drawing"));
     } finally {
       setIsSaving(false);
     }
@@ -246,10 +246,10 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
 
         await update(targetDrawingId, drawingData);
         setRefresh((prev) => prev + 1);
-        toast.success("Drawing overwritten successfully");
+        toast.success(t("Drawing overwritten successfully"));
       } catch (error) {
         console.error("Failed to overwrite drawing:", error);
-        toast.error("Failed to overwrite drawing");
+        toast.error(t("Failed to overwrite drawing"));
       }
     },
     [excalidrawAPI, generateThumbnail, getDrawingName, update, setRefresh],
@@ -280,7 +280,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
         setCurrentLoadedId(drawing.id);
       } catch (error) {
         console.error("Failed to load drawing:", error);
-        toast.error("Failed to load drawing");
+        toast.error(t("Failed to load drawing"));
       }
     },
     [excalidrawAPI, setCurrentLoadedId],
@@ -304,7 +304,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
         <div className="flex flex-col w-full gap-4 pr-2 py-2">
           <div className="flex items-center justify-between w-full">
             <div className="text-[var(--color-primary)] text-[1.4em] font-bold mr-2">
-              Gallery
+              {t("Gallery")}
             </div>
             <SearchBar />
             <div className="flex gap-2">
@@ -313,7 +313,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
                 size="icon"
                 className="h-9 w-9"
                 onClick={handleNew}
-                title="New Drawing"
+                title={t("New Drawing")}
               >
                 <IconPlus className="h-5 w-5" />
               </Button>
@@ -325,7 +325,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
                   className="h-full px-3 rounded-r-none hover:bg-[var(--button-hover-bg)] gap-2"
                   onClick={onSaveClick}
                   disabled={isSaving}
-                  title={currentLoadedId ? "Update Drawing" : "Save Drawing"}
+                  title={currentLoadedId ? t("Update Drawing") : t("Save Drawing")}
                 >
                   {isSaving ? (
                     <IconLoader2 className="h-4 w-4 animate-spin" />
@@ -333,7 +333,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
                     <IconDeviceFloppy className="h-4 w-4" />
                   )}
                   <span className="text-sm font-medium">
-                    {currentLoadedId ? "Update" : "Save"}
+                    {currentLoadedId ? t("Update") : t("Save")}
                   </span>
                 </Button>
 
@@ -353,7 +353,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
                   <DropdownMenuContent align="end" className="w-48">
                     <DropdownMenuItem onClick={onSaveAsNewClick}>
                       <IconPlus className="mr-2 h-4 w-4" />
-                      <span>Save as New Drawing</span>
+                      <span>{t("Save as New Drawing")}</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

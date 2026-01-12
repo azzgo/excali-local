@@ -10,6 +10,7 @@ import { useDrawingCrud } from "../hooks/use-drawing-crud";
 import { useAtomValue, useSetAtom } from "jotai";
 import { collectionsListAtom, collectionsRefreshAtom, galleryRefreshAtom } from "../store/gallery-atoms";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +26,7 @@ interface DrawingCardProps {
 }
 
 const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardProps) => {
+  const [t] = useTranslation();
   const [showCollectionDialog, setShowCollectionDialog] = useState(false);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [showOverwriteDialog, setShowOverwriteDialog] = useState(false);
@@ -49,10 +51,10 @@ const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardPro
     try {
       await remove(drawing.id);
       setGalleryRefresh((prev) => prev + 1);
-      toast.success("Drawing deleted successfully");
+      toast.success(t("Drawing deleted successfully"));
     } catch (error) {
       console.error("Failed to delete drawing:", error);
-      toast.error("Failed to delete drawing");
+      toast.error(t("Failed to delete drawing"));
     }
     setShowDeleteDialog(false);
   };
@@ -67,10 +69,10 @@ const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardPro
     try {
       await update(drawing.id, { name: newName });
       setGalleryRefresh((prev) => prev + 1);
-      toast.success("Drawing renamed successfully");
+      toast.success(t("Drawing renamed successfully"));
     } catch (error) {
       console.error("Failed to rename drawing:", error);
-      toast.error("Failed to rename drawing");
+      toast.error(t("Failed to rename drawing"));
     }
     setShowRenameDialog(false);
   };
@@ -131,7 +133,7 @@ const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardPro
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-xs text-muted-foreground bg-muted">
-                No Preview
+                {t("No Preview")}
               </div>
             )}
             <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -147,16 +149,16 @@ const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardPro
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem onClick={handleRename}>
-                    Rename
+                    {t("Rename")}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleAddToCollection}>
-                    Add to Collection
+                    {t("Add to Collection")}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleOverwrite}>
-                    Overwrite with current canvas
+                    {t("Overwrite with current canvas")}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={handleDelete} className="text-red-500 focus:text-red-500">
-                    Delete
+                    {t("Delete")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -199,14 +201,14 @@ const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardPro
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-2">
-              Add to Collection
+              {t("Add to Collection")}
             </h2>
             <p className="text-sm text-[var(--text-secondary-color)] mb-4">
-              Select collections for "{drawing.name}"
+              {t('Select collections for "{{name}}"', { name: drawing.name })}
             </p>
             {collections.length === 0 ? (
               <p className="text-sm text-[var(--text-secondary-color)] py-4 text-center">
-                No collections yet. Create one first!
+                {t("No collections yet. Create one first!")}
               </p>
             ) : (
               <div className="max-h-64 overflow-y-auto mb-4">
@@ -233,9 +235,9 @@ const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardPro
                 variant="ghost"
                 onClick={() => setShowCollectionDialog(false)}
               >
-                Cancel
+                {t("Cancel")}
               </Button>
-              <Button onClick={handleSaveCollections}>Save</Button>
+              <Button onClick={handleSaveCollections}>{t("Save")}</Button>
             </div>
           </div>
         </div>
@@ -251,15 +253,15 @@ const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardPro
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-2">
-              Rename Drawing
+              {t("Rename Drawing")}
             </h2>
             <p className="text-sm text-[var(--text-secondary-color)] mb-4">
-              Enter a new name for this drawing
+              {t("Enter a new name for this drawing")}
             </p>
             <Input
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="Drawing name"
+              placeholder={t("Drawing name")}
               className="mb-4"
               autoFocus
               onKeyDown={(e) => {
@@ -273,10 +275,10 @@ const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardPro
                 variant="ghost"
                 onClick={() => setShowRenameDialog(false)}
               >
-                Cancel
+                {t("Cancel")}
               </Button>
               <Button onClick={handleRenameConfirm} disabled={!newName.trim()}>
-                Rename
+                {t("Rename")}
               </Button>
             </div>
           </div>
@@ -293,20 +295,20 @@ const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardPro
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-2">
-              Overwrite Drawing
+              {t("Overwrite Drawing")}
             </h2>
             <p className="text-sm text-[var(--text-secondary-color)] mb-4">
-              Overwrite "{drawing.name}" with current canvas? This cannot be undone.
+              {t('Overwrite "{{name}}" with current canvas? This cannot be undone.', { name: drawing.name })}
             </p>
             <div className="flex gap-2 justify-end">
               <Button
                 variant="ghost"
                 onClick={() => setShowOverwriteDialog(false)}
               >
-                Cancel
+                {t("Cancel")}
               </Button>
               <Button onClick={handleOverwriteConfirm} variant="destructive">
-                Overwrite
+                {t("Overwrite")}
               </Button>
             </div>
           </div>
@@ -323,20 +325,20 @@ const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardPro
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-2">
-              Delete Drawing
+              {t("Delete Drawing")}
             </h2>
             <p className="text-sm text-[var(--text-secondary-color)] mb-4">
-              Delete "{drawing.name}"? This cannot be undone.
+              {t('Delete "{{name}}"? This cannot be undone.', { name: drawing.name })}
             </p>
             <div className="flex gap-2 justify-end">
               <Button
                 variant="ghost"
                 onClick={() => setShowDeleteDialog(false)}
               >
-                Cancel
+                {t("Cancel")}
               </Button>
               <Button onClick={handleDeleteConfirm} variant="destructive">
-                Delete
+                {t("Delete")}
               </Button>
             </div>
           </div>

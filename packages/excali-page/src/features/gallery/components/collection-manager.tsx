@@ -18,6 +18,7 @@ import {
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import { useTranslation } from "react-i18next";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -36,6 +37,7 @@ const CollectionItem = ({
   onClick: () => void,
   count: number
 }) => {
+  const [t] = useTranslation();
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [newName, setNewName] = useState(collection.name);
   const { updateCollection, deleteCollection } = useDrawingCrud();
@@ -44,7 +46,7 @@ const CollectionItem = ({
 
   const handleDelete = async (e: MouseEvent) => {
     e.stopPropagation();
-    if (confirm(`Delete collection "${collection.name}"? This will remove the collection but keep the drawings.`)) {
+    if (confirm(t('Delete collection "{{name}}"? This will remove the collection but keep the drawings.', { name: collection.name }))) {
       await deleteCollection(collection.id);
       setCollectionsRefresh((prev) => prev + 1);
       setGalleryRefresh((prev) => prev + 1);
@@ -100,13 +102,13 @@ const CollectionItem = ({
                   setIsRenameDialogOpen(true);
                 }}
               >
-                Rename
+                {t("Rename")}
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={handleDelete}
                 className="text-red-500 focus:text-red-500"
               >
-                Delete
+                {t("Delete")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -126,7 +128,7 @@ const CollectionItem = ({
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-4">
-              Rename Collection
+              {t("Rename Collection")}
             </h2>
             <div className="mb-4">
               <Input
@@ -141,10 +143,10 @@ const CollectionItem = ({
             </div>
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" onClick={() => setIsRenameDialogOpen(false)}>
-                Cancel
+                {t("Cancel")}
               </Button>
               <Button onClick={handleRename} disabled={!newName.trim()}>
-                Save
+                {t("Save")}
               </Button>
             </div>
           </div>
@@ -155,6 +157,7 @@ const CollectionItem = ({
 };
 
 const CollectionsList = () => {
+  const [t] = useTranslation();
   const [selectedId, setSelectedId] = useAtom(selectedCollectionIdAtom);
   const collections = useAtomValue(collectionsListAtom);
   const drawings = useAtomValue(drawingsListAtom);
@@ -212,14 +215,14 @@ const CollectionsList = () => {
           onClick={() => setIsExpanded(!isExpanded)}
         >
           {isExpanded ? <IconChevronDown className="h-3.5 w-3.5" /> : <IconChevronRight className="h-3.5 w-3.5" />}
-          COLLECTIONS
+          {t("COLLECTIONS")}
         </button>
         <Button
           variant="ghost"
           size="icon"
           className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
           onClick={() => setIsCreateDialogOpen(true)}
-          title="Create Collection"
+          title={t("Create Collection")}
         >
           <IconPlus className="h-3.5 w-3.5" />
         </Button>
@@ -237,7 +240,7 @@ const CollectionsList = () => {
             onClick={() => setSelectedId(null)}
           >
             <IconFolder className={cn("h-4 w-4 shrink-0", selectedId === null ? "fill-[var(--color-primary)]/20" : "")} />
-            <span className="flex-1">All Drawings</span>
+            <span className="flex-1">{t("All Drawings")}</span>
           </div>
           
           {collections.map((collection) => (
@@ -262,14 +265,14 @@ const CollectionsList = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-4">
-              Create Collection
+              {t("Create Collection")}
             </h2>
             <div className="mb-4">
               <label
                 htmlFor="new-collection-name"
                 className="block text-sm font-medium text-[var(--text-primary-color)] mb-2"
               >
-                Collection Name
+                {t("Collection Name")}
               </label>
               <Input
                 id="new-collection-name"
@@ -279,19 +282,19 @@ const CollectionsList = () => {
                   if (e.key === "Enter") handleCreateCollection();
                   if (e.key === "Escape") setIsCreateDialogOpen(false);
                 }}
-                placeholder="e.g., Work, Personal, Archive"
+                placeholder={t("e.g., Work, Personal, Archive")}
                 autoFocus
               />
             </div>
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" onClick={() => setIsCreateDialogOpen(false)}>
-                Cancel
+                {t("Cancel")}
               </Button>
               <Button
                 onClick={handleCreateCollection}
                 disabled={!newCollectionName.trim()}
               >
-                Create
+                {t("Create")}
               </Button>
             </div>
           </div>
