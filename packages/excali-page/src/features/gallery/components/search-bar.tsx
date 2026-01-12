@@ -28,7 +28,7 @@ const SearchBar = () => {
   };
 
   return (
-    <div className="relative w-full">
+    <div className="relative">
       <div className="absolute left-2 top-1/2 -translate-y-1/2 text-[var(--text-secondary-color)] pointer-events-none z-10">
         <IconSearch className="h-4 w-4" />
       </div>

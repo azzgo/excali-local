@@ -7,7 +7,7 @@ import {
   galleryRefreshAtom,
 } from "../store/gallery-atoms";
 import { useDrawingCrud } from "../hooks/use-drawing-crud";
-import { Suspense, useState, useRef, useEffect, MouseEvent } from "react";
+import { Suspense, useState, useEffect, MouseEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { 
   IconPlus, 
@@ -18,6 +18,12 @@ import {
 } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const CollectionItem = ({ 
   collection, 
@@ -30,30 +36,11 @@ const CollectionItem = ({
   onClick: () => void,
   count: number
 }) => {
-  const [showMenu, setShowMenu] = useState(false);
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [newName, setNewName] = useState(collection.name);
   const { updateCollection, deleteCollection } = useDrawingCrud();
   const setCollectionsRefresh = useSetAtom(collectionsRefreshAtom);
   const setGalleryRefresh = useSetAtom(galleryRefreshAtom);
-  const menuRef = useRef<HTMLDivElement>(null);
-  
-  useEffect(() => {
-    const handleClickOutside = (e: Event) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowMenu(false);
-      }
-    };
-    if (showMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [showMenu]);
-
-  const handleMenuClick = (e: MouseEvent) => {
-    e.stopPropagation();
-    setShowMenu(!showMenu);
-  };
 
   const handleDelete = async (e: MouseEvent) => {
     e.stopPropagation();
@@ -66,7 +53,6 @@ const CollectionItem = ({
         onClick(); 
       }
     }
-    setShowMenu(false);
   };
 
   const handleRename = async () => {
@@ -96,42 +82,34 @@ const CollectionItem = ({
         <span className="text-xs opacity-60 tabular-nums">{count}</span>
         
         <div className="relative opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 hover:bg-[var(--bg-secondary)]"
-            onClick={handleMenuClick}
-          >
-            <IconDots className="h-3.5 w-3.5" />
-          </Button>
-          
-          {showMenu && (
-            <div
-              ref={menuRef}
-              className="absolute right-0 top-full mt-1 w-32 bg-popover rounded-md shadow-lg border border-border z-20 overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="py-1">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setNewName(collection.name);
-                    setIsRenameDialogOpen(true);
-                    setShowMenu(false);
-                  }}
-                  className="block w-full text-left px-3 py-1.5 text-xs text-[var(--text-primary-color)] hover:bg-[var(--button-hover-bg)] transition-colors"
-                >
-                  Rename
-                </button>
-                <button
-                  onClick={handleDelete}
-                  className="block w-full text-left px-3 py-1.5 text-xs text-red-500 hover:bg-[var(--button-hover-bg)] transition-colors"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 hover:bg-[var(--bg-secondary)]"
+              >
+                <IconDots className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-32">
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setNewName(collection.name);
+                  setIsRenameDialogOpen(true);
+                }}
+              >
+                Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleDelete}
+                className="text-red-500 focus:text-red-500"
+              >
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

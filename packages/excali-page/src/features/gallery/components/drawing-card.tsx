@@ -1,7 +1,7 @@
 import { Drawing, Collection } from "../../editor/utils/indexdb";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { MouseEvent, useState, useRef, useEffect } from "react";
+import { MouseEvent, useState } from "react";
 import { Hint } from "@/components/ui/hint";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,12 @@ import { useDrawingCrud } from "../hooks/use-drawing-crud";
 import { useAtomValue, useSetAtom } from "jotai";
 import { collectionsListAtom, collectionsRefreshAtom, galleryRefreshAtom } from "../store/gallery-atoms";
 import { toast } from "sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface DrawingCardProps {
   drawing: Drawing;
@@ -19,44 +25,24 @@ interface DrawingCardProps {
 }
 
 const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardProps) => {
-  const [showMenu, setShowMenu] = useState(false);
   const [showCollectionDialog, setShowCollectionDialog] = useState(false);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
   const [showOverwriteDialog, setShowOverwriteDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [selectedCollections, setSelectedCollections] = useState<string[]>(drawing.collectionIds || []);
   const [newName, setNewName] = useState(drawing.name);
-  const menuRef = useRef<HTMLDivElement>(null);
   const { update, remove } = useDrawingCrud();
   const collections = useAtomValue(collectionsListAtom);
   const setGalleryRefresh = useSetAtom(galleryRefreshAtom);
-
-  useEffect(() => {
-    const handleClickOutside = (e: Event) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowMenu(false);
-      }
-    };
-    if (showMenu) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-    }
-  }, [showMenu]);
 
   const handleClick = (e: MouseEvent) => {
     e.preventDefault();
     onClick(drawing);
   };
 
-  const handleMenuClick = (e: MouseEvent) => {
-    e.stopPropagation();
-    setShowMenu(!showMenu);
-  };
-
   const handleDelete = async (e: MouseEvent) => {
     e.stopPropagation();
     setShowDeleteDialog(true);
-    setShowMenu(false);
   };
 
   const handleDeleteConfirm = async () => {
@@ -75,7 +61,6 @@ const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardPro
     e.stopPropagation();
     setNewName(drawing.name);
     setShowRenameDialog(true);
-    setShowMenu(false);
   };
 
   const handleRenameConfirm = async () => {
@@ -93,7 +78,6 @@ const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardPro
   const handleOverwrite = (e: MouseEvent) => {
     e.stopPropagation();
     setShowOverwriteDialog(true);
-    setShowMenu(false);
   };
 
   const handleOverwriteConfirm = async () => {
@@ -108,7 +92,6 @@ const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardPro
   const handleAddToCollection = (e: MouseEvent) => {
     e.stopPropagation();
     setShowCollectionDialog(true);
-    setShowMenu(false);
   };
 
   const handleSaveCollections = async () => {
@@ -152,47 +135,31 @@ const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardPro
               </div>
             )}
             <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 bg-card hover:bg-[var(--button-hover-bg)]"
-                onClick={handleMenuClick}
-              >
-                <IconDots className="h-3 w-3" />
-              </Button>
-              {showMenu && (
-                <div
-                  ref={menuRef}
-                  className="absolute right-0 mt-1 w-48 bg-popover rounded-md shadow-lg border border-border z-10"
-                >
-                  <div className="py-1">
-                    <button
-                      onClick={handleRename}
-                      className="block w-full text-left px-4 py-2 text-sm text-[var(--text-primary-color)] hover:bg-[var(--button-hover-bg)] transition-colors"
-                    >
-                      Rename
-                    </button>
-                    <button
-                      onClick={handleAddToCollection}
-                      className="block w-full text-left px-4 py-2 text-sm text-[var(--text-primary-color)] hover:bg-[var(--button-hover-bg)] transition-colors"
-                    >
-                      Add to Collection
-                    </button>
-                    <button
-                      onClick={handleOverwrite}
-                      className="block w-full text-left px-4 py-2 text-sm text-[var(--text-primary-color)] hover:bg-[var(--button-hover-bg)] transition-colors"
-                    >
-                      Overwrite with current canvas
-                    </button>
-                    <button
-                      onClick={handleDelete}
-                      className="block w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-[var(--button-hover-bg)] transition-colors"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 bg-card hover:bg-[var(--button-hover-bg)]"
+                  >
+                    <IconDots className="h-3 w-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={handleRename}>
+                    Rename
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleAddToCollection}>
+                    Add to Collection
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleOverwrite}>
+                    Overwrite with current canvas
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleDelete} className="text-red-500 focus:text-red-500">
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 

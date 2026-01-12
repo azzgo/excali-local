@@ -303,9 +303,10 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
       <Sidebar.Header>
         <div className="flex flex-col w-full gap-4 pr-2 py-2">
           <div className="flex items-center justify-between w-full">
-            <div className="text-[var(--color-primary)] text-[1.4em] font-bold">
+            <div className="text-[var(--color-primary)] text-[1.4em] font-bold mr-2">
               Gallery
             </div>
+            <SearchBar />
             <div className="flex gap-2">
               <Button
                 variant="ghost"
@@ -317,7 +318,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
                 <IconPlus className="h-5 w-5" />
               </Button>
 
-              <div className="flex items-center bg-secondary rounded-md border border-border h-9">
+              <div className="flex items-center bg-secondary rounded-md border-border h-9">
                 <Button
                   variant="ghost"
                   size="sm"
@@ -344,7 +345,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
                       variant="ghost"
                       size="sm"
                       className="h-full px-2 rounded-l-none hover:bg-[var(--button-hover-bg)]"
-                      disabled={isSaving}
+                      disabled={isSaving || !currentLoadedId}
                     >
                       <IconChevronDown className="h-3.5 w-3.5 opacity-70" />
                     </Button>
@@ -359,7 +360,6 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
               </div>
             </div>
           </div>
-          <SearchBar />
         </div>
       </Sidebar.Header>
       <CollectionManager />
