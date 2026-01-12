@@ -1,14 +1,10 @@
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom } from "jotai";
 import {
   selectedCollectionIdAtom,
-  collectionsListAtom,
-  collectionsRefreshAtom,
-  drawingsListAtom,
-  galleryRefreshAtom,
-  currentPageAtom,
 } from "../store/gallery-atoms";
 import { useDrawingCrud } from "../hooks/use-drawing-crud";
-import { Suspense, useState, useEffect, MouseEvent } from "react";
+import { Collection } from "../../editor/utils/indexdb";
+import { useState, MouseEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { 
   IconPlus, 
@@ -20,6 +16,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,32 +24,34 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+interface CollectionItemProps {
+  collection: { id: string; name: string };
+  isSelected: boolean;
+  onClick: () => void;
+  count: number;
+  onRename: (id: string, newName: string) => void;
+  onDelete: (id: string) => void;
+  onResetPage: () => void;
+}
+
 const CollectionItem = ({ 
   collection, 
   isSelected, 
   onClick, 
-  count 
-}: { 
-  collection: { id: string, name: string }, 
-  isSelected: boolean, 
-  onClick: () => void,
-  count: number
-}) => {
+  count,
+  onRename,
+  onDelete,
+  onResetPage,
+}: CollectionItemProps) => {
   const [t] = useTranslation();
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState(false);
   const [newName, setNewName] = useState(collection.name);
-  const { updateCollection, deleteCollection } = useDrawingCrud();
-  const setCollectionsRefresh = useSetAtom(collectionsRefreshAtom);
-  const setGalleryRefresh = useSetAtom(galleryRefreshAtom);
-  const setCurrentPage = useSetAtom(currentPageAtom);
 
   const handleDelete = async (e: MouseEvent) => {
     e.stopPropagation();
     if (confirm(t('Delete collection "{{name}}"? This will remove the collection but keep the drawings.', { name: collection.name }))) {
-      await deleteCollection(collection.id);
-      setCollectionsRefresh((prev) => prev + 1);
-      setGalleryRefresh((prev) => prev + 1);
-      setCurrentPage(1);
+      onDelete(collection.id);
+      onResetPage();
       
       if (isSelected) {
         onClick(); 
@@ -66,8 +65,7 @@ const CollectionItem = ({
       return;
     }
 
-    await updateCollection(collection.id, { name: newName.trim() });
-    setCollectionsRefresh((prev) => prev + 1);
+    onRename(collection.id, newName.trim());
     setIsRenameDialogOpen(false);
   };
 
@@ -162,62 +160,81 @@ const CollectionItem = ({
   );
 };
 
-const CollectionsList = () => {
+interface CollectionsListProps {
+  collections: Collection[];
+  setCollections: React.Dispatch<React.SetStateAction<Collection[]>>;
+  drawingCounts: Record<string, number>;
+  onResetPage: () => void;
+}
+
+const CollectionsList = ({ collections, setCollections, drawingCounts, onResetPage }: CollectionsListProps) => {
   const [t] = useTranslation();
   const [selectedId, setSelectedId] = useAtom(selectedCollectionIdAtom);
-  const collections = useAtomValue(collectionsListAtom);
-  const drawings = useAtomValue(drawingsListAtom);
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState("");
-  const { createCollection } = useDrawingCrud();
-  const setCollectionsRefresh = useSetAtom(collectionsRefreshAtom);
-  const setCurrentPage = useSetAtom(currentPageAtom);
-  
-  const [counts, setCounts] = useState<Record<string, number>>({});
-  const { getAll } = useDrawingCrud();
-
-  useEffect(() => {
-    const fetchCounts = async () => {
-      const allDrawings = await getAll();
-      const newCounts: Record<string, number> = {};
-      
-      collections.forEach(c => newCounts[c.id] = 0);
-      
-      allDrawings.forEach(d => {
-        if (d.collectionIds) {
-          d.collectionIds.forEach(cId => {
-            if (newCounts[cId] !== undefined) {
-              newCounts[cId]++;
-            }
-          });
-        }
-      });
-      setCounts(newCounts);
-    };
-    
-    fetchCounts();
-  }, [collections, getAll, drawings]); 
+  const { createCollection, updateCollection, deleteCollection } = useDrawingCrud();
 
   const handleCreateCollection = async () => {
     if (!newCollectionName.trim()) return;
 
+    const tempId = `temp-${Date.now()}`;
+    const newCollection: Collection = {
+      id: tempId,
+      name: newCollectionName.trim(),
+      createdAt: Date.now(),
+    };
+
+    setCollections(prev => [...prev, newCollection]);
+    setNewCollectionName("");
+    setIsCreateDialogOpen(false);
+    setIsExpanded(true);
+
     try {
-      const collection = await createCollection(newCollectionName.trim());
-      setCollectionsRefresh((prev) => prev + 1);
-      setSelectedId(collection.id);
-      setCurrentPage(1);
-      setNewCollectionName("");
-      setIsCreateDialogOpen(false);
-      setIsExpanded(true); 
+      const savedCollection = await createCollection(newCollectionName.trim());
+      setCollections(prev => prev.map(c => c.id === tempId ? savedCollection : c));
+      setSelectedId(savedCollection.id);
+      onResetPage();
     } catch (error) {
       console.error("Failed to create collection:", error);
+      setCollections(prev => prev.filter(c => c.id !== tempId));
+      toast.error(t("Failed to create collection"));
     }
   };
 
   const handleSelectCollection = (id: string | null) => {
     setSelectedId(id);
-    setCurrentPage(1);
+    onResetPage();
+  };
+
+  const handleRename = async (id: string, newName: string) => {
+    const oldCollection = collections.find(c => c.id === id);
+    if (!oldCollection) return;
+
+    setCollections(prev => prev.map(c => c.id === id ? { ...c, name: newName } : c));
+
+    try {
+      await updateCollection(id, { name: newName });
+    } catch (error) {
+      console.error("Failed to rename collection:", error);
+      setCollections(prev => prev.map(c => c.id === id ? oldCollection : c));
+      toast.error(t("Failed to rename collection"));
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    const oldCollection = collections.find(c => c.id === id);
+    if (!oldCollection) return;
+
+    setCollections(prev => prev.filter(c => c.id !== id));
+
+    try {
+      await deleteCollection(id);
+    } catch (error) {
+      console.error("Failed to delete collection:", error);
+      setCollections(prev => [...prev, oldCollection]);
+      toast.error(t("Failed to delete collection"));
+    }
   };
 
   return (
@@ -262,7 +279,10 @@ const CollectionsList = () => {
               collection={collection}
               isSelected={selectedId === collection.id}
               onClick={() => handleSelectCollection(collection.id)}
-              count={counts[collection.id] || 0}
+              count={drawingCounts[collection.id] || 0}
+              onRename={handleRename}
+              onDelete={handleDelete}
+              onResetPage={onResetPage}
             />
           ))}
         </div>
@@ -317,16 +337,15 @@ const CollectionsList = () => {
   );
 };
 
-const CollectionManager = () => {
-  return (
-    <Suspense
-      fallback={
-        <div className="h-8 w-full bg-muted rounded animate-pulse" />
-      }
-    >
-      <CollectionsList />
-    </Suspense>
-  );
+interface CollectionManagerProps {
+  collections: Collection[];
+  setCollections: React.Dispatch<React.SetStateAction<Collection[]>>;
+  drawingCounts: Record<string, number>;
+  onResetPage: () => void;
+}
+
+const CollectionManager = ({ collections, setCollections, drawingCounts, onResetPage }: CollectionManagerProps) => {
+  return <CollectionsList collections={collections} setCollections={setCollections} drawingCounts={drawingCounts} onResetPage={onResetPage} />;
 };
 
 export default CollectionManager;

@@ -1,10 +1,9 @@
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import { useAtom } from "jotai";
 import {
   galleryIsOpenAtom,
   selectedCollectionIdAtom,
   searchQueryAtom,
   currentLoadedDrawingIdAtom,
-  drawingsListAtom,
 } from "../store/gallery-atoms";
 
 export function useGallery() {
@@ -12,7 +11,6 @@ export function useGallery() {
   const [selectedCollectionId, setSelectedCollectionId] = useAtom(selectedCollectionIdAtom);
   const [searchQuery, setSearchQuery] = useAtom(searchQueryAtom);
   const [currentLoadedDrawingId, setCurrentLoadedDrawingId] = useAtom(currentLoadedDrawingIdAtom);
-  const drawings = useAtomValue(drawingsListAtom);
 
   return {
     isOpen,
@@ -23,6 +21,5 @@ export function useGallery() {
     setSearchQuery,
     currentLoadedDrawingId,
     setCurrentLoadedDrawingId,
-    drawings,
   };
 }

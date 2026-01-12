@@ -7,8 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { IconDots } from "@tabler/icons-react";
 import { useDrawingCrud } from "../hooks/use-drawing-crud";
-import { useAtomValue, useSetAtom } from "jotai";
-import { collectionsListAtom, collectionsRefreshAtom, galleryRefreshAtom } from "../store/gallery-atoms";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import {
@@ -20,12 +18,25 @@ import {
 
 interface DrawingCardProps {
   drawing: Drawing;
+  collections: Collection[];
   isActive: boolean;
   onClick: (drawing: Drawing) => void;
   onOverwrite: (drawingId: string) => Promise<void>;
+  onUpdate: (id: string, updates: Partial<Drawing>) => void;
+  onDelete: (id: string) => void;
+  onCollectionCountUpdate: () => void;
 }
 
-const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardProps) => {
+const DrawingCard = ({ 
+  drawing, 
+  collections, 
+  isActive, 
+  onClick, 
+  onOverwrite,
+  onUpdate,
+  onDelete,
+  onCollectionCountUpdate,
+}: DrawingCardProps) => {
   const [t] = useTranslation();
   const [showCollectionDialog, setShowCollectionDialog] = useState(false);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
@@ -34,8 +45,6 @@ const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardPro
   const [selectedCollections, setSelectedCollections] = useState<string[]>(drawing.collectionIds || []);
   const [newName, setNewName] = useState(drawing.name);
   const { update, remove } = useDrawingCrud();
-  const collections = useAtomValue(collectionsListAtom);
-  const setGalleryRefresh = useSetAtom(galleryRefreshAtom);
 
   const handleClick = (e: MouseEvent) => {
     e.preventDefault();
@@ -50,7 +59,8 @@ const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardPro
   const handleDeleteConfirm = async () => {
     try {
       await remove(drawing.id);
-      setGalleryRefresh((prev) => prev + 1);
+      onDelete(drawing.id);
+      onCollectionCountUpdate();
       toast.success(t("Drawing deleted successfully"));
     } catch (error) {
       console.error("Failed to delete drawing:", error);
@@ -68,7 +78,7 @@ const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardPro
   const handleRenameConfirm = async () => {
     try {
       await update(drawing.id, { name: newName });
-      setGalleryRefresh((prev) => prev + 1);
+      onUpdate(drawing.id, { name: newName });
       toast.success(t("Drawing renamed successfully"));
     } catch (error) {
       console.error("Failed to rename drawing:", error);
@@ -98,7 +108,8 @@ const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardPro
 
   const handleSaveCollections = async () => {
     await update(drawing.id, { collectionIds: selectedCollections });
-    setGalleryRefresh((prev) => prev + 1);
+    onUpdate(drawing.id, { collectionIds: selectedCollections });
+    onCollectionCountUpdate();
     setShowCollectionDialog(false);
   };
 

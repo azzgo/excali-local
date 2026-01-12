@@ -1,10 +1,9 @@
-import { useAtomValue } from "jotai";
-import { collectionsListAtom } from "../store/gallery-atoms";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { IconDeviceFloppy, IconPlus } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
+import { Collection } from "../../editor/utils/indexdb";
 
 interface SaveDialogProps {
   isOpen: boolean;
@@ -12,6 +11,7 @@ interface SaveDialogProps {
   onSave: (name: string, collectionIds: string[], saveAsNew: boolean) => Promise<void>;
   currentLoadedDrawingId: string | null;
   defaultName: string;
+  collections: Collection[];
 }
 
 const SaveDialog = ({
@@ -20,9 +20,9 @@ const SaveDialog = ({
   onSave,
   currentLoadedDrawingId,
   defaultName,
+  collections,
 }: SaveDialogProps) => {
   const [t] = useTranslation();
-  const collections = useAtomValue(collectionsListAtom);
   const [name, setName] = useState(defaultName);
   const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);

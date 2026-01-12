@@ -10,11 +10,10 @@ import {
 import { restoreAppState } from "@excalidraw/excalidraw";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
-  drawingsListAtom,
   currentLoadedDrawingIdAtom,
   galleryIsOpenAtom,
-  galleryRefreshAtom,
-  currentPageAtom,
+  selectedCollectionIdAtom,
+  searchQueryAtom,
 } from "../store/gallery-atoms";
 import { useDrawingCrud } from "../hooks/use-drawing-crud";
 import { useThumbnail } from "../hooks/use-thumbnail";
@@ -24,9 +23,9 @@ import DrawingCardSkeleton from "./drawing-card-skeleton";
 import CollectionManager from "./collection-manager";
 import SearchBar from "./search-bar";
 import SaveDialog from "./save-dialog";
-import { Suspense, useCallback, useState } from "react";
+import { Suspense, useCallback, useState, useEffect, useMemo } from "react";
 import { IconLoader2 } from "@tabler/icons-react";
-import { Drawing } from "../../editor/utils/indexdb";
+import { Drawing, Collection } from "../../editor/utils/indexdb";
 import { format } from "date-fns";
 import { nanoid } from "nanoid";
 import { omit } from "radash";
@@ -44,27 +43,40 @@ interface GallerySidebarProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
 }
 
-const GalleryList = ({
-  onLoad,
-  onOverwrite,
-  currentId,
-}: {
+interface GalleryListProps {
+  drawings: Drawing[];
+  collections: Collection[];
   onLoad: (drawing: Drawing) => void;
   onOverwrite: (drawingId: string) => Promise<void>;
   currentId: string | null;
-}) => {
+  onDrawingUpdate: (id: string, updates: Partial<Drawing>) => void;
+  onDrawingDelete: (id: string) => void;
+  onLoadMore: () => void;
+  hasMore: boolean;
+  total: number;
+  currentPage: number;
+  onCollectionCountUpdate: () => void;
+}
+
+const GalleryList = ({
+  drawings,
+  collections,
+  onLoad,
+  onOverwrite,
+  currentId,
+  onDrawingUpdate,
+  onDrawingDelete,
+  onLoadMore,
+  hasMore,
+  total,
+  onCollectionCountUpdate,
+}: GalleryListProps) => {
   const [t] = useTranslation();
-  const drawingsData = useAtomValue(drawingsListAtom);
-  const [currentPage, setCurrentPage] = useAtom(currentPageAtom);
-  const sortedDrawings = [...drawingsData.drawings].sort(
+  const sortedDrawings = [...drawings].sort(
     (a, b) => b.updatedAt - a.updatedAt,
   );
 
-  const handleLoadMore = () => {
-    setCurrentPage(currentPage + 1);
-  };
-
-  if (drawingsData.total === 0) {
+  if (total === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center text-[var(--text-secondary-color)]">
         <p className="text-sm">{t("No drawings yet.")}</p>
@@ -80,21 +92,25 @@ const GalleryList = ({
           <DrawingCard
             key={drawing.id}
             drawing={drawing}
+            collections={collections}
             isActive={drawing.id === currentId}
             onClick={onLoad}
             onOverwrite={onOverwrite}
+            onUpdate={onDrawingUpdate}
+            onDelete={onDrawingDelete}
+            onCollectionCountUpdate={onCollectionCountUpdate}
           />
         ))}
       </div>
-      {drawingsData.hasMore && (
+      {hasMore && (
         <div className="flex justify-center pb-4">
           <Button
             variant="outline"
             size="sm"
-            onClick={handleLoadMore}
+            onClick={onLoadMore}
             className="w-[200px]"
           >
-            {t("Load More")} ({drawingsData.drawings.length} / {drawingsData.total})
+            {t("Load More")} ({drawings.length} / {total})
           </Button>
         </div>
       )}
@@ -105,18 +121,97 @@ const GalleryList = ({
 const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
   const [t] = useTranslation();
   const [docked, setDocked] = useState(false);
-  const [isOpen, setIsOpen] = useAtom(galleryIsOpenAtom);
+  const setIsOpen = useSetAtom(galleryIsOpenAtom);
   const [currentLoadedId, setCurrentLoadedId] = useAtom(
     currentLoadedDrawingIdAtom,
   );
-  const { save, update, getAll } = useDrawingCrud();
+  const { save, update, getAll, getCollections } = useDrawingCrud();
   const { generateThumbnail } = useThumbnail();
   const { cleanupOrphanedFiles } = useFileCleanup();
-  const setRefresh = useSetAtom(galleryRefreshAtom);
   const [isSaving, setIsSaving] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [currentName, setCurrentName] = useState("");
   const [isCleaningUp, setIsCleaningUp] = useState(false);
+  
+  const [allDrawings, setAllDrawings] = useState<Drawing[]>([]);
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const selectedCollectionId = useAtomValue(selectedCollectionIdAtom);
+  const searchQuery = useAtomValue(searchQueryAtom);
+
+  // 计算所有 collection 的 drawing 数量（基于全量数据）
+  const drawingCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    collections.forEach(c => counts[c.id] = 0);
+    allDrawings.forEach(d => {
+      if (d.collectionIds) {
+        d.collectionIds.forEach(cId => {
+          if (counts[cId] !== undefined) {
+            counts[cId]++;
+          }
+        });
+      }
+    });
+    return counts;
+  }, [allDrawings, collections]);
+
+  // 根据 collection 和 searchQuery 过滤
+  const filteredDrawings = useMemo(() => {
+    let result = allDrawings;
+    
+    if (selectedCollectionId) {
+      result = result.filter(d => d.collectionIds?.includes(selectedCollectionId));
+    }
+    
+    if (searchQuery) {
+      result = result.filter(d => 
+        d.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    
+    return result;
+  }, [allDrawings, selectedCollectionId, searchQuery]);
+
+  // 分页显示的 drawings
+  const displayedDrawings = useMemo(() => {
+    const endIndex = currentPage * 20;
+    return filteredDrawings.slice(0, endIndex);
+  }, [filteredDrawings, currentPage]);
+
+  // 计算分页信息
+  const paginationInfo = useMemo(() => {
+    const endIndex = currentPage * 20;
+    return {
+      total: filteredDrawings.length,
+      hasMore: filteredDrawings.length > endIndex,
+    };
+  }, [filteredDrawings, currentPage]);
+
+  useEffect(() => {
+    const loadCollections = async () => {
+      const data = await getCollections();
+      setCollections(data);
+    };
+    loadCollections();
+  }, [getCollections]);
+
+  useEffect(() => {
+    let cancelled = false;
+    
+    const loadDrawings = async () => {
+      try {
+        const data = await getAll();
+        if (!cancelled) {
+          setAllDrawings(data);
+        }
+      } catch(e) {
+        console.error('load drawing failed', e)
+      }
+    };
+    
+    loadDrawings();
+    return () => { cancelled = true; };
+  }, [getAll]);
 
   const handleStateChange = useCallback(
     (state: { name: string; tab?: string } | null) => {
@@ -128,6 +223,30 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
     },
     [setIsOpen],
   );
+
+  const handleDrawingUpdate = useCallback((id: string, updates: Partial<Drawing>) => {
+    setAllDrawings(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
+  }, []);
+
+  const handleDrawingDelete = useCallback((id: string) => {
+    setAllDrawings(prev => prev.filter(d => d.id !== id));
+  }, []);
+
+  const handleLoadMore = useCallback(() => {
+    setCurrentPage(prev => prev + 1);
+  }, []);
+
+  const handleResetPage = useCallback(() => {
+    setCurrentPage(1);
+  }, []);
+
+  const handleCollectionCountUpdate = useCallback(() => {
+    const loadCollections = async () => {
+      const data = await getCollections();
+      setCollections(data);
+    };
+    loadCollections();
+  }, [getCollections]);
 
   const getDrawingName = async (id: string) => {
     try {
@@ -187,7 +306,11 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
       };
 
       await update(currentLoadedId, drawingData);
-      setRefresh((prev) => prev + 1);
+      handleDrawingUpdate(currentLoadedId, {
+        ...drawingData,
+        thumbnail,
+        updatedAt: now,
+      });
       toast.success(t("Drawing updated successfully"));
     } catch (error) {
       console.error("Failed to update drawing:", error);
@@ -223,22 +346,33 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
       };
 
       if (currentLoadedId && !saveAsNew) {
-        // This branch should technically not be reached with the current flow logic
         await update(currentLoadedId, drawingData);
+        handleDrawingUpdate(currentLoadedId, {
+          ...drawingData,
+          thumbnail,
+          updatedAt: now,
+        });
+        if (collectionIds.length > 0) {
+          handleCollectionCountUpdate();
+        }
         toast.success(t("Drawing updated successfully"));
       } else {
         const newId = nanoid();
-        await save({
+        const newDrawing = {
           id: newId,
           ...drawingData,
           createdAt: now,
           collectionIds,
-        } as Drawing);
+        } as Drawing;
+        await save(newDrawing);
         setCurrentLoadedId(newId);
+        
+        
+        if (collectionIds.length > 0) {
+          handleCollectionCountUpdate();
+        }
         toast.success(t("Drawing saved successfully"));
       }
-
-      setRefresh((prev) => prev + 1);
     } catch (error) {
       console.error("Failed to save drawing:", error);
       toast.error(t("Failed to save drawing"));
@@ -270,14 +404,18 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
         };
 
         await update(targetDrawingId, drawingData);
-        setRefresh((prev) => prev + 1);
+        handleDrawingUpdate(targetDrawingId, {
+          ...drawingData,
+          thumbnail,
+          updatedAt: now,
+        });
         toast.success(t("Drawing overwritten successfully"));
       } catch (error) {
         console.error("Failed to overwrite drawing:", error);
         toast.error(t("Failed to overwrite drawing"));
       }
     },
-    [excalidrawAPI, generateThumbnail, getDrawingName, update, setRefresh],
+    [excalidrawAPI, generateThumbnail, getDrawingName, update, handleDrawingUpdate, t],
   );
 
   const handleLoad = useCallback(
@@ -353,7 +491,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
             <div className="text-[var(--color-primary)] text-[1.4em] font-bold mr-2">
               {t("Gallery")}
             </div>
-            <SearchBar />
+            <SearchBar onResetPage={handleResetPage} />
             <div className="flex gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -426,7 +564,12 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
           </div>
         </div>
       </Sidebar.Header>
-      <CollectionManager />
+      <CollectionManager 
+        collections={collections} 
+        setCollections={setCollections}
+        drawingCounts={drawingCounts}
+        onResetPage={handleResetPage}
+      />
       <ScrollArea className="h-full w-full">
         <Suspense
           fallback={
@@ -438,9 +581,16 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
           }
         >
           <GalleryList
+            drawings={displayedDrawings}
+            collections={collections}
             onLoad={handleLoad}
             onOverwrite={handleOverwrite}
             currentId={currentLoadedId}
+            onDrawingUpdate={handleDrawingUpdate}
+            onDrawingDelete={handleDrawingDelete}
+            onLoadMore={handleLoadMore}
+            hasMore={paginationInfo.hasMore} total={paginationInfo.total} currentPage={currentPage}
+            onCollectionCountUpdate={handleCollectionCountUpdate}
           />
         </Suspense>
       </ScrollArea>
@@ -450,6 +600,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
         onSave={handleSaveDialogConfirm}
         currentLoadedDrawingId={currentLoadedId}
         defaultName={currentName}
+        collections={collections}
       />
     </Sidebar>
   );

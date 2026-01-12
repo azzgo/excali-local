@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { useSlide } from "../hooks/use-slide";
 import Hint from "@/components/hint";
 import { useTranslation } from "react-i18next";
-import { useMarker } from "../hooks/use-marker";
 import { useAtomValue } from "jotai";
 import { galleryIsOpenAtom } from "../../gallery/store/gallery-atoms";
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
@@ -20,7 +19,6 @@ const LocalEditorToolbar = ({ excalidrawAPI }: SlideToolbarProps) => {
   const { presentationMode, slides, handleTogglePresentation } =
     useSlide(excalidrawAPI);
   const [t] = useTranslation();
-  const { toggleMarkerMode } = useMarker(excalidrawAPI);
   const isGalleryOpen = useAtomValue(galleryIsOpenAtom);
 
   const handlePresentationIconClick = (

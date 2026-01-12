@@ -1,26 +1,29 @@
-import { useAtom, useSetAtom } from "jotai";
+import { useAtom } from "jotai";
 import { useEffect, useState } from "react";
-import { searchQueryAtom, currentPageAtom } from "../store/gallery-atoms";
+import { searchQueryAtom } from "../store/gallery-atoms";
 import { IconSearch, IconX } from "@tabler/icons-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useTranslation } from "react-i18next";
 
-const SearchBar = () => {
+interface SearchBarProps {
+  onResetPage: () => void;
+}
+
+const SearchBar = ({ onResetPage }: SearchBarProps) => {
   const [t] = useTranslation();
   const [query, setQuery] = useAtom(searchQueryAtom);
   const [inputValue, setInputValue] = useState(query);
-  const setCurrentPage = useSetAtom(currentPageAtom);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       setQuery(inputValue);
-      setCurrentPage(1);
+      onResetPage();
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [inputValue, setQuery, setCurrentPage]);
+  }, [inputValue, setQuery, onResetPage]);
 
   useEffect(() => {
     setInputValue(query);
@@ -29,7 +32,7 @@ const SearchBar = () => {
   const handleClear = () => {
     setInputValue("");
     setQuery("");
-    setCurrentPage(1);
+    onResetPage();
   };
 
   return (
