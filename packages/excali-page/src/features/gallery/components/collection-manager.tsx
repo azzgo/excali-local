@@ -86,7 +86,10 @@ const CollectionItem = ({
         <span className="flex-1 truncate">{collection.name}</span>
         <span className="text-xs opacity-60 tabular-nums">{count}</span>
         
-        <div className="relative opacity-0 group-hover:opacity-100 transition-opacity">
+        <div 
+          className="relative opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={(e) => e.stopPropagation()}
+        >
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button

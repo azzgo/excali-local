@@ -111,11 +111,11 @@
 - [x] 3.3.3 Add English translations for all keys
 
 ### 3.4 UI/UX Polish - Event Handling
-- [ ] 3.4.1 Fix IconDots menu click bubbling in `collection-manager.tsx`
+- [x] 3.4.1 Fix IconDots menu click bubbling in `collection-manager.tsx`
   - Wrap DropdownMenuTrigger Button in a container div with `onClick={(e) => e.stopPropagation()}`
   - Verify menu items also stop propagation
   - Test that collection selection only triggers on collection item click, not menu clicks
-- [ ] 3.4.2 Fix IconDots menu click bubbling in `drawing-card.tsx`
+- [x] 3.4.2 Fix IconDots menu click bubbling in `drawing-card.tsx`
   - Wrap DropdownMenuTrigger Button in a container div with `onClick={(e) => e.stopPropagation()}`
   - Verify menu items stop propagation
   - Test that card onClick (load drawing) only triggers on card click, not menu clicks

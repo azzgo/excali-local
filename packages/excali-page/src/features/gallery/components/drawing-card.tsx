@@ -136,7 +136,10 @@ const DrawingCard = ({ drawing, isActive, onClick, onOverwrite }: DrawingCardPro
                 {t("No Preview")}
               </div>
             )}
-            <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div 
+              className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => e.stopPropagation()}
+            >
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
