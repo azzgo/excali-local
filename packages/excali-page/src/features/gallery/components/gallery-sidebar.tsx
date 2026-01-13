@@ -367,6 +367,15 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
         await save(newDrawing);
         setCurrentLoadedId(newId);
         
+        const newDrawingMetadata: DrawingMetadata = {
+          id: newId,
+          name: drawingData.name,
+          thumbnail: drawingData.thumbnail,
+          collectionIds,
+          createdAt: now,
+          updatedAt: now,
+        };
+        setAllDrawings(prev => [newDrawingMetadata, ...prev]);
         
         if (collectionIds.length > 0) {
           handleCollectionCountUpdate();
