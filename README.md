@@ -10,6 +10,7 @@
 
 - **📸 Smart Screenshot Annotation** - Capture any webpage area and instantly annotate with Excalidraw
 - **🔧 Offline Excalidraw Editor** - Full-featured local editor that works without internet
+- **🗂️ Gallery & Collection Management** - Save, organize, and manage multiple drawings locally with collections
 - **📊 Presentation Mode** - Turn your drawings into interactive slide presentations
 - **⌨️ Keyboard Shortcuts** - Quick access to all features
 - **🌙 Dark Mode Support** - Seamless theme switching
@@ -41,6 +42,19 @@ Use specialized marking tools for quick annotations and callouts.
 
 Transform your drawings into professional presentations with slide navigation.
 
+### 4. Gallery & Collection Management
+<img src="./.assets/gallery-sidebar-empty.png" width="600px" />
+
+Save and organize your drawings with powerful gallery features:
+- **Save & Load** - Store multiple drawings locally with auto-generated thumbnails
+- **Collections** - Group related drawings into collections for better organization
+- **Search** - Quickly find drawings with real-time search functionality
+- **Drawing Management** - Rename, overwrite, or delete drawings with ease
+
+<img src="./.assets/gallery-with-drawing.png" width="600px" />
+
+All your work is stored locally in IndexedDB, ensuring privacy and offline access.
+
 ## 🛠️ Development
 
 This project uses a monorepo structure with Bun as the package manager.
@@ -68,7 +82,7 @@ bun run local:tar     # Archive build assets
 - [x] Internationalization (i18n)
 - [x] Dark mode support
 - [x] Settings customization
-- [ ] Canvas collection management in local
+- [x] Gallery & Collection Management in local
 
 ---
 
