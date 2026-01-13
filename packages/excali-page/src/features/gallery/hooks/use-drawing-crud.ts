@@ -4,6 +4,8 @@ import {
   Collection,
   saveDrawing,
   getDrawings,
+  getDrawingFullData,
+  getDrawingsFilesOnly,
   updateDrawing,
   deleteDrawing,
   createCollection as createCollectionDB,
@@ -19,6 +21,14 @@ export function useDrawingCrud() {
 
   const getAll = useCallback(async (collectionId?: string) => {
     return await getDrawings(collectionId);
+  }, []);
+
+  const getFullData = useCallback(async (id: string) => {
+    return await getDrawingFullData(id);
+  }, []);
+
+  const getFilesOnly = useCallback(async () => {
+    return await getDrawingsFilesOnly();
   }, []);
 
   const update = useCallback(async (id: string, updates: Partial<Drawing>) => {
@@ -61,6 +71,8 @@ export function useDrawingCrud() {
   return {
     save,
     getAll,
+    getFullData,
+    getFilesOnly,
     update,
     remove,
     createCollection,

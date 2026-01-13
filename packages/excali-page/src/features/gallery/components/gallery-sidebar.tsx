@@ -25,7 +25,7 @@ import SearchBar from "./search-bar";
 import SaveDialog from "./save-dialog";
 import { Suspense, useCallback, useState, useEffect, useMemo } from "react";
 import { IconLoader2 } from "@tabler/icons-react";
-import { Drawing, Collection } from "../../editor/utils/indexdb";
+import { Drawing, DrawingMetadata, Collection } from "../../editor/utils/indexdb";
 import { format } from "date-fns";
 import { nanoid } from "nanoid";
 import { omit } from "radash";
@@ -44,12 +44,12 @@ interface GallerySidebarProps {
 }
 
 interface GalleryListProps {
-  drawings: Drawing[];
+  drawings: DrawingMetadata[];
   collections: Collection[];
-  onLoad: (drawing: Drawing) => void;
+  onLoad: (drawing: DrawingMetadata) => void;
   onOverwrite: (drawingId: string) => Promise<void>;
   currentId: string | null;
-  onDrawingUpdate: (id: string, updates: Partial<Drawing>) => void;
+  onDrawingUpdate: (id: string, updates: Partial<DrawingMetadata>) => void;
   onDrawingDelete: (id: string) => void;
   onLoadMore: () => void;
   hasMore: boolean;
@@ -125,7 +125,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
   const [currentLoadedId, setCurrentLoadedId] = useAtom(
     currentLoadedDrawingIdAtom,
   );
-  const { save, update, getAll, getCollections } = useDrawingCrud();
+  const { save, update, getAll, getFullData, getCollections } = useDrawingCrud();
   const { generateThumbnail } = useThumbnail();
   const { cleanupOrphanedFiles } = useFileCleanup();
   const [isSaving, setIsSaving] = useState(false);
@@ -133,7 +133,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
   const [currentName, setCurrentName] = useState("");
   const [isCleaningUp, setIsCleaningUp] = useState(false);
   
-  const [allDrawings, setAllDrawings] = useState<Drawing[]>([]);
+  const [allDrawings, setAllDrawings] = useState<DrawingMetadata[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const selectedCollectionId = useAtomValue(selectedCollectionIdAtom);
@@ -224,7 +224,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
     [setIsOpen],
   );
 
-  const handleDrawingUpdate = useCallback((id: string, updates: Partial<Drawing>) => {
+  const handleDrawingUpdate = useCallback((id: string, updates: Partial<DrawingMetadata>) => {
     setAllDrawings(prev => prev.map(d => d.id === id ? { ...d, ...updates } : d));
   }, []);
 
@@ -419,13 +419,14 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
   );
 
   const handleLoad = useCallback(
-    (drawing: Drawing) => {
+    async (drawing: DrawingMetadata) => {
       if (!excalidrawAPI) return;
 
       try {
-        const elements = JSON.parse(drawing.elements);
-        const appState = JSON.parse(drawing.appState);
-        const files = JSON.parse(drawing.files);
+        const fullDrawing = await getFullData(drawing.id);
+        const elements = JSON.parse(fullDrawing.elements);
+        const appState = JSON.parse(fullDrawing.appState);
+        const files = JSON.parse(fullDrawing.files);
 
         excalidrawAPI.updateScene({
           elements,
@@ -445,7 +446,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
         toast.error(t("Failed to load drawing"));
       }
     },
-    [excalidrawAPI, setCurrentLoadedId],
+    [excalidrawAPI, getFullData, setCurrentLoadedId, t],
   );
 
   const handleNew = useCallback(() => {

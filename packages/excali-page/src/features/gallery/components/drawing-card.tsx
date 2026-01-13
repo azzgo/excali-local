@@ -1,4 +1,4 @@
-import { Drawing, Collection } from "../../editor/utils/indexdb";
+import { DrawingMetadata, Collection } from "../../editor/utils/indexdb";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { MouseEvent, useState } from "react";
@@ -17,12 +17,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 interface DrawingCardProps {
-  drawing: Drawing;
+  drawing: DrawingMetadata;
   collections: Collection[];
   isActive: boolean;
-  onClick: (drawing: Drawing) => void;
+  onClick: (drawing: DrawingMetadata) => void;
   onOverwrite: (drawingId: string) => Promise<void>;
-  onUpdate: (id: string, updates: Partial<Drawing>) => void;
+  onUpdate: (id: string, updates: Partial<DrawingMetadata>) => void;
   onDelete: (id: string) => void;
   onCollectionCountUpdate: () => void;
 }

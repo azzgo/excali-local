@@ -1,5 +1,5 @@
 // get/save filed to indexdb
-import { BinaryFileData } from "@excalidraw/excalidraw/types/types";
+import { BinaryFileData } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
 import { openDB } from "idb";
 
 const DB_NAME = "excali";
@@ -67,6 +67,15 @@ export interface Drawing {
   updatedAt: number;
 }
 
+export interface DrawingMetadata {
+  id: string;
+  name: string;
+  thumbnail: string;
+  collectionIds: string[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface Collection {
   id: string;
   name: string;
@@ -80,20 +89,36 @@ export async function saveDrawing(drawing: Drawing): Promise<void> {
   await tx.done;
 }
 
-export async function getDrawings(collectionId?: string): Promise<Drawing[]> {
+export async function getDrawings(collectionId?: string): Promise<DrawingMetadata[]> {
   const db = await initDB();
   const tx = db.transaction(DRAWINGS_STORE, "readonly");
   
-  let drawings: Drawing[];
+  const metadata: DrawingMetadata[] = [];
+  
+  let cursor;
   if (collectionId) {
     const index = tx.store.index("collectionIds");
-    drawings = await index.getAll(collectionId);
+    cursor = await index.openCursor(collectionId);
   } else {
-    drawings = await tx.store.getAll();
+    cursor = await tx.store.openCursor();
+  }
+  
+  while (cursor) {
+    const drawing = cursor.value as Drawing;
+    metadata.push({
+      id: drawing.id,
+      name: drawing.name,
+      thumbnail: drawing.thumbnail,
+      collectionIds: drawing.collectionIds,
+      createdAt: drawing.createdAt,
+      updatedAt: drawing.updatedAt,
+    });
+    cursor = await cursor.continue();
   }
   
   await tx.done;
-  return drawings.sort((a, b) => b.updatedAt - a.updatedAt);
+  
+  return metadata.sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
 export async function updateDrawing(id: string, updates: Partial<Drawing>): Promise<void> {
@@ -147,4 +172,43 @@ export async function getCollections(): Promise<Collection[]> {
   const collections = await tx.store.getAll();
   await tx.done;
   return collections.sort((a, b) => a.createdAt - b.createdAt);
+}
+
+export async function getDrawingFullData(drawingId: string): Promise<Pick<Drawing, 'id' | 'elements' | 'appState' | 'files'>> {
+  const db = await initDB();
+  const tx = db.transaction(DRAWINGS_STORE, "readonly");
+  const drawing = await tx.store.get(drawingId);
+  await tx.done;
+  
+  if (!drawing) {
+    throw new Error("Drawing not found");
+  }
+  
+  return {
+    id: drawing.id,
+    elements: drawing.elements,
+    appState: drawing.appState,
+    files: drawing.files,
+  };
+}
+
+export async function getDrawingsFilesOnly(): Promise<Array<{ id: string; files: string }>> {
+  const db = await initDB();
+  const tx = db.transaction(DRAWINGS_STORE, "readonly");
+  
+  const filesData: Array<{ id: string; files: string }> = [];
+  let cursor = await tx.store.openCursor();
+  
+  while (cursor) {
+    const drawing = cursor.value as Drawing;
+    filesData.push({
+      id: drawing.id,
+      files: drawing.files,
+    });
+    cursor = await cursor.continue();
+  }
+  
+  await tx.done;
+  
+  return filesData;
 }

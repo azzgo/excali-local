@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { getDrawings, getFiles, batchSaveFile } from "../../editor/utils/indexdb";
+import { getDrawingsFilesOnly, getFiles, batchSaveFile } from "../../editor/utils/indexdb";
 
 const LAST_CLEANUP_KEY = "gallery_last_cleanup";
 const CLEANUP_INTERVAL = 24 * 60 * 60 * 1000;
@@ -15,12 +15,12 @@ export function useFileCleanup() {
 
   const cleanupOrphanedFiles = useCallback(async () => {
     try {
-      const drawings = await getDrawings();
+      const drawings = await getDrawingsFilesOnly();
       const allFiles = await getFiles();
       
       const referencedFileIds = new Set<string>();
       
-      drawings.forEach((drawing) => {
+      drawings.forEach((drawing: { id: string; files: string }) => {
         try {
           const files = JSON.parse(drawing.files);
           Object.keys(files).forEach((fileId) => {

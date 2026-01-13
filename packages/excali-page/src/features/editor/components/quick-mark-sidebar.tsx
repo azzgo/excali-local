@@ -2,7 +2,7 @@ import ColorButton from "@/components/color-button";
 import IconButton from "@/components/icon-button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sidebar, useI18n } from "@excalidraw/excalidraw";
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/excalidraw/types";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
 import {
   IconArrowNarrowRight,
   IconCircleNumber1,
@@ -12,7 +12,7 @@ import {
 } from "@tabler/icons-react";
 import { useCallback, useState } from "react";
 import { useMarker } from "../hooks/use-marker";
-import { StrokeStyle } from "@excalidraw/excalidraw/types/excalidraw/element/types";
+import { StrokeStyle } from "@excalidraw/excalidraw/dist/types/element/src/types";
 import { useTranslation } from "react-i18next";
 import { Separator } from "@/components/ui/separator";
 

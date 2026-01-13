@@ -255,57 +255,57 @@
 ## Phase 4: Lazy Drawing Data Loading Optimization
 
 ### 4.1 IndexedDB Query Optimization
-- [ ] 4.1.1 Create `DrawingMetadata` TypeScript interface in `indexdb.ts`
+- [x] 4.1.1 Create `DrawingMetadata` TypeScript interface in `indexdb.ts`
   - Export interface with fields: id, name, thumbnail, collectionIds, createdAt, updatedAt
   - Keep existing `Drawing` interface unchanged with all fields
-- [ ] 4.1.2 Modify `getDrawings()` to return metadata only
+- [x] 4.1.2 Modify `getDrawings()` to return metadata only
   - Update query to select only metadata fields (id, name, thumbnail, collectionIds, createdAt, updatedAt)
   - Exclude elements, appState, files from query result
   - Keep same filtering logic (collectionId, search)
   - Keep same sorting logic (updatedAt descending)
   - Update return type to `Promise<DrawingMetadata[]>`
-- [ ] 4.1.3 Implement `getDrawingFullData(drawingId: string)` function
+- [x] 4.1.3 Implement `getDrawingFullData(drawingId: string)` function
   - Query single drawing by ID from IndexedDB
   - Return only: id, elements, appState, files
   - Throw error "Drawing not found" if ID doesn't exist
   - Return type: `Promise<{ id: string; elements: string; appState: string; files: string }>`
-- [ ] 4.1.4 Implement `getDrawingsFilesOnly()` function
+- [x] 4.1.4 Implement `getDrawingsFilesOnly()` function
   - Query all drawings from IndexedDB
   - Return only: id, files
   - Return type: `Promise<{ id: string; files: string }[]>`
   - Used for file cleanup operations
 
 ### 4.2 Hook Integration
-- [ ] 4.2.1 Update `use-drawing-crud.ts` to support lazy loading
+- [x] 4.2.1 Update `use-drawing-crud.ts` to support lazy loading
   - Keep `getAll()` returning metadata only (via updated `getDrawings()`)
   - Add new `getFullData(id)` function wrapping `getDrawingFullData()`
   - Add new `getFilesOnly()` function wrapping `getDrawingsFilesOnly()`
   - Export all three functions
-- [ ] 4.2.2 Update `use-file-cleanup.ts` to use files-only query
+- [x] 4.2.2 Update `use-file-cleanup.ts` to use files-only query
   - Replace `getDrawings()` call with `getDrawingsFilesOnly()`
   - Update code to work with `{ id, files }[]` instead of full `Drawing[]`
   - Verify cleanup logic still correctly identifies orphaned files
 
 ### 4.3 Gallery Component Updates
-- [ ] 4.3.1 Update `gallery-sidebar.tsx` state types
+- [x] 4.3.1 Update `gallery-sidebar.tsx` state types
   - Change `allDrawings` state type from `Drawing[]` to `DrawingMetadata[]`
   - Update `GalleryListProps.drawings` type to `DrawingMetadata[]`
   - Update all references to drawings to use `DrawingMetadata` type
-- [ ] 4.3.2 Update `handleLoad` function to fetch full data
+- [x] 4.3.2 Update `handleLoad` function to fetch full data
   - Import `getFullData` from `useDrawingCrud`
   - Before parsing, call `const fullDrawing = await getFullData(drawing.id)`
   - Parse elements, appState, files from `fullDrawing` instead of `drawing`
   - Keep error handling with toast notification
-- [ ] 4.3.3 Update `getDrawingName` helper function
+- [x] 4.3.3 Update `getDrawingName` helper function
   - Keep using `getAll()` since it returns metadata with name field
   - No changes needed (metadata includes name)
 
 ### 4.4 Type Safety Updates
-- [ ] 4.4.1 Update `drawing-card.tsx` prop types
+- [x] 4.4.1 Update `drawing-card.tsx` prop types
   - Change `drawing` prop type from `Drawing` to `DrawingMetadata`
   - Verify all accessed fields (name, thumbnail, updatedAt, collectionIds) exist in `DrawingMetadata`
   - TypeScript should prevent accessing elements, appState, files
-- [ ] 4.4.2 Update `save-dialog.tsx` if needed
+- [x] 4.4.2 Update `save-dialog.tsx` if needed
   - Review if it accesses any drawing data
   - Update types if necessary
 
