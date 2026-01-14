@@ -1,5 +1,5 @@
-name: Release
-run-name: ${{ github.actor }} Release
+name: Build and Release
+
 on:
   push:
     tags:
@@ -32,64 +32,14 @@ jobs:
           bun run local:tar
           bun run local:zip
           bun run local:tar
-      - name: Generate Release Notes
-        id: release_notes
-        run: |
-          # Get the previous tag
-          PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -v "^${{ github.ref_name }}$" | head -n1)
-          
-          # Generate changelog
-          if [ -n "$PREVIOUS_TAG" ]; then
-            echo "## 📋 Changelog" >> release_notes.md
-            echo "" >> release_notes.md
-            git log --pretty=format:"- %s (%h)" $PREVIOUS_TAG..${{ github.ref_name }} >> release_notes.md
-            echo "" >> release_notes.md
-          fi
-          
-          # Add build info
-          echo "" >> release_notes.md
-          echo "## 📦 Build Information" >> release_notes.md
-          echo "- **Build Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> release_notes.md
-          echo "- **Build Runner**: ${{ runner.os }}" >> release_notes.md
-          echo "- **Git Commit**: ${{ github.sha }}" >> release_notes.md
-          echo "- **Triggered by**: @${{ github.actor }}" >> release_notes.md
-          echo "" >> release_notes.md
-          
-          # Add package versions
-          echo "## 📊 Package Versions" >> release_notes.md
-          echo "- **Main Package**: $(grep -o '"version": "[^"]*"' package.json | cut -d'"' -f4)" >> release_notes.md
-          echo "- **Excali Page**: $(grep -o '"version": "[^"]*"' packages/excali-page/package.json | cut -d'"' -f4)" >> release_notes.md
-          echo "" >> release_notes.md
-          
-          # Add files info
-          echo "## 📁 Release Assets" >> release_notes.md
-          echo "This release includes:" >> release_notes.md
-          echo "- Browser extension (Chrome/Edge compatible)" >> release_notes.md
-          echo "- Compressed archives (.zip and .tar.gz formats)" >> release_notes.md
-          echo "- Built with latest dependencies and security updates" >> release_notes.md
-          echo "" >> release_notes.md
-          
-          # Add installation instructions
-          echo "## 📥 Installation" >> release_notes.md
-          echo "1. Download the \`.zip\` file from the assets below" >> release_notes.md
-          echo "2. Extract the archive" >> release_notes.md
-          echo "3. Open Chrome/Edge and go to \`chrome://extensions/\`" >> release_notes.md
-          echo "4. Enable \"Developer mode\"" >> release_notes.md
-          echo "5. Click \"Load unpacked\" and select the extracted folder" >> release_notes.md
-          
-          # Store the release notes content
-          echo "RELEASE_NOTES<<EOF" >> $GITHUB_ENV
-          cat release_notes.md >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
       - name: Release
         env:
            GH_TOKEN: ${{ github.token }}
-           GH_REPO: ${{ github.repository }}
         run: |
           gh release create ${{ github.ref_name }} \
             --title "🎉 Excali Local ${{ github.ref_name }}" \
-            --notes "$RELEASE_NOTES" \
-            --draft=false \
+            --generate-notes \
+            --draft \
             ./packages/excali-local/.output/*.zip \
             ./packages/excali-local/*.tar.gz
       - run: echo "🍏 This job's status is ${{ job.status }}."
