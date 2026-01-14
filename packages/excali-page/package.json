@@ -4,7 +4,7 @@
   "version": "1.5.0",
   "scripts": {
     "dev": "vite",
-    "build": "vite build --outDir=../excali-local/public/editor",
+    "build": "vite build --outDir=../excali-local/public/editor --emptyOutDir",
     "test": "vitest --run",
     "test:coverage": "vitest --run --coverage",
     "shadcn:add": "bunx --bun shadcn@latest add"

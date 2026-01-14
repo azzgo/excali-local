@@ -1,7 +1,7 @@
 import "@excalidraw/excalidraw/index.css";
 import { getLang } from "@/lib/utils";
 import LocalEditor from "./local-editor";
-import QuickMarkerEditor from "./quick-marker-editor";
+import QuickEditor from "./quick-editor";
 
 const Editor = () => {
   const urlParams = new URLSearchParams(window.location.search);
@@ -12,8 +12,8 @@ const Editor = () => {
     return <LocalEditor lang={lang} />;
   }
 
-  if (pageType === "quick-marker") {
-    return <QuickMarkerEditor lang={lang} />;
+  if (pageType === "quick") {
+    return <QuickEditor lang={lang} />;
   }
 
   return <></>;

@@ -24,13 +24,11 @@ import {
   BinaryFiles,
   ExcalidrawImperativeAPI,
   LibraryItems,
-} from "@excalidraw/excalidraw/types/excalidraw/types";
-import { ExcalidrawElement } from "@excalidraw/excalidraw/types/excalidraw/element/types";
-import QuickMarkSidebar from "./quick-mark-sidebar";
+} from "@excalidraw/excalidraw/dist/types/excalidraw/types";
+import { ExcalidrawElement } from "@excalidraw/excalidraw/dist/types/element/src/types";
+import MarkerSidebar from "./marker-sidebar";
 
 import GallerySidebar from "../../gallery/components/gallery-sidebar";
-import { useAtomValue } from "jotai";
-import { currentLoadedDrawingIdAtom } from "../../gallery/store/gallery-atoms";
 import { useFileCleanup } from "../../gallery/hooks/use-file-cleanup";
 
 interface LocalEditorProps {
@@ -47,8 +45,6 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
   );
   const { runCleanupIfNeeded } = useFileCleanup();
   
-  const currentLoadedId = useAtomValue(currentLoadedDrawingIdAtom);
-
   useEffect(() => {
     if (data != null) {
       updateSlides(data?.elements ?? [], data.files ?? {});
@@ -87,6 +83,11 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
         }),
       );
       updateSlides(elements, files);
+      requestIdleCallback(() => {
+        if (elements.length === 0) {
+          console.log("🚀 file:local-editor.tsx-line:92 ", appState);
+        }
+      });
     },
     [],
   );
@@ -128,7 +129,7 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
             <Footer>
               <SlideNavigation excalidrawAPI={excalidrawAPI} />
             </Footer>
-            <QuickMarkSidebar excalidrawAPI={excalidrawAPI} />
+            <MarkerSidebar excalidrawAPI={excalidrawAPI} />
             <GallerySidebar excalidrawAPI={excalidrawAPI} />
           </Excalidraw>
         )}

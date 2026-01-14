@@ -15,7 +15,7 @@ type Area = {
 
 const openEditorWithImageUrl = (imageUrl: string, area?: Area) => {
   browser.tabs
-    .create({ url: "editor/index.html?type=quick-marker" })
+    .create({ url: "editor/index.html?type=quick" })
     .then((tab) => {
       ready = PromsieWithResolver();
       ready.promise.then(() => {

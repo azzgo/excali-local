@@ -6,8 +6,8 @@ import { IconLoader2 } from "@tabler/icons-react";
 import { useMessageEvent } from "../hooks/use-message-event";
 import MarkerToolbar from "./marker-toolbar";
 import { useMarkerEvent } from "../hooks/use-marker-effect";
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/excalidraw/types";
-import QuickMarkSidebar from "./quick-mark-sidebar";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
+import MarkerSidebar from "./marker-sidebar";
 import GallerySidebar from "../../gallery/components/gallery-sidebar";
 import { useFileCleanup } from "../../gallery/hooks/use-file-cleanup";
 
@@ -53,7 +53,7 @@ const QuickMarkerEditor = ({ lang }: QuickMarkerEditorProps) => {
           )}
         >
           <WelcomeScreen />
-          <QuickMarkSidebar excalidrawAPI={excalidrawAPI} />
+          <MarkerSidebar excalidrawAPI={excalidrawAPI} />
           <GallerySidebar excalidrawAPI={excalidrawAPI} />
         </Excalidraw>
       )}
