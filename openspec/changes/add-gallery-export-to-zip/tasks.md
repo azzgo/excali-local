@@ -22,12 +22,12 @@
 - [x] 3.7 Write vitest tests for error handling scenarios (empty gallery, failures)
 
 ## 4. UI Integration
-- [ ] 4.1 Import `IconFileZip` from `@tabler/icons-react` in `gallery-sidebar.tsx`
-- [ ] 4.2 Add `isExporting` state to GallerySidebar component
-- [ ] 4.3 Import and initialize `useGalleryExport` hook
-- [ ] 4.4 Add new `DropdownMenuItem` for "Export Gallery" below "Remove Unused Files"
-- [ ] 4.5 Add loading state (spinner icon) when exporting
-- [ ] 4.6 Add hint/tooltip explaining export functionality
+- [x] 4.1 Import `IconFileZip` from `@tabler/icons-react` in `gallery-sidebar.tsx`
+- [x] 4.2 Add `isExporting` state to GallerySidebar component
+- [x] 4.3 Import and initialize `useGalleryExport` hook
+- [x] 4.4 Add new `DropdownMenuItem` for "Export Gallery" below "Remove Unused Files"
+- [x] 4.5 Add loading state (spinner icon) when exporting
+- [x] 4.6 Add hint/tooltip explaining export functionality
 
 ## 5. Internationalization
 - [ ] 5.1 Add translation keys for "Export Gallery" label

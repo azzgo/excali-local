@@ -7,6 +7,7 @@ import {
   IconChevronDown,
   IconTrash,
   IconInfoCircle,
+  IconFileZip,
 } from "@tabler/icons-react";
 import { restoreAppState } from "@excalidraw/excalidraw";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
@@ -19,6 +20,7 @@ import {
 import { useDrawingCrud } from "../hooks/use-drawing-crud";
 import { useThumbnail } from "../hooks/use-thumbnail";
 import { useFileCleanup } from "../hooks/use-file-cleanup";
+import { useGalleryExport } from "../hooks/use-gallery-export";
 import DrawingCard from "./drawing-card";
 import DrawingCardSkeleton from "./drawing-card-skeleton";
 import CollectionManager from "./collection-manager";
@@ -137,6 +139,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
     useDrawingCrud();
   const { generateThumbnail } = useThumbnail();
   const { cleanupOrphanedFiles } = useFileCleanup(excalidrawAPI);
+  const { isExporting, exportAllDrawingsToZip } = useGalleryExport();
   const [isSaving, setIsSaving] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [currentName, setCurrentName] = useState("");
@@ -597,6 +600,29 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
                         </span>
                       </div>
                       <Hint label={t("Remove Unused Files Info")} align="end" side="bottom">
+                        <Button variant="ghost">
+                          <IconInfoCircle className="h-4 w-4 opacity-50 hover:opacity-100 transition-opacity" />
+                        </Button>
+                      </Hint>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={exportAllDrawingsToZip}
+                      disabled={isExporting}
+                      className="flex flex-row justify-between"
+                    >
+                      <div className="flex items-center justify-start w-full gap-2">
+                        {isExporting ? (
+                          <IconLoader2 className="mr-2 size-4 animate-spin" />
+                        ) : (
+                          <IconFileZip className="mr-2 size-4" />
+                        )}
+                        <span className="block">{t("Export Gallery")}</span>
+                      </div>
+                      <Hint
+                        label={t("Export Gallery Info")}
+                        align="end"
+                        side="bottom"
+                      >
                         <Button variant="ghost">
                           <IconInfoCircle className="h-4 w-4 opacity-50 hover:opacity-100 transition-opacity" />
                         </Button>
