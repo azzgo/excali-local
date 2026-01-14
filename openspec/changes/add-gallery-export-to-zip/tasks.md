@@ -1,25 +1,25 @@
 # Implementation Tasks
 
 ## 1. Setup and Dependencies
-- [ ] 1.1 Add `jszip` to `packages/excali-page/package.json` dependencies
-- [ ] 1.2 Run `bun install` to install new dependency
+- [x] 1.1 Add `jszip` to `packages/excali-page/package.json` dependencies
+- [x] 1.2 Run `bun install` to install new dependency
 
 ## 2. Utility Functions Implementation
-- [ ] 2.1 Create `export-helpers.ts` with `sanitizeFilename` function
-- [ ] 2.2 Create `export-helpers.ts` with `transformToExcalidrawFormat` function
-- [ ] 2.3 Create `export-helpers.ts` with `downloadBlob` native browser helper
-- [ ] 2.4 Add TypeScript interfaces: `ExcalidrawFile` and `ExportMetadata`
-- [ ] 2.5 Write vitest unit tests for `sanitizeFilename` function
-- [ ] 2.6 Write vitest unit tests for `transformToExcalidrawFormat` function
+- [x] 2.1 Create `export-helpers.ts` with `sanitizeFilename` function
+- [x] 2.2 Create `export-helpers.ts` with `transformToExcalidrawFormat` function
+- [x] 2.3 Create `export-helpers.ts` with `downloadBlob` native browser helper
+- [x] 2.4 Add TypeScript interfaces: `ExcalidrawFile` and `ExportMetadata`
+- [x] 2.5 Write vitest unit tests for `sanitizeFilename` function
+- [x] 2.6 Write vitest unit tests for `transformToExcalidrawFormat` function
 
 ## 3. Core Export Hook Implementation
-- [ ] 3.1 Create `use-gallery-export.ts` hook file
-- [ ] 3.2 Implement state management (isExporting flag)
-- [ ] 3.3 Implement `exportAllDrawingsToZip` function using JSZip
-- [ ] 3.4 Add error handling for empty galleries and export failures
-- [ ] 3.5 Add batch processing for large datasets (50+ drawings)
-- [ ] 3.6 Write vitest tests for hook state management logic
-- [ ] 3.7 Write vitest tests for error handling scenarios (empty gallery, failures)
+- [x] 3.1 Create `use-gallery-export.ts` hook file
+- [x] 3.2 Implement state management (isExporting flag)
+- [x] 3.3 Implement `exportAllDrawingsToZip` function using JSZip
+- [x] 3.4 Add error handling for empty galleries and export failures
+- [x] 3.5 Add batch processing for large datasets (50+ drawings)
+- [x] 3.6 Write vitest tests for hook state management logic
+- [x] 3.7 Write vitest tests for error handling scenarios (empty gallery, failures)
 
 ## 4. UI Integration
 - [ ] 4.1 Import `IconFileZip` from `@tabler/icons-react` in `gallery-sidebar.tsx`
