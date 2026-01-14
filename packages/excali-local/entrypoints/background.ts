@@ -14,8 +14,7 @@ type Area = {
 };
 
 const openEditorWithImageUrl = (imageUrl: string, area?: Area) => {
-  browser.tabs
-    .create({ url: "editor/index.html?type=quick" })
+  openQuickEditor()
     .then((tab) => {
       ready = PromsieWithResolver();
       ready.promise.then(() => {
@@ -26,6 +25,11 @@ const openEditorWithImageUrl = (imageUrl: string, area?: Area) => {
         });
       });
     });
+};
+
+const openQuickEditor = () => {
+  return browser.tabs
+    .create({ url: "editor/index.html?type=quick" })
 };
 
 const captureVisibleTab = () => {
@@ -54,6 +58,10 @@ browser.runtime.onMessage.addListener((message, _, sendMessage) => {
     switch (message.type) {
       case "OPEN_LOCAL_EDITOR":
         openLocalEditor();
+        sendMessage(true);
+        return;
+      case "OPEN_QUICK_EDITOR":
+        openQuickEditor()
         sendMessage(true);
         return;
       case "CAPTURE_VISIBLE_TAB":

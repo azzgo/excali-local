@@ -15,6 +15,7 @@ import { t } from "../lib/utils";
 function App() {
   const {
     openLocalEditor,
+    openQuickEditor,
     captureVisibleTab,
     captureSelectArea,
     errorMessage,
@@ -32,7 +33,7 @@ function App() {
 
   return (
     <section className="flex flex-col w-80 px-4 bg-white dark:bg-black">
-      <div className="flex flex-row justify-between items-center border-b border-b-gray-300 w-full mb-2 p-2">
+      <div className="flex flex-row justify-between items-center border-b border-b-gray-300 dark:border-b-gray-800 w-full mb-2 p-2">
         <h4 className="font-medium text-2xl dark:text-white">Excali Local</h4>
         <IconSettings
           title={t("OpenOptions")}
@@ -74,12 +75,20 @@ function App() {
       </div>
       <div>
         <IconHeader icon={IconTools} label={t("LocalEditor")} />
-        <div className="my-4">
+        <div className="my-4 gap-2 flex flex-col">
           <button
-            className="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600"
+            className="w-full bg-blue-600 text-white p-2 rounded-md font-medium shadow-sm hover:bg-blue-700 transition-colors dark:bg-blue-600 dark:hover:bg-blue-500"
+            aria-keyshortcuts={commands["open-local-editor"]}
             onClick={() => openLocalEditor()}
           >
             {t("OpenEditor")}
+          </button>
+          <button
+            className="w-full bg-gray-100 text-gray-700 p-2 rounded-md hover:bg-gray-200 transition-colors dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            aria-keyshortcuts={commands["open-quick-editor"]}
+            onClick={() => openQuickEditor()}
+          >
+            {t("OpenQuickEditor")}
           </button>
         </div>
       </div>

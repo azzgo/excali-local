@@ -8,6 +8,9 @@
   "Crop": {
     "message": "裁剪"
   },
+  "OpenQuickEditor": {
+    "message": "快速编辑"
+  },
   "OpenEditor": {
     "message": "打开编辑器"
   },

@@ -7,6 +7,10 @@ export function useMessage() {
     browser?.runtime.sendMessage({ type: "OPEN_LOCAL_EDITOR" });
     window.close();
   };
+  const openQuickEditor = () => {
+    browser?.runtime.sendMessage({ type: "OPEN_QUICK_EDITOR" });
+    window.close();
+  };
   const captureVisibleTab = () => {
     browser?.runtime.sendMessage({ type: "CAPTURE_VISIBLE_TAB" });
     window.close();
@@ -40,6 +44,7 @@ export function useMessage() {
   };
   return {
     openLocalEditor,
+    openQuickEditor,
     captureVisibleTab,
     captureSelectArea,
     errorMessage,

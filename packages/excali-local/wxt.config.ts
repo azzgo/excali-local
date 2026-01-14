@@ -29,6 +29,12 @@ function genManifest(env: ConfigEnv) {
         },
         description: "Open local editor",
       },
+      "open-quick-editor": {
+        suggested_key: {
+          default: "Alt+Q",
+        },
+        description: "Open quick editor",
+      },
       "capture-visible-tab": {
         suggested_key: {
           default: "Alt+A",

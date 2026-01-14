@@ -8,6 +8,9 @@
   "Crop": {
     "message": "Crop"
   },
+  "OpenQuickEditor": {
+    "message": "Quick Edit"
+  },
   "OpenEditor": {
     "message": "Open Editor"
   },
