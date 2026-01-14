@@ -136,7 +136,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
   const { save, update, getAll, getFullData, getCollections } =
     useDrawingCrud();
   const { generateThumbnail } = useThumbnail();
-  const { cleanupOrphanedFiles } = useFileCleanup();
+  const { cleanupOrphanedFiles } = useFileCleanup(excalidrawAPI);
   const [isSaving, setIsSaving] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [currentName, setCurrentName] = useState("");

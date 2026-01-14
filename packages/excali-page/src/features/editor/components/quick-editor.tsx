@@ -19,7 +19,7 @@ const QuickMarkerEditor = ({ lang }: QuickMarkerEditorProps) => {
   const { isLoaded, data } = useLoadInitData({ onlyLibrary: true });
   const [excalidrawAPI, setExcalidrawAPI] =
     useState<ExcalidrawImperativeAPI | null>(null);
-  const { runCleanupIfNeeded } = useFileCleanup();
+  const { runCleanupIfNeeded } = useFileCleanup(excalidrawAPI);
   
   const updateExcalidrawAPI = useCallback((api: ExcalidrawImperativeAPI) => {
     setExcalidrawAPI(api);
@@ -29,10 +29,12 @@ const QuickMarkerEditor = ({ lang }: QuickMarkerEditorProps) => {
   useMarkerEvent(excalidrawAPI);
 
   useEffect(() => {
-    runCleanupIfNeeded().catch((error) => {
-      console.error("Failed to run file cleanup:", error);
-    });
-  }, [runCleanupIfNeeded]);
+    if (excalidrawAPI) {
+      runCleanupIfNeeded().catch((error) => {
+        console.error("Failed to run file cleanup:", error);
+      });
+    }
+  }, [excalidrawAPI, runCleanupIfNeeded]);
 
   return (
     <div className="h-full max-h-svh overflow-hidden flex flex-col">

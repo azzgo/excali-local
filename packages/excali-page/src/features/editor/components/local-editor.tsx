@@ -43,7 +43,7 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
   const [showSlideQuickNav, updateShowSlideQuickNav] = useAtom(
     showSlideQuickNavAtom,
   );
-  const { runCleanupIfNeeded } = useFileCleanup();
+  const { runCleanupIfNeeded } = useFileCleanup(excalidrawAPI);
   
   useEffect(() => {
     if (data != null) {
@@ -52,10 +52,12 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
   }, [data]);
 
   useEffect(() => {
-    runCleanupIfNeeded().catch((error) => {
-      console.error("Failed to run file cleanup:", error);
-    });
-  }, [runCleanupIfNeeded]);
+    if (excalidrawAPI) {
+      runCleanupIfNeeded().catch((error) => {
+        console.error("Failed to run file cleanup:", error);
+      });
+    }
+  }, [excalidrawAPI, runCleanupIfNeeded]);
 
   const updateExcalidrawAPI = useCallback((api: ExcalidrawImperativeAPI) => {
     setExcalidrawAPI(api);
