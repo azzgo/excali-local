@@ -31,6 +31,9 @@ export default defineConfig({
     environment: "happy-dom",
     include: ["test/**/*.test.ts", "test/**/*.test.tsx"],
     setupFiles: ["./test/setup.ts"],
+    onConsoleLog: (log) => {
+      return !(log.includes('[test]'));
+    },
     coverage: {
       include: ["src/**/*.ts"],
       exclude: [
