@@ -32,7 +32,7 @@ export default defineConfig({
     include: ["test/**/*.test.ts", "test/**/*.test.tsx"],
     setupFiles: ["./test/setup.ts"],
     onConsoleLog: (log) => {
-      return !(log.includes('[test]'));
+      return !(log.includes('[test]') || log.includes('[Font Injector]'));
     },
     coverage: {
       include: ["src/**/*.ts"],

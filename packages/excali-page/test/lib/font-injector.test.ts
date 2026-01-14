@@ -182,7 +182,7 @@ describe('getFontConfig', () => {
   it('should handle sendMessage errors gracefully', async () => {
     vi.stubGlobal('chrome', {
       runtime: {
-        sendMessage: vi.fn().mockRejectedValue(new Error('Connection failed')),
+        sendMessage: vi.fn().mockRejectedValue(new Error('[test] Connection failed')),
       },
     });
 
@@ -257,7 +257,7 @@ describe('injectCustomFonts', () => {
   it('should handle errors gracefully without throwing', async () => {
     vi.stubGlobal('chrome', {
       runtime: {
-        sendMessage: vi.fn().mockRejectedValue(new Error('Test error')),
+        sendMessage: vi.fn().mockRejectedValue(new Error('[test] Test error')),
       },
     });
 
