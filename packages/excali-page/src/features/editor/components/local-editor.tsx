@@ -17,7 +17,7 @@ import SlideNavbar from "./slide-navbar";
 import { useUpdateSlides } from "../hooks/use-update-slides";
 import { cn } from "@/lib/utils";
 import { showSlideQuickNavAtom } from "../store/presentation";
-import { useAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import Excalidraw from "../lib/excalidraw";
 import {
   AppState,
@@ -30,6 +30,7 @@ import MarkerSidebar from "./marker-sidebar";
 
 import GallerySidebar from "../../gallery/components/gallery-sidebar";
 import { useFileCleanup } from "../../gallery/hooks/use-file-cleanup";
+import { currentLoadedDrawingIdAtom } from "@/features/gallery/store/gallery-atoms";
 
 interface LocalEditorProps {
   lang: string;
@@ -44,7 +45,8 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
     showSlideQuickNavAtom,
   );
   const { runCleanupIfNeeded } = useFileCleanup(excalidrawAPI);
-  
+  const setCurrentLoadedId = useSetAtom(currentLoadedDrawingIdAtom);
+
   useEffect(() => {
     if (data != null) {
       updateSlides(data?.elements ?? [], data.files ?? {});
@@ -85,11 +87,6 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
         }),
       );
       updateSlides(elements, files);
-      requestIdleCallback(() => {
-        if (elements.length === 0) {
-          console.log("🚀 file:local-editor.tsx-line:92 ", appState);
-        }
-      });
     },
     [],
   );
@@ -122,6 +119,7 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
             initialData={data}
             excalidrawAPI={(api) => updateExcalidrawAPI(api)}
             onChange={debouncedHandleSave}
+            onReset={() => setCurrentLoadedId(null)}
             onLibraryChange={debouncedHandleLibrarySave}
             renderTopRightUI={() => (
               <LocalEditorToolbar excalidrawAPI={excalidrawAPI} />

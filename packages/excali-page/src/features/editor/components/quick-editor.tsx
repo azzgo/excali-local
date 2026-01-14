@@ -10,6 +10,8 @@ import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excal
 import MarkerSidebar from "./marker-sidebar";
 import GallerySidebar from "../../gallery/components/gallery-sidebar";
 import { useFileCleanup } from "../../gallery/hooks/use-file-cleanup";
+import { useSetAtom } from "jotai";
+import { currentLoadedDrawingIdAtom } from "@/features/gallery/store/gallery-atoms";
 
 interface QuickMarkerEditorProps {
   lang: string;
@@ -20,13 +22,14 @@ const QuickMarkerEditor = ({ lang }: QuickMarkerEditorProps) => {
   const [excalidrawAPI, setExcalidrawAPI] =
     useState<ExcalidrawImperativeAPI | null>(null);
   const { runCleanupIfNeeded } = useFileCleanup(excalidrawAPI);
-  
+
   const updateExcalidrawAPI = useCallback((api: ExcalidrawImperativeAPI) => {
     setExcalidrawAPI(api);
   }, []);
 
   useMessageEvent({ excalidrawAPI });
   useMarkerEvent(excalidrawAPI);
+  const setCurrentLoadedId = useSetAtom(currentLoadedDrawingIdAtom);
 
   useEffect(() => {
     if (excalidrawAPI) {
@@ -50,6 +53,7 @@ const QuickMarkerEditor = ({ lang }: QuickMarkerEditorProps) => {
           aiEnabled={false}
           initialData={data}
           excalidrawAPI={(api) => updateExcalidrawAPI(api)}
+          onReset={() => setCurrentLoadedId(null)}
           renderTopRightUI={() => (
             <MarkerToolbar excalidrawAPI={excalidrawAPI} />
           )}
