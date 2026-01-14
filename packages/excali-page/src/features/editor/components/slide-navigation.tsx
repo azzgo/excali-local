@@ -14,7 +14,7 @@ import {
   IconArrowRight,
   IconChevronUp,
 } from "@tabler/icons-react";
-import Hint from "@/components/hint";
+import { Hint } from "@/components/ui/hint";
 import { useTranslation } from "react-i18next";
 interface SlideNavigationProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;

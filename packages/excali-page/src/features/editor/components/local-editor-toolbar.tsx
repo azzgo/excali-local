@@ -6,7 +6,7 @@ import {
 } from "@tabler/icons-react";
 import { Button } from "@/components/ui/button";
 import { useSlide } from "../hooks/use-slide";
-import Hint from "@/components/hint";
+import { Hint } from "@/components/ui/hint";
 import { useTranslation } from "react-i18next";
 import { useAtomValue } from "jotai";
 import { galleryIsOpenAtom } from "../../gallery/store/gallery-atoms";

@@ -3,7 +3,7 @@ import { IconCircleNumber1, IconLayoutGrid } from "@tabler/icons-react";
 import { useMarker } from "../hooks/use-marker";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import Hint from "@/components/hint";
+import { Hint } from "@/components/ui/hint";
 import { useAtomValue } from "jotai";
 import { galleryIsOpenAtom } from "../../gallery/store/gallery-atoms";
 

@@ -6,6 +6,7 @@ import {
   IconPlus,
   IconChevronDown,
   IconTrash,
+  IconInfoCircle,
 } from "@tabler/icons-react";
 import { restoreAppState } from "@excalidraw/excalidraw";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
@@ -42,6 +43,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
+import { Hint } from "@/components/ui/hint";
 
 interface GallerySidebarProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
@@ -492,20 +494,20 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
     try {
       const result = await cleanupOrphanedFiles();
       if (result.cleaned > 0) {
-        toast.success(t("Storage Cleaned"), {
-          description: t("Cleaned {{count}} orphaned files", {
+        toast.success(t("Unused Files Removed"), {
+          description: t("Removed {{count}} unused file(s)", {
             count: result.cleaned,
           }),
         });
       } else {
-        toast.success(t("Storage Clean"), {
-          description: t("No orphaned files found"),
+        toast.success(t("No Unused Files"), {
+          description: t("No unused files found"),
         });
       }
     } catch (error) {
       console.error("Failed to cleanup storage:", error);
-      toast.error(t("Cleanup Failed"), {
-        description: t("Failed to cleanup storage"),
+      toast.error(t("Remove Failed"), {
+        description: t("Failed to remove unused files"),
       });
     } finally {
       setIsCleaningUp(false);
@@ -572,20 +574,33 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem onClick={onSaveAsNewClick} disabled={!currentLoadedId}>
-                      <IconPlus className="mr-2 h-4 w-4" />
+                    <DropdownMenuItem
+                      onClick={onSaveAsNewClick}
+                      disabled={!currentLoadedId}
+                    >
+                      <IconPlus className="mr-2 size-4" />
                       <span>{t("Save as New Drawing")}</span>
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={handleCleanup}
                       disabled={isCleaningUp}
+                      className="flex flex-row justify-between"
                     >
-                      {isCleaningUp ? (
-                        <IconLoader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <IconTrash className="mr-2 h-4 w-4" />
-                      )}
-                      <span>{t("Clean Up Storage")}</span>
+                      <div className="flex items-center justify-start w-full gap-2">
+                        {isCleaningUp ? (
+                          <IconLoader2 className="mr-2 size-4 animate-spin" />
+                        ) : (
+                          <IconTrash className="mr-2 size-4" />
+                        )}
+                        <span className="block">
+                          {t("Remove Unused Files")}
+                        </span>
+                      </div>
+                      <Hint label={t("Remove Unused Files Info")} align="end" side="bottom">
+                        <Button variant="ghost">
+                          <IconInfoCircle className="h-4 w-4 opacity-50 hover:opacity-100 transition-opacity" />
+                        </Button>
+                      </Hint>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
