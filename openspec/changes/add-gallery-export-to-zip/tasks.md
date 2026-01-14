@@ -30,10 +30,10 @@
 - [x] 4.6 Add hint/tooltip explaining export functionality
 
 ## 5. Internationalization
-- [ ] 5.1 Add translation keys for "Export Gallery" label
-- [ ] 5.2 Add translation keys for success toast message
-- [ ] 5.3 Add translation keys for error messages
-- [ ] 5.4 Add translation keys for hint/tooltip text
+- [x] 5.1 Add translation keys for "Export Gallery" label
+- [x] 5.2 Add translation keys for success toast message
+- [x] 5.3 Add translation keys for error messages
+- [x] 5.4 Add translation keys for hint/tooltip text
 
 ## 6. Testing and Validation
 

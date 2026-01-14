@@ -80,6 +80,12 @@ export function initI18n() {
           "No unused files found": "No unused files found",
           "Remove Failed": "Remove Failed",
           "Failed to remove unused files": "Failed to remove unused files",
+          
+          "Export Gallery": "Export Gallery",
+          "Export Gallery Info": "Export all drawings as a ZIP archive containing .excalidraw files that can be imported to excalidraw.com",
+          "Exported {{count}} drawings successfully": "Exported {{count}} drawings successfully",
+          "No drawings to export": "No drawings to export",
+          "Failed to export gallery": "Failed to export gallery",
         },
       },
       "zh-CN": {
@@ -157,6 +163,12 @@ export function initI18n() {
           "No unused files found": "未发现无用文件",
           "Remove Failed": "清理失败",
           "Failed to remove unused files": "清理无用文件失败",
+          
+          "Export Gallery": "导出画廊",
+          "Export Gallery Info": "将所有画布导出为 ZIP 压缩包，包含可导入到 excalidraw.com 的 .excalidraw 文件",
+          "Exported {{count}} drawings successfully": "成功导出 {{count}} 个画布",
+          "No drawings to export": "没有可导出的画布",
+          "Failed to export gallery": "导出画廊失败",
         },
       },
     },
