@@ -14,22 +14,20 @@ type Area = {
 };
 
 const openEditorWithImageUrl = (imageUrl: string, area?: Area) => {
-  openQuickEditor()
-    .then((tab) => {
-      ready = PromsieWithResolver();
-      ready.promise.then(() => {
-        browser.tabs.sendMessage(tab.id!, {
-          type: "UPDATE_CANVAS_WITH_SCREENSHOT",
-          dataUrl: imageUrl,
-          area,
-        });
+  openQuickEditor().then((tab) => {
+    ready = PromsieWithResolver();
+    ready.promise.then(() => {
+      browser.tabs.sendMessage(tab.id!, {
+        type: "UPDATE_CANVAS_WITH_SCREENSHOT",
+        dataUrl: imageUrl,
+        area,
       });
     });
+  });
 };
 
 const openQuickEditor = () => {
-  return browser.tabs
-    .create({ url: "editor/index.html?type=quick" })
+  return browser.tabs.create({ url: "editor/index.html?type=quick" });
 };
 
 const captureVisibleTab = () => {
@@ -61,7 +59,7 @@ browser.runtime.onMessage.addListener((message, _, sendMessage) => {
         sendMessage(true);
         return;
       case "OPEN_QUICK_EDITOR":
-        openQuickEditor()
+        openQuickEditor();
         sendMessage(true);
         return;
       case "CAPTURE_VISIBLE_TAB":
@@ -98,7 +96,7 @@ browser.runtime.onMessage.addListener((message, _, sendMessage) => {
             sendMessage(setting?.font || null);
           })
           .catch((error) => {
-            console.error('[Background] Failed to get font settings:', error);
+            console.error("[Background] Failed to get font settings:", error);
             // Return null on error to allow graceful fallback
             sendMessage(null);
           });
@@ -117,6 +115,9 @@ export default defineBackground(() => {
     switch (command) {
       case "capture-visible-tab":
         captureVisibleTab();
+        return;
+      case "open-quick-editor":
+        openQuickEditor();
         return;
       case "capture-select-area":
         browser.tabs
