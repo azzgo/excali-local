@@ -63,5 +63,5 @@
 - [ ] 6.3.10 Manual: Test browser download trigger (file appears in Downloads folder)
 
 ## 7. Documentation
-- [ ] 7.1 Add JSDoc comments to exported functions
-- [ ] 7.2 Update README if needed to mention export feature
+- [x] 7.1 Add JSDoc comments to exported functions
+- [x] 7.2 Update README to document the new Gallery Export to ZIP feature

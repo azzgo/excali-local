@@ -11,6 +11,7 @@
 - **📸 Smart Screenshot Annotation** - Capture any webpage area and instantly annotate with Excalidraw
 - **🔧 Offline Excalidraw Editor** - Full-featured local editor that works without internet
 - **🗂️ Gallery & Collection Management** - Save, organize, and manage multiple drawings locally with collections
+- **📦 Export Gallery** - Export all drawings as a ZIP archive for backup or migration to excalidraw.com
 - **📊 Presentation Mode** - Turn your drawings into interactive slide presentations
 - **⌨️ Keyboard Shortcuts** - Quick access to all features
 - **🌙 Dark Mode Support** - Seamless theme switching
@@ -50,6 +51,7 @@ Save and organize your drawings with powerful gallery features:
 - **Collections** - Group related drawings into collections for better organization
 - **Search** - Quickly find drawings with real-time search functionality
 - **Drawing Management** - Rename, overwrite, or delete drawings with ease
+- **Export Gallery** - Export all drawings as a ZIP archive for backup or migration to excalidraw.com
 
 <img src="./.assets/gallery-with-drawing.png" width="600px" />
 
@@ -83,6 +85,7 @@ bun run local:tar     # Archive build assets
 - [x] Dark mode support
 - [x] Settings customization
 - [x] Gallery & Collection Management in local
+- [x] Gallery export to ZIP
 
 ---
 
