@@ -38,17 +38,17 @@
 ## 6. Testing and Validation
 
 ### 6.1 Vitest Unit Tests (Utility Functions)
-- [ ] 6.1.1 Test `sanitizeFilename` with special characters (`<>:"/\\|?*`)
-- [ ] 6.1.2 Test `sanitizeFilename` with spaces and case conversion
-- [ ] 6.1.3 Test `transformToExcalidrawFormat` output schema validation
-- [ ] 6.1.4 Test `transformToExcalidrawFormat` with missing optional fields (defaults)
+- [x] 6.1.1 Test `sanitizeFilename` with special characters (`<>:"/\\|?*`)
+- [x] 6.1.2 Test `sanitizeFilename` with spaces and case conversion
+- [x] 6.1.3 Test `transformToExcalidrawFormat` output schema validation
+- [x] 6.1.4 Test `transformToExcalidrawFormat` with missing optional fields (defaults)
 
 ### 6.2 Vitest Unit Tests (Hook Logic)
-- [ ] 6.2.1 Test hook returns correct initial state (isExporting: false)
-- [ ] 6.2.2 Test hook state transitions during export lifecycle
-- [ ] 6.2.3 Test error handling for empty drawing array
-- [ ] 6.2.4 Test error handling for storage access failures
-- [ ] 6.2.5 Test batch processing logic for large datasets (mock)
+- [x] 6.2.1 Test hook returns correct initial state (isExporting: false)
+- [x] 6.2.2 Test hook state transitions during export lifecycle
+- [x] 6.2.3 Test error handling for empty drawing array
+- [x] 6.2.4 Test error handling for storage access failures
+- [x] 6.2.5 Test batch processing logic for large datasets (mock)
 
 ### 6.3 Manual Integration Tests (UI & Browser)
 - [ ] 6.3.1 Manual: Test export with empty gallery (should show appropriate message)
