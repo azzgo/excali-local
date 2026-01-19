@@ -15,6 +15,7 @@
 - **📊 Presentation Mode** - Turn your drawings into interactive slide presentations
 - **⌨️ Keyboard Shortcuts** - Quick access to all features
 - **🌙 Dark Mode Support** - Seamless theme switching
+- **🅰️ Custom Font Support** - Upload and use your own .ttf, .woff, or .woff2 files
 
 ## 🚀 Quick Start
 
@@ -57,6 +58,13 @@ Save and organize your drawings with powerful gallery features:
 
 All your work is stored locally in IndexedDB, ensuring privacy and offline access.
 
+### 5. Custom Font Support
+<img src="./.assets/FontFamily-Customization.png" width="600px" />
+
+Personalize your drawings by using your own typography:
+- **Uploading Cutomized Font or Using System Font Family** - Support for `.ttf`, `.woff`, and `.woff2` font files
+- **Automatic Injection** - Seamlessly integrated into the Excalidraw editor via FontFace API
+
 ## 🛠️ Development
 
 This project uses a monorepo structure with Bun as the package manager.
@@ -86,6 +94,7 @@ bun run local:tar     # Archive build assets
 - [x] Settings customization
 - [x] Gallery & Collection Management in local
 - [x] Gallery export to ZIP
+- [x] Custom binary font support (.ttf, .woff, .woff2)
 
 ---
 
