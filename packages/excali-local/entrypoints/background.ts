@@ -1,4 +1,4 @@
-import { PromiseWithResolver, WithResolvers, getSetting } from "./lib/utils";
+import { PromiseWithResolver, WithResolvers } from "./lib/utils";
 
 const openLocalEditor = () => {
   browser.tabs.create({ url: "editor/index.html?type=local" });
@@ -88,18 +88,6 @@ browser.runtime.onMessage.addListener((message, _, sendMessage) => {
       case "CAPTURE_SELECT_AREA_END":
         captureSelectArea(message);
         sendMessage(true);
-        return;
-      case "GET_FONTS_SETTINGS":
-        getSetting()
-          .then((setting) => {
-            // Return the font configuration or null if not found
-            sendMessage(setting?.font || null);
-          })
-          .catch((error) => {
-            console.error("[Background] Failed to get font settings:", error);
-            // Return null on error to allow graceful fallback
-            sendMessage(null);
-          });
         return;
       case "READY":
         ready?.resolve();
