@@ -24,7 +24,8 @@ const FontChooser = ({ className, onChoose }: FontChooserProps) => {
   const [selectedFont, setSelectedFont] = useState<FontData | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const openDialog = async () => {
+  const openDialog = async (e: UIEvent) => {
+    e.preventDefault();
     if (fontList.length === 0) {
       const fonts = await window.queryLocalFonts();
       const permitResult = await navigator.permissions.query({

@@ -35,6 +35,15 @@
   "Font": {
     "message": "字体"
   },
+  "FontDescription": {
+    "message": "Excali Local 支持自定义本地 Excalidraw 编辑器画布的字体"
+  },
+  "UploadFont": {
+    "message": "上传字体"
+  },
+  "Uploading": {
+    "message": "字体上传中..."
+  },
   "Handwriting": {
     "message": "手写字体"
   },

@@ -8,6 +8,8 @@ import { initI18n } from "./locales/locales";
 import { injectCustomFonts } from "./lib/font-injector";
 import { initFontConfig } from "@excalidraw/excalidraw";
 
+(globalThis as any).EXCALIDRAW_ASSET_PATH = (process.env.EXCALIDRAW_ASSET_PATH) || '';
+
 initI18n();
 
 // Inject custom fonts before Excalidraw initializes

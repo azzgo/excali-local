@@ -1,266 +1,145 @@
 /**
  * Unit tests for font-injector module
- * 
+ *
  * Tests the font injection functionality including:
- * - CSS generation from font configuration
- * - CSS injection into document head
+ * - Font configuration retrieval from IndexedDB
+ * - System font handling via local-font: URI
+ * - Custom font handling with ArrayBuffer
  * - Error handling and edge cases
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  generateFontCSS,
-  injectFontCSS,
-  getFontConfig,
   injectCustomFonts,
+  getFontConfig,
   type FontConfig,
 } from '../../src/lib/font-injector';
 
-describe.skip('generateFontCSS', () => {
-  it('should generate CSS for all three fonts when configured', () => {
-    const config: FontConfig = {
-      handwriting: 'SourceHanSerifCN-Bold',
-      normal: 'PingFangSC-Regular',
-      code: 'FiraCode-Regular',
-    };
-
-    const css = generateFontCSS(config);
-
-    expect(css).toContain('font-family: "Virgil"');
-    expect(css).toContain('src: local("SourceHanSerifCN-Bold")');
-    expect(css).toContain('font-family: "Helvetica"');
-    expect(css).toContain('src: local("PingFangSC-Regular")');
-    expect(css).toContain('font-family: "Cascadia"');
-    expect(css).toContain('src: local("FiraCode-Regular")');
-    expect(css).toContain('font-display: swap');
-  });
-
-  it('should generate CSS only for configured fonts', () => {
-    const config: FontConfig = {
-      handwriting: 'SourceHanSerifCN-Bold',
-      normal: null,
-      code: null,
-    };
-
-    const css = generateFontCSS(config);
-
-    expect(css).toContain('font-family: "Virgil"');
-    expect(css).toContain('src: local("SourceHanSerifCN-Bold")');
-    expect(css).not.toContain('Helvetica');
-    expect(css).not.toContain('Cascadia');
-  });
-
-  it('should return empty string when no fonts are configured', () => {
-    const config: FontConfig = {
-      handwriting: null,
-      normal: null,
-      code: null,
-    };
-
-    const css = generateFontCSS(config);
-
-    expect(css).toBe('');
-  });
-
-  it('should handle partial configuration', () => {
-    const config: FontConfig = {
-      handwriting: null,
-      normal: 'Arial',
-      code: 'Courier',
-    };
-
-    const css = generateFontCSS(config);
-
-    expect(css).not.toContain('Virgil');
-    expect(css).toContain('font-family: "Helvetica"');
-    expect(css).toContain('src: local("Arial")');
-    expect(css).toContain('font-family: "Cascadia"');
-    expect(css).toContain('src: local("Courier")');
-  });
-});
-
-describe.skip('injectFontCSS', () => {
+describe('injectCustomFonts', () => {
   beforeEach(() => {
-    // Clean up any existing style elements
-    document.querySelectorAll('style[data-font-injector]').forEach(el => el.remove());
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
-    // Clean up after tests
-    document.querySelectorAll('style[data-font-injector]').forEach(el => el.remove());
+    vi.restoreAllMocks();
   });
 
-  it('should inject CSS into document head', () => {
-    const css = '@font-face { font-family: "Test"; }';
-    
-    injectFontCSS(css);
+  it('should return null when no font configuration exists', async () => {
+    vi.spyOn(await import('excali-shared'), 'getFontConfig').mockResolvedValue(null);
 
-    const styleElement = document.querySelector('style[data-font-injector]');
-    expect(styleElement).not.toBeNull();
-    expect(styleElement?.textContent).toBe(css);
+    const result = await injectCustomFonts();
+    expect(result).toBeNull();
   });
 
-  it('should not inject empty CSS', () => {
-    const initialStyleCount = document.querySelectorAll('style[data-font-injector]').length;
-    
-    injectFontCSS('');
-
-    const finalStyleCount = document.querySelectorAll('style[data-font-injector]').length;
-    expect(finalStyleCount).toBe(initialStyleCount);
-  });
-
-  it('should not inject whitespace-only CSS', () => {
-    const initialStyleCount = document.querySelectorAll('style[data-font-injector]').length;
-    
-    injectFontCSS('   \n  \t  ');
-
-    const finalStyleCount = document.querySelectorAll('style[data-font-injector]').length;
-    expect(finalStyleCount).toBe(initialStyleCount);
-  });
-
-  it('should add data-font-injector attribute to style element', () => {
-    const css = '@font-face { font-family: "Test"; }';
-    
-    injectFontCSS(css);
-
-    const styleElement = document.querySelector('style[data-font-injector]');
-    expect(styleElement?.getAttribute('data-font-injector')).toBe('true');
-  });
-});
-
-describe.skip('getFontConfig', () => {
-  beforeEach(() => {
-    // Reset chrome mock
-    vi.stubGlobal('chrome', undefined);
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it('should return null when chrome runtime is not available', async () => {
-    const config = await getFontConfig();
-    expect(config).toBeNull();
-  });
-
-  it('should return null when sendMessage is not available', async () => {
-    vi.stubGlobal('chrome', { runtime: {} });
-    
-    const config = await getFontConfig();
-    expect(config).toBeNull();
-  });
-
-  it('should return font config when available', async () => {
-    const mockConfig: FontConfig = {
-      handwriting: 'TestFont1',
-      normal: 'TestFont2',
-      code: 'TestFont3',
-    };
-
-    vi.stubGlobal('chrome', {
-      runtime: {
-        sendMessage: vi.fn().mockResolvedValue(mockConfig),
-      },
-    });
-
-    const config = await getFontConfig();
-    expect(config).toEqual(mockConfig);
-    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: 'GET_FONTS_SETTINGS' });
-  });
-
-  it('should return null when sendMessage returns null', async () => {
-    vi.stubGlobal('chrome', {
-      runtime: {
-        sendMessage: vi.fn().mockResolvedValue(null),
-      },
-    });
-
-    const config = await getFontConfig();
-    expect(config).toBeNull();
-  });
-
-  it('should handle sendMessage errors gracefully', async () => {
-    vi.stubGlobal('chrome', {
-      runtime: {
-        sendMessage: vi.fn().mockRejectedValue(new Error('[test] Connection failed')),
-      },
-    });
-
-    const config = await getFontConfig();
-    expect(config).toBeNull();
-  });
-});
-
-describe.skip('injectCustomFonts', () => {
-  beforeEach(() => {
-    // Clean up any existing style elements
-    document.querySelectorAll('style[data-font-injector]').forEach(el => el.remove());
-    vi.stubGlobal('chrome', undefined);
-  });
-
-  afterEach(() => {
-    document.querySelectorAll('style[data-font-injector]').forEach(el => el.remove());
-    vi.unstubAllGlobals();
-  });
-
-  it('should complete without error when chrome runtime is not available', async () => {
-    await expect(injectCustomFonts()).resolves.toBeUndefined();
-    
-    const styleElement = document.querySelector('style[data-font-injector]');
-    expect(styleElement).toBeNull();
-  });
-
-  it('should inject fonts when configuration is available', async () => {
-    const mockConfig: FontConfig = {
-      handwriting: 'TestFont1',
-      normal: 'TestFont2',
-      code: 'TestFont3',
-    };
-
-    vi.stubGlobal('chrome', {
-      runtime: {
-        sendMessage: vi.fn().mockResolvedValue(mockConfig),
-      },
-    });
-
-    await injectCustomFonts();
-
-    const styleElement = document.querySelector('style[data-font-injector]');
-    expect(styleElement).not.toBeNull();
-    expect(styleElement?.textContent).toContain('Virgil');
-    expect(styleElement?.textContent).toContain('TestFont1');
-    expect(styleElement?.textContent).toContain('Helvetica');
-    expect(styleElement?.textContent).toContain('TestFont2');
-    expect(styleElement?.textContent).toContain('Cascadia');
-    expect(styleElement?.textContent).toContain('TestFont3');
-  });
-
-  it('should not inject CSS when all fonts are null', async () => {
+  it('should return null when all font slots are null', async () => {
     const mockConfig: FontConfig = {
       handwriting: null,
       normal: null,
       code: null,
     };
+    vi.spyOn(await import('excali-shared'), 'getFontConfig').mockResolvedValue(mockConfig);
 
-    vi.stubGlobal('chrome', {
-      runtime: {
-        sendMessage: vi.fn().mockResolvedValue(mockConfig),
-      },
+    const result = await injectCustomFonts();
+    expect(result).toBeNull();
+  });
+
+  it('should handle system fonts correctly', async () => {
+    const mockConfig: FontConfig = {
+      handwriting: { type: 'system', postscriptName: 'SourceHanSerifCN-Bold' },
+      normal: { type: 'system', postscriptName: 'PingFangSC-Regular' },
+      code: { type: 'system', postscriptName: 'FiraCode-Regular' },
+    };
+    vi.spyOn(await import('excali-shared'), 'getFontConfig').mockResolvedValue(mockConfig);
+
+    const result = await injectCustomFonts();
+
+    expect(result).toEqual({
+      handDrawn: [{ uri: 'local-font:SourceHanSerifCN-Bold' }],
+      normal: [{ uri: 'local-font:PingFangSC-Regular' }],
+      code: [{ uri: 'local-font:FiraCode-Regular' }],
     });
+  });
 
-    await injectCustomFonts();
+  it('should handle mixed system and custom fonts', async () => {
+    const fontData = new Uint8Array([0, 1, 2, 3]);
+    const mockConfig: FontConfig = {
+      handwriting: { type: 'system', postscriptName: 'SourceHanSerifCN-Bold' },
+      normal: { type: 'custom', family: 'TestCustomFont', data: fontData },
+      code: null,
+    };
+    vi.spyOn(await import('excali-shared'), 'getFontConfig').mockResolvedValue(mockConfig);
 
-    const styleElement = document.querySelector('style[data-font-injector]');
-    expect(styleElement).toBeNull();
+    const result = await injectCustomFonts();
+
+    expect(result).toEqual({
+      handDrawn: [{ uri: 'local-font:SourceHanSerifCN-Bold' }],
+      normal: [{ uri: '', buffer: fontData.buffer }],
+    });
   });
 
   it('should handle errors gracefully without throwing', async () => {
-    vi.stubGlobal('chrome', {
-      runtime: {
-        sendMessage: vi.fn().mockRejectedValue(new Error('[test] Test error')),
-      },
-    });
+    vi.spyOn(await import('excali-shared'), 'getFontConfig').mockRejectedValue(new Error('DB error'));
 
-    await expect(injectCustomFonts()).resolves.toBeUndefined();
+    const result = await injectCustomFonts();
+    expect(result).toBeNull();
+  });
+});
+
+describe('getFontConfig', () => {
+  it('should return font configuration from IndexedDB', async () => {
+    const mockConfig: FontConfig = {
+      handwriting: { type: 'system', postscriptName: 'TestFont1' },
+      normal: { type: 'system', postscriptName: 'TestFont2' },
+      code: { type: 'system', postscriptName: 'TestFont3' },
+    };
+    vi.spyOn(await import('excali-shared'), 'getFontConfig').mockResolvedValue(mockConfig);
+
+    const result = await getFontConfig();
+    expect(result).toEqual(mockConfig);
+  });
+
+  it('should return null when no config exists', async () => {
+    vi.spyOn(await import('excali-shared'), 'getFontConfig').mockResolvedValue(null);
+
+    const result = await getFontConfig();
+    expect(result).toBeNull();
+  });
+});
+
+describe('injectCustomFonts with custom fonts', () => {
+  it('should handle custom fonts with ArrayBuffer', async () => {
+    const fontData = new Uint8Array([0, 1, 2, 3, 4, 5]);
+    const mockConfig: FontConfig = {
+      handwriting: null,
+      normal: { type: 'custom', family: 'CustomFont', data: fontData },
+      code: null,
+    };
+    vi.spyOn(await import('excali-shared'), 'getFontConfig').mockResolvedValue(mockConfig);
+
+    const result = await injectCustomFonts();
+
+    expect(result).toEqual({
+      normal: [{ uri: '', buffer: fontData.buffer }],
+    });
+  });
+
+  it('should handle all three custom fonts with buffers', async () => {
+    const handwritingData = new Uint8Array([1, 2, 3]);
+    const normalData = new Uint8Array([4, 5, 6]);
+    const codeData = new Uint8Array([7, 8, 9]);
+    const mockConfig: FontConfig = {
+      handwriting: { type: 'custom', family: 'HandwritingFont', data: handwritingData },
+      normal: { type: 'custom', family: 'NormalFont', data: normalData },
+      code: { type: 'custom', family: 'CodeFont', data: codeData },
+    };
+    vi.spyOn(await import('excali-shared'), 'getFontConfig').mockResolvedValue(mockConfig);
+
+    const result = await injectCustomFonts();
+
+    expect(result).toEqual({
+      handDrawn: [{ uri: '', buffer: handwritingData.buffer }],
+      normal: [{ uri: '', buffer: normalData.buffer }],
+      code: [{ uri: '', buffer: codeData.buffer }],
+    });
   });
 });

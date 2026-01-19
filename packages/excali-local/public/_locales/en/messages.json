@@ -33,16 +33,25 @@
     "message": "Something went wrong. Please try again later."
   },
   "Font": {
-    "message": "Font"
+    "message": "Font Family"
+  },
+  "FontDescription": {
+    "message": "Excali Local allows customizing the font of the texts in Excalidraw canvas"
+  },
+  "UploadFont": {
+    "message": "Upload Font"
+  },
+  "Uploading": {
+    "message": "Uploading Font"
   },
   "Handwriting": {
-    "message": "Handwriting Font Family"
+    "message": "Handwriting"
   },
   "Normal": {
-    "message": "Normal Font Family"
+    "message": "Normal"
   },
   "Code": {
-    "message": "Code Font Family"
+    "message": "Code"
   },
   "FontPlaceholder": {
     "message": "Please input valid font name"

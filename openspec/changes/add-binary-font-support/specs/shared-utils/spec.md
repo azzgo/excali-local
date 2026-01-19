@@ -102,9 +102,9 @@ The system SHALL validate uploaded font files for format, size, and integrity.
 
 #### Scenario: Reject files exceeding size limit
 
-- **WHEN** user uploads a font file larger than 10MB
+- **WHEN** user uploads a font file larger than 30MB
 - **THEN** the system SHALL reject the upload
-- **AND** SHALL display error message "Font file too large (max 10MB)"
+- **AND** SHALL display error message "Font file too large (max 30MB)"
 - **AND** SHALL not modify IndexedDB
 
 ### Requirement: FontFace API Integration

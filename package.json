@@ -6,7 +6,6 @@
     "page:dev": "bun --filter ./packages/excali-page dev",
     "page:build": "BUILD_FOR_EXTENSION=1 bun --filter ./packages/excali-page build",
     "page:test": "bun --filter ./packages/excali-page test",
-    "local:dev": "bun --filter ./packages/excali-local dev",
     "local:clean": "bun ./scripts/clean.ts",
     "local:build": "bun ./scripts/build.ts",
     "local:tar": "bun ./scripts/tar.ts",

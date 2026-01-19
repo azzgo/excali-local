@@ -14,7 +14,7 @@ export default defineConfig({
     // remove some code to fit <https://developer.chrome.com/docs/extensions/develop/migrate/remote-hosted-code> requirements
     "window.DISABLE_EMBEDDED": JSON.stringify("true"),
     "window.DISABLE_FONT_CDN": JSON.stringify("true"),
-    "window.EXCALIDRAW_ASSET_PATH": buildForExtension
+    "process.env.EXCALIDRAW_ASSET_PATH": buildForExtension
       ? JSON.stringify("/editor/")
       : JSON.stringify("/"),
   },
@@ -32,7 +32,7 @@ export default defineConfig({
     include: ["test/**/*.test.ts", "test/**/*.test.tsx"],
     setupFiles: ["./test/setup.ts"],
     onConsoleLog: (log) => {
-      return !(log.includes('[test]') || log.includes('[Font Injector]'));
+      return !(log.includes('[test]') || log.includes('[font-injector]'));
     },
     coverage: {
       include: ["src/**/*.ts"],
