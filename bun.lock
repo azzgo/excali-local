@@ -6,7 +6,7 @@
     },
     "packages/excali-local": {
       "name": "wxt-react-starter",
-      "version": "1.5.2",
+      "version": "1.6.0",
       "dependencies": {
         "@tabler/icons-react": "^3.24.0",
         "excali-shared": "*",
@@ -28,7 +28,7 @@
     },
     "packages/excali-page": {
       "name": "excali-local",
-      "version": "1.5.2",
+      "version": "1.6.0",
       "dependencies": {
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/sortable": "^10.0.0",
@@ -83,7 +83,7 @@
     },
     "packages/excali-shared": {
       "name": "excali-shared",
-      "version": "1.5.2",
+      "version": "1.6.0",
       "devDependencies": {
         "@types/chrome": "^0.0.280",
         "typescript": "^5.6.3",
