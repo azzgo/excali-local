@@ -73,17 +73,23 @@ The shared package SHALL define TypeScript types for font configuration used by 
 #### Scenario: FontConfig interface
 - **WHEN** font configuration is needed
 - **THEN** the `FontConfig` interface SHALL define:
-  - `handwriting: string | null` - PostScript name for handwriting font replacement
-  - `normal: string | null` - PostScript name for normal font replacement
-  - `code: string | null` - PostScript name for code font replacement
+  - `handwriting: FontSource | null` - FontSource union (system or custom)
+  - `normal: FontSource | null` - FontSource union (system or custom)
+  - `code: FontSource | null` - FontSource union (system or custom)
+- **AND** FontSource SHALL be:
+  ```typescript
+  type FontSource =
+    | { type: 'system'; postscriptName: string }
+    | { type: 'custom'; family: string; data: Uint8Array };
+  ```
 
 ### Requirement: Font Injection Utilities
 
 The shared package SHALL provide utilities for injecting custom fonts into the Excalidraw editor, abstracting the communication with the extension's background script.
 
 #### Scenario: Get font configuration
-- **WHEN** `getFontConfig()` is called in extension context
-- **THEN** it SHALL communicate with the background script via `chrome.runtime.sendMessage`
+- **WHEN** `getFontConfig()` is called
+- **THEN** it SHALL read directly from IndexedDB
 - **AND** it SHALL return a `FontConfig` object or `null` if unavailable
 
 #### Scenario: Transform to Excalidraw format
@@ -114,12 +120,13 @@ The shared package SHALL provide a `PromiseWithResolver` utility that creates a 
 - **THEN** calling `resolve(value)` SHALL fulfill the promise
 - **AND** calling `reject(error)` SHALL reject the promise
 
-## MODIFIED Requirements
-### Requirement: Gallery Export to ZIP
+## ADDED Requirements
+### Requirement: Gallery Export to ZIP Utility Usage
 
 The gallery export feature SHALL use shared utilities from the `excali-shared` package for CSS class merging and browser detection when applicable.
 
 #### Scenario: Export uses shared utilities
 - **WHEN** the gallery export feature is implemented
 - **THEN** it SHALL use `cn()` from `excali-shared` for UI styling
+- **AND** any browser detection SHALL use `getBrowser()` from `excali-shared`
 - **AND** any browser detection SHALL use `getBrowser()` from `excali-shared`
