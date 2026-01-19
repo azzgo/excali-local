@@ -4,7 +4,7 @@
   "version": "1.5.2",
   "scripts": {
     "dev": "vite",
-    "build": "vite build --outDir=../excali-local/public/editor --emptyOutDir",
+    "build": "BUILD_FOR_EXTENSION=1 vite build --outDir=../excali-local/public/editor --emptyOutDir",
     "test": "vitest --run",
     "test:coverage": "vitest --run --coverage",
     "shadcn:add": "bunx --bun shadcn@latest add"
@@ -24,6 +24,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "excali-shared": "*",
     "i18next": "^24.0.2",
     "idb": "^8.0.0",
     "jotai": "^2.13.1",
@@ -38,7 +39,8 @@
     "react-use": "^17.6.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "tinycolor2": "^1.6.0"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.0",

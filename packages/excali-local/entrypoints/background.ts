@@ -1,4 +1,4 @@
-import { PromsieWithResolver, WithResolvers, getSetting } from "./lib/utils";
+import { PromiseWithResolver, WithResolvers, getSetting } from "./lib/utils";
 
 const openLocalEditor = () => {
   browser.tabs.create({ url: "editor/index.html?type=local" });
@@ -15,7 +15,7 @@ type Area = {
 
 const openEditorWithImageUrl = (imageUrl: string, area?: Area) => {
   openQuickEditor().then((tab) => {
-    ready = PromsieWithResolver();
+    ready = PromiseWithResolver();
     ready.promise.then(() => {
       browser.tabs.sendMessage(tab.id!, {
         type: "UPDATE_CANVAS_WITH_SCREENSHOT",

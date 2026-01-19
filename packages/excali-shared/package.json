@@ -1,0 +1,22 @@
+{
+  "name": "excali-shared",
+  "private": true,
+  "version": "1.5.2",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    "import": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^2.5.3"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.280",
+    "typescript": "^5.6.3"
+  }
+}

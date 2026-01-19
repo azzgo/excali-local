@@ -28,7 +28,7 @@ const FontChooser = ({ className, onChoose }: FontChooserProps) => {
     if (fontList.length === 0) {
       const fonts = await window.queryLocalFonts();
       const permitResult = await navigator.permissions.query({
-        name: "local-fonts",
+        name: "local-fonts" as any,
       });
       if (permitResult.state === "denied") {
         toast(t("LocalFontPermissionDenied"), {
