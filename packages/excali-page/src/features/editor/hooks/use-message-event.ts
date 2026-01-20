@@ -1,10 +1,11 @@
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/excalidraw/types";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
 import { nanoid } from "nanoid";
-import { FileId } from "@excalidraw/excalidraw/types/excalidraw/element/types";
-import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
+import { FileId } from "@excalidraw/excalidraw/dist/types/element/src/types";
+import { convertToExcalidrawElements, restoreAppState } from "@excalidraw/excalidraw";
 import { useEffect } from "react";
 import { getSizeOfDataImage } from "../utils/images";
 import { getBrowser } from "@/lib/utils";
+import {omit} from "radash";
 
 interface useMessageEventProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
@@ -40,6 +41,26 @@ export function useMessageEvent({ excalidrawAPI }: useMessageEventProps) {
             }
           );
           break;
+        case "UPDATE_CANVAS_WITH_JSON":
+          const { json } = message;
+          if (!json) {
+            return;
+          }
+          const elements = json.elements;
+          const appState = json.appState;
+          const files = json.files;
+
+          excalidrawAPI.updateScene({
+            elements,
+            appState: restoreAppState(
+              omit({ ...appState, isLoading: false }, [
+                "collaborators",
+                "viewModeEnabled",
+              ]),
+              null,
+            ),
+          });
+        excalidrawAPI.addFiles(files);
         default:
           break;
       }

@@ -26,6 +26,19 @@ const openEditorWithImageUrl = (imageUrl: string, area?: Area) => {
   });
 };
 
+const openQuickEditorWithJSON = (message: any) => {
+  const { json } = message;
+  openQuickEditor().then((tab) => {
+    ready = PromiseWithResolver();
+    ready.promise.then(() => {
+      browser.tabs.sendMessage(tab.id!, {
+        type: "UPDATE_CANVAS_WITH_JSON",
+        json,
+      });
+    });
+  });
+};
+
 const openQuickEditor = () => {
   return browser.tabs.create({ url: "editor/index.html?type=quick" });
 };
@@ -87,6 +100,10 @@ browser.runtime.onMessage.addListener((message, _, sendMessage) => {
         return;
       case "CAPTURE_SELECT_AREA_END":
         captureSelectArea(message);
+        sendMessage(true);
+        return;
+      case "OPEN_QUICK_EDITOR_WITH_JSON":
+        openQuickEditorWithJSON(message);
         sendMessage(true);
         return;
       case "READY":
