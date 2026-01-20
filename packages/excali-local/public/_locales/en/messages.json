@@ -94,5 +94,8 @@
   },
   "LocalFontPermissionDeniedContent": {
     "message": "Please enable the permission to use local fonts"
+  },
+  "OpenWithExcaliLocal": {
+    "message": "Open with Excali Local"
   }
 }

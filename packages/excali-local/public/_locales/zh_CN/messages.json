@@ -94,5 +94,8 @@
   },
   "LocalFontPermissionDeniedContent": {
     "message": "请在设置中开启本地字体权限"
+  },
+  "OpenWithExcaliLocal": {
+    "message": "使用 Excali Local 打开"
   }
 }

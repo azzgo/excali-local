@@ -1,3 +1,5 @@
+import { t } from "./lib/utils";
+
 const EXCALIDRAW_TYPE = "excalidraw";
 const SUPPORT_EXCALIDRAW_VERSION = 2;
 const OPEN_EDITOR_MSG = "OPEN_QUICK_EDITOR_WITH_JSON";
@@ -32,7 +34,7 @@ export default defineContentScript({
     }
     if (isValidExcalidrawFile(json)) {
       const btn = document.createElement("button");
-      btn.innerText = "Open with Excali Local";
+      btn.innerText = t("OpenWithExcaliLocal");
       Object.assign(btn.style, {
         position: "fixed",
         bottom: "32px",
