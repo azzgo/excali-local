@@ -76,7 +76,8 @@ export function CustomFontUpload({
     [validateFile, onUpload],
   );
 
-  const handleClear = useCallback(() => {
+  const handleClear = useCallback((e: UIEvent) => {
+    e.stopPropagation();
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
