@@ -66,11 +66,11 @@ Personalize your drawings by using your own typography:
 - **Uploading Cutomized Font or Using System Font Family** - Support for `.ttf`, `.woff`, and `.woff2` font files
 - **Automatic Injection** - Seamlessly integrated into the Excalidraw editor via FontFace API
 
-### 6. Open .excalidraw Files Directly
+### 6. Open .excalidraw Files with Local Editor
 
 When you open a `.excalidraw` file in your browser (from a web URL or a local file), Excali Local automatically detects it and provides an "Open with Excali Local" button. Clicking it instantly imports the content into the editor for seamless editing.
 
-<video src="https://raw.githubusercontent.com/azzgo/excali-local/refs/heads/main/.assets/open-with-excali-local.mp4" width="600px" autoplay loop muted></video>
+<video src="https://github.com/user-attachments/assets/3be7b273-cac4-4fc8-ab03-5bb50eab8cd4" width="600px" autoplay loop muted></video>
 
 ## 🛠️ Development
 
