@@ -9,7 +9,6 @@ import {
   IconInfoCircle,
   IconFileZip,
 } from "@tabler/icons-react";
-import { restoreAppState } from "@excalidraw/excalidraw";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
   currentLoadedDrawingIdAtom,
@@ -35,7 +34,6 @@ import {
 } from "../../editor/utils/indexdb";
 import { format } from "date-fns";
 import { nanoid } from "nanoid";
-import { omit } from "radash";
 import { useTranslation } from "react-i18next";
 import {
   DropdownMenu,
@@ -46,6 +44,7 @@ import {
 import { toast } from "sonner";
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
 import { Hint } from "@/components/ui/hint";
+import { loadDrawingToScene } from "../../editor/utils/excalidraw-api.helper";
 
 interface GallerySidebarProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
@@ -465,17 +464,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
         const appState = JSON.parse(fullDrawing.appState);
         const files = JSON.parse(fullDrawing.files);
 
-        excalidrawAPI.updateScene({
-          elements,
-          appState: restoreAppState(
-            omit({ ...appState, isLoading: false }, [
-              "collaborators",
-              "viewModeEnabled",
-            ]),
-            null,
-          ),
-        });
-        excalidrawAPI.addFiles(files);
+        loadDrawingToScene(excalidrawAPI, elements, appState, files);
 
         setCurrentLoadedId(drawing.id);
       } catch (error) {

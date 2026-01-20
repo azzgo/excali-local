@@ -1,11 +1,11 @@
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
 import { nanoid } from "nanoid";
 import { FileId } from "@excalidraw/excalidraw/dist/types/element/src/types";
-import { convertToExcalidrawElements, restoreAppState } from "@excalidraw/excalidraw";
+import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import { useEffect } from "react";
 import { getSizeOfDataImage } from "../utils/images";
 import { getBrowser } from "@/lib/utils";
-import {omit} from "radash";
+import { loadDrawingToScene } from "../utils/excalidraw-api.helper";
 
 interface useMessageEventProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
@@ -28,17 +28,21 @@ export function useMessageEvent({ excalidrawAPI }: useMessageEventProps) {
           getSizeOfDataImage(dataUrl, area).then(
             ({ imageUrl, width, height, mimeType }) => {
               // 如果有设备像素比信息，需要相应调整显示尺寸
-              const displayWidth = area?.devicePixelRatio ? width / area.devicePixelRatio : width;
-              const displayHeight = area?.devicePixelRatio ? height / area.devicePixelRatio : height;
-              
+              const displayWidth = area?.devicePixelRatio
+                ? width / area.devicePixelRatio
+                : width;
+              const displayHeight = area?.devicePixelRatio
+                ? height / area.devicePixelRatio
+                : height;
+
               updateCanvasWithScreenshot(
                 excalidrawAPI,
                 mimeType,
                 imageUrl,
                 displayWidth,
-                displayHeight
+                displayHeight,
               );
-            }
+            },
           );
           break;
         case "UPDATE_CANVAS_WITH_JSON":
@@ -50,17 +54,7 @@ export function useMessageEvent({ excalidrawAPI }: useMessageEventProps) {
           const appState = json.appState;
           const files = json.files;
 
-          excalidrawAPI.updateScene({
-            elements,
-            appState: restoreAppState(
-              omit({ ...appState, isLoading: false }, [
-                "collaborators",
-                "viewModeEnabled",
-              ]),
-              null,
-            ),
-          });
-        excalidrawAPI.addFiles(files);
+          loadDrawingToScene(excalidrawAPI, elements, appState, files);
         default:
           break;
       }
@@ -78,7 +72,7 @@ async function updateCanvasWithScreenshot(
   mimeType: string,
   imageUrl: string,
   width: number,
-  height: number
+  height: number,
 ) {
   if (!imageUrl) {
     return;
