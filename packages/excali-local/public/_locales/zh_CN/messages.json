@@ -38,6 +38,12 @@
   "FontDescription": {
     "message": "Excali Local 支持自定义本地 Excalidraw 编辑器画布的字体"
   },
+  "FontUploadedSuccess": {
+    "message": "字体上传成功"
+  },
+  "FontUploadFailed": {
+    "message": "字体上传失败"
+  },
   "UploadFont": {
     "message": "上传字体"
   },

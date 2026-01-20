@@ -38,6 +38,12 @@
   "FontDescription": {
     "message": "Excali Local allows customizing the font of the texts in Excalidraw canvas"
   },
+  "FontUploadedSuccess": {
+    "message": "Font Uploaded Success"
+  },
+  "FontUploadFailed": {
+    "message": "Font Uploaded Failed"
+  },
   "UploadFont": {
     "message": "Upload Font"
   },
