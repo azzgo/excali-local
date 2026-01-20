@@ -16,6 +16,7 @@
 - **⌨️ Keyboard Shortcuts** - Quick access to all features
 - **🌙 Dark Mode Support** - Seamless theme switching
 - **🅰️ Custom Font Support** - Upload and use your own .ttf, .woff, or .woff2 files
+- **📂 Direct Excalidraw File Opening** - Automatically recognize and open .excalidraw files from any website or local folder
 
 ## 🚀 Quick Start
 
@@ -65,6 +66,12 @@ Personalize your drawings by using your own typography:
 - **Uploading Cutomized Font or Using System Font Family** - Support for `.ttf`, `.woff`, and `.woff2` font files
 - **Automatic Injection** - Seamlessly integrated into the Excalidraw editor via FontFace API
 
+### 6. Open .excalidraw Files Directly
+
+When you open a `.excalidraw` file in your browser (from a web URL or a local file), Excali Local automatically detects it and provides an "Open with Excali Local" button. Clicking it instantly imports the content into the editor for seamless editing.
+
+<video src="https://raw.githubusercontent.com/azzgo/excali-local/refs/heads/main/.assets/open-with-excali-local.mp4" width="600px" autoplay loop muted></video>
+
 ## 🛠️ Development
 
 This project uses a monorepo structure with Bun as the package manager.
@@ -95,6 +102,7 @@ bun run local:tar     # Archive build assets
 - [x] Gallery & Collection Management in local
 - [x] Gallery export to ZIP
 - [x] Custom binary font support (.ttf, .woff, .woff2)
+- [x] Direct .excalidraw file recognition and opening
 
 ---
 
