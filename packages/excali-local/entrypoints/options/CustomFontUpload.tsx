@@ -2,7 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { IconUpload, IconX } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { t } from "../lib/utils";
-import type { FontSource } from "excali-shared";
+import { getFileNameWithoutExtension, type FontSource } from "excali-shared";
 
 const FONT_SIZE_LIMIT = 30 * 1024 * 1024;
 
@@ -49,7 +49,7 @@ export function CustomFontUpload({
       try {
         const arrayBuffer = await file.arrayBuffer();
         const uint8Array = new Uint8Array(arrayBuffer);
-        const fontFace = new FontFace(file.name?.split('.')?.at(0) ?? `TempFile-${Math.random().toString(16).slice(2,7)}`, uint8Array);
+        const fontFace = new FontFace(getFileNameWithoutExtension(file.name) ?? `TempFile-${Math.random().toString(16).slice(2,7)}`, uint8Array);
         await fontFace.load();
         document.fonts.add(fontFace);
         const family = fontFace.family;

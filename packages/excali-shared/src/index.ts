@@ -72,3 +72,12 @@ export function PromiseWithResolver<T = any>(): WithResolvers<T> {
 
   return withResolvers as WithResolvers<T>
 }
+
+export function getFileNameWithoutExtension(fileName: string) {
+  const parts = fileName.split('.');
+  if (parts.length > 1 && parts[0] !== '') {
+    parts.pop(); // Remove the last element (the extension)
+    return parts.join('.');
+  }
+  return fileName;
+}
