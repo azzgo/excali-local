@@ -49,6 +49,7 @@ function genManifest(env: ConfigEnv) {
       },
     },
     permissions: ["activeTab", "scripting"],
+    optional_host_permissions: ["file:///*.excalidraw"],
   };
 
   if (env.browser === "firefox") {
