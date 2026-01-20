@@ -40,7 +40,7 @@ const SlideNavbar = ({ close, excalidrawAPI }: SlideQuickNavbarProps) => {
       <div>
         <div className="h-80 mt-4 flex z-20 relative border-t pt-4">
           <div className="absolute w-fit top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 h-8 z-10">
-            <Button variant="outline" className="rounded-full" onClick={close}>
+            <Button variant="outline" className="rounded-full bg-white" onClick={close}>
               <IconChevronDown className="size-4" />
             </Button>
           </div>
