@@ -33,9 +33,39 @@ export default defineContentScript({
     if (isValidExcalidrawFile(json)) {
       const btn = document.createElement("button");
       btn.innerText = "Open with Excali Local";
-      btn.style.position = "fixed";
-      btn.style.bottom = "32px";
-      btn.style.right = "32px";
+      Object.assign(btn.style, {
+        position: "fixed",
+        bottom: "32px",
+        right: "32px",
+        zIndex: "9999",
+        padding: "10px 24px",
+        backgroundColor: "#2563EB",
+        color: "#ffffff",
+        borderRadius: "8px",
+        border: "none",
+        fontFamily:
+          "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        fontWeight: "500",
+        fontSize: "14px",
+        cursor: "pointer",
+        boxShadow:
+          "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
+        transition: "all 0.2s ease",
+      });
+
+      btn.onmouseenter = () => {
+        btn.style.backgroundColor = "#1D4ED8";
+        btn.style.boxShadow =
+          "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)";
+        btn.style.transform = "translateY(-1px)";
+      };
+
+      btn.onmouseleave = () => {
+        btn.style.backgroundColor = "#2563EB";
+        btn.style.boxShadow =
+          "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)";
+        btn.style.transform = "translateY(0)";
+      };
       document.body.appendChild(btn);
 
       btn.addEventListener("click", () => {
