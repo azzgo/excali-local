@@ -117,6 +117,7 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
             langCode={lang}
             aiEnabled={false}
             initialData={data}
+            showDeprecatedFonts={false}
             excalidrawAPI={(api) => updateExcalidrawAPI(api)}
             onChange={debouncedHandleSave}
             onReset={() => setCurrentLoadedId(null)}

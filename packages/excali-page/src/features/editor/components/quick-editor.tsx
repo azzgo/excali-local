@@ -52,6 +52,7 @@ const QuickMarkerEditor = ({ lang }: QuickMarkerEditorProps) => {
           langCode={lang}
           aiEnabled={false}
           initialData={data}
+          showDeprecatedFonts={false}
           excalidrawAPI={(api) => updateExcalidrawAPI(api)}
           onReset={() => setCurrentLoadedId(null)}
           renderTopRightUI={() => (
