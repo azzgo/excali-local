@@ -27,7 +27,11 @@ export default defineContentScript({
   main() {
     let json: unknown;
     try {
-      json = JSON.parse(document.body.innerText);
+      let start = document.body.innerText.indexOf("{");
+      let end = document.body.innerText.lastIndexOf("}");
+      if (start > -1 && end > -1) {
+        json = JSON.parse(document.body.innerText.slice(start, end + 1));
+      }
     } catch (e) {
       console.error("[Excalidraw] parse JSON failed:", e);
       return;
