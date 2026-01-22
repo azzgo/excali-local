@@ -4,7 +4,7 @@ import { useCallback, useState, useEffect } from "react";
 import { useLoadInitData } from "../hooks/use-load-initdata";
 import { IconLoader2 } from "@tabler/icons-react";
 import { useMessageEvent } from "../hooks/use-message-event";
-import MarkerToolbar from "./marker-toolbar";
+import TopRightToolbar from "./marker-toolbar";
 import { useMarkerEvent } from "../hooks/use-marker-effect";
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
 import MarkerSidebar from "./marker-sidebar";
@@ -56,7 +56,7 @@ const QuickMarkerEditor = ({ lang }: QuickMarkerEditorProps) => {
           excalidrawAPI={(api) => updateExcalidrawAPI(api)}
           onReset={() => setCurrentLoadedId(null)}
           renderTopRightUI={() => (
-            <MarkerToolbar excalidrawAPI={excalidrawAPI} />
+            <TopRightToolbar excalidrawAPI={excalidrawAPI} />
           )}
         >
           <WelcomeScreen />

@@ -46,22 +46,9 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
 
   const handleDockedChange = useCallback(
     (docked: boolean) => {
-      if (docked) {
-        excalidrawAPI?.updateScene({
-          appState: {
-            zenModeEnabled: true,
-          },
-        });
-      } else {
-        excalidrawAPI?.updateScene({
-          appState: {
-            zenModeEnabled: false,
-          },
-        });
-      }
       setDocked(docked);
     },
-    [excalidrawAPI]
+    [excalidrawAPI],
   );
   const handleStateChange = useCallback(
     (state: { name: string; tab?: string } | null) => {
@@ -72,17 +59,15 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
           },
         });
       } else if (state.name === "marker") {
-        if (docked) {
-          excalidrawAPI?.updateScene({
-            appState: {
-              zenModeEnabled: true,
-            },
-          });
-        }
+        excalidrawAPI?.updateScene({
+          appState: {
+            zenModeEnabled: true,
+          },
+        });
         forceUpdate({});
       }
     },
-    [excalidrawAPI, docked]
+    [excalidrawAPI, docked],
   );
 
   const appState = excalidrawAPI?.getAppState();

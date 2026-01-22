@@ -1,6 +1,5 @@
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/excalidraw/types";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
 import { IconCircleNumber1, IconLayoutGrid } from "@tabler/icons-react";
-import { useMarker } from "../hooks/use-marker";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
@@ -11,8 +10,7 @@ interface MarkerToolbarProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
 }
 
-const MarkerToolbar = ({ excalidrawAPI }: MarkerToolbarProps) => {
-  const { toggleMarkerMode } = useMarker(excalidrawAPI);
+const TopRightToolbar = ({ excalidrawAPI }: MarkerToolbarProps) => {
   const [t] = useTranslation();
   const isGalleryOpen = useAtomValue(galleryIsOpenAtom);
   
@@ -40,4 +38,4 @@ const MarkerToolbar = ({ excalidrawAPI }: MarkerToolbarProps) => {
   );
 };
 
-export default MarkerToolbar;
+export default TopRightToolbar;
