@@ -518,7 +518,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
       name="gallery"
       docked={docked}
       onDock={setDocked}
-      className="!min-w-160"
+      className="md:!min-w-160 !min-w-full"
       onStateChange={handleStateChange}
     >
       <Sidebar.Header>
@@ -595,7 +595,11 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
                           {t("Remove Unused Files")}
                         </span>
                       </div>
-                      <Hint label={t("Remove Unused Files Info")} align="end" side="bottom">
+                      <Hint
+                        label={t("Remove Unused Files Info")}
+                        align="end"
+                        side="bottom"
+                      >
                         <Button variant="ghost">
                           <IconInfoCircle className="h-4 w-4 opacity-50 hover:opacity-100 transition-opacity" />
                         </Button>

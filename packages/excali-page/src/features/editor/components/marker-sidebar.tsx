@@ -1,8 +1,14 @@
 import ColorButton from "@/components/color-button";
 import IconButton from "@/components/icon-button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sidebar, useI18n } from "@excalidraw/excalidraw";
-import { Empty, EmptyContent, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Sidebar, useEditorInterface, useI18n } from "@excalidraw/excalidraw";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
 import {
   IconArrowNarrowRight,
@@ -65,6 +71,7 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
   const [docked, setDocked] = useState(false);
   const libI18n = useI18n();
   const { isMarkerMode, toggleMarkerMode } = useMarker(excalidrawAPI);
+  const editorInterface = useEditorInterface();
 
   const handleDockedChange = useCallback(
     (docked: boolean) => {
@@ -230,6 +237,10 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
       (currentTool === "custom" && isMarkerMode)
     );
   }, [isMarkerMode, currentTool]);
+
+  if (editorInterface.formFactor === "phone") {
+    return <></>;
+  }
 
   return (
     <Sidebar

@@ -8,12 +8,13 @@ import { galleryIsOpenAtom } from "../../gallery/store/gallery-atoms";
 
 interface MarkerToolbarProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
+  isMobile: boolean;
 }
 
-const TopRightToolbar = ({ excalidrawAPI }: MarkerToolbarProps) => {
+const TopRightToolbar = ({ excalidrawAPI, isMobile }: MarkerToolbarProps) => {
   const [t] = useTranslation();
   const isGalleryOpen = useAtomValue(galleryIsOpenAtom);
-  
+
   const handleMarkerIconClick = () => {
     excalidrawAPI?.toggleSidebar({ name: "marker", force: true });
   };
@@ -29,11 +30,13 @@ const TopRightToolbar = ({ excalidrawAPI }: MarkerToolbarProps) => {
           </Button>
         </Hint>
       )}
-      <Hint label={t("Marker")} align="end" sideOffset={8}>
-        <Button variant="ghost" onClick={handleMarkerIconClick}>
-          <IconCircleNumber1 className="size-4" />
-        </Button>
-      </Hint>
+      {!isMobile && (
+        <Hint label={t("Marker")} align="end" sideOffset={8}>
+          <Button variant="ghost" onClick={handleMarkerIconClick}>
+            <IconCircleNumber1 className="size-4" />
+          </Button>
+        </Hint>
+      )}
     </div>
   );
 };

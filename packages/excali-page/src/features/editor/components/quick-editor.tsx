@@ -55,8 +55,11 @@ const QuickMarkerEditor = ({ lang }: QuickMarkerEditorProps) => {
           showDeprecatedFonts={false}
           excalidrawAPI={(api) => updateExcalidrawAPI(api)}
           onReset={() => setCurrentLoadedId(null)}
-          renderTopRightUI={() => (
-            <TopRightToolbar excalidrawAPI={excalidrawAPI} />
+          renderTopRightUI={(isMobile) => (
+            <TopRightToolbar
+              excalidrawAPI={excalidrawAPI}
+              isMobile={isMobile}
+            />
           )}
         >
           <WelcomeScreen />

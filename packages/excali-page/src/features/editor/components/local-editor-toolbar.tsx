@@ -14,8 +14,9 @@ import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excal
 
 interface SlideToolbarProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
+  isMobile: boolean;
 }
-const LocalEditorToolbar = ({ excalidrawAPI }: SlideToolbarProps) => {
+const LocalEditorToolbar = ({ excalidrawAPI, isMobile }: SlideToolbarProps) => {
   const { presentationMode, slides, handleTogglePresentation } =
     useSlide(excalidrawAPI);
   const [t] = useTranslation();
@@ -50,15 +51,17 @@ const LocalEditorToolbar = ({ excalidrawAPI }: SlideToolbarProps) => {
           </Button>
         </Hint>
       )}
-      <Hint label={t("Marker")} align="end" sideOffset={8}>
-        <Button
-          disabled={presentationMode}
-          variant="ghost"
-          onClick={handleMarkerIconClick}
-        >
-          <IconCircleNumber1 className="size-4" />
-        </Button>
-      </Hint>
+      {!isMobile && (
+        <Hint label={t("Marker")} align="end" sideOffset={8}>
+          <Button
+            disabled={presentationMode}
+            variant="ghost"
+            onClick={handleMarkerIconClick}
+          >
+            <IconCircleNumber1 className="size-4" />
+          </Button>
+        </Hint>
+      )}
       <Hint
         label={
           presentationMode ? t("Exit Presentation") : t("Enter Presentation")

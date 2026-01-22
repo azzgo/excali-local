@@ -122,8 +122,11 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
             onChange={debouncedHandleSave}
             onReset={() => setCurrentLoadedId(null)}
             onLibraryChange={debouncedHandleLibrarySave}
-            renderTopRightUI={() => (
-              <LocalEditorToolbar excalidrawAPI={excalidrawAPI} />
+            renderTopRightUI={(isMobile) => (
+              <LocalEditorToolbar
+                excalidrawAPI={excalidrawAPI}
+                isMobile={isMobile}
+              />
             )}
           >
             <WelcomeScreen />
