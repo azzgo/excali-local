@@ -31,6 +31,7 @@ import MarkerSidebar from "./marker-sidebar";
 import GallerySidebar from "../../gallery/components/gallery-sidebar";
 import { useFileCleanup } from "../../gallery/hooks/use-file-cleanup";
 import { currentLoadedDrawingIdAtom } from "@/features/gallery/store/gallery-atoms";
+import TopRightToolbar from "./top-right-toolbar";
 
 interface LocalEditorProps {
   lang: string;
@@ -123,7 +124,8 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
             onReset={() => setCurrentLoadedId(null)}
             onLibraryChange={debouncedHandleLibrarySave}
             renderTopRightUI={(isMobile) => (
-              <LocalEditorToolbar
+              <TopRightToolbar
+                editorType="local"
                 excalidrawAPI={excalidrawAPI}
                 isMobile={isMobile}
               />
