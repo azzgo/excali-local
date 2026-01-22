@@ -9,11 +9,10 @@
 - [x] 1.8 Test all configuration options update Excalidraw appState correctly
 - [x] 1.9 Verify UI responsiveness and visual consistency with existing controls
 
-## 2. Validation
-- [ ] 2.1 Manual testing of stroke width changes on shapes and lines
-- [ ] 2.2 Manual testing of corner roundness on rectangle and other shapes
-- [ ] 2.3 Manual testing of arrow types on arrow tool
-- [ ] 2.4 Manual testing of font family on text elements
-- [ ] 2.5 Manual testing of font size on text elements
-- [ ] 2.6 Verify i18n translations display correctly in both languages
-- [ ] 2.7 Check accessibility (keyboard navigation, screen reader labels)
+## 2. Validation(manually)
+- [x] 2.1 Manual testing of stroke width changes on shapes and lines
+- [x] 2.2 Manual testing of corner roundness on rectangle and other shapes
+- [x] 2.3 Manual testing of arrow types on arrow tool
+- [x] 2.4 Manual testing of font family on text elements
+- [x] 2.5 Manual testing of font size on text elements
+- [x] 2.6 Verify i18n translations display correctly in both languages
