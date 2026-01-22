@@ -47,6 +47,7 @@ export const useMarker = (excalidrawAPI: ExcalidrawImperativeAPI | null) => {
                   label: {
                     text: `${markNumber}`,
                     fontSize,
+                    fontFamily: appState.currentItemFontFamily,
                   },
                   strokeColor: appState.currentItemStrokeColor,
                   backgroundColor: appState.currentItemBackgroundColor,
