@@ -28,3 +28,5 @@ for WS_PATH in "${WORKSPACE_DIRS[@]}"; do
     echo "Workspace package.json not found at $WS_JSON" >&2
   fi
 done
+
+bun install
