@@ -2,6 +2,13 @@ import { Sidebar } from "@excalidraw/excalidraw";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import {
   IconDeviceFloppy,
   IconPlus,
   IconChevronDown,
@@ -85,12 +92,12 @@ const GalleryList = ({
 
   if (total === 0) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 text-center text-[var(--text-secondary-color)]">
-        <p className="text-sm">{t("No drawings yet.")}</p>
-        <p className="text-xs opacity-70 mt-1">
-          {t("Create one to get started!")}
-        </p>
-      </div>
+      <Empty className="h-[calc(100vh-120px)]">
+        <EmptyContent>
+          <EmptyTitle>{t("No drawings yet.")}</EmptyTitle>
+          <EmptyDescription>{t("Create one to get started!")}</EmptyDescription>
+        </EmptyContent>
+      </Empty>
     );
   }
 

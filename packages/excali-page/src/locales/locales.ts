@@ -86,6 +86,8 @@ export function initI18n() {
           "Exported {{count}} drawings successfully": "Exported {{count}} drawings successfully",
           "No drawings to export": "No drawings to export",
           "Failed to export gallery": "Failed to export gallery",
+          "Markder Sidebar Empty Tip": "Select the desired quick marker tool from above",
+          "Select a tool": "Select a tool",
         },
       },
       "zh-CN": {
@@ -169,6 +171,8 @@ export function initI18n() {
           "Exported {{count}} drawings successfully": "成功导出 {{count}} 个画布",
           "No drawings to export": "没有可导出的画布",
           "Failed to export gallery": "导出画廊失败",
+          "Markder Sidebar Empty Tip": "从上方选择所需的快速标记工具",
+          "Select a tool": "选择工具",
         },
       },
     },

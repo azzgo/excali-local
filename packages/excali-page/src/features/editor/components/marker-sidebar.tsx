@@ -2,6 +2,7 @@ import ColorButton from "@/components/color-button";
 import IconButton from "@/components/icon-button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sidebar, useI18n } from "@excalidraw/excalidraw";
+import { Empty, EmptyContent, EmptyDescription, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
 import {
   IconArrowNarrowRight,
@@ -242,7 +243,7 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
           {t("Quick Marker")}
         </div>
       </Sidebar.Header>
-      <ScrollArea className=" p-3 max-h-[calc(100vh-68px)]">
+      <ScrollArea className=" p-3 h-[calc(100vh-68px)]">
         <div className="grid grid-cols-6 mb-4">
           <IconButton
             title="marker"
@@ -263,7 +264,7 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
             icon={<IconMinus />}
           />
         </div>
-        {showConfiguration && (
+        {showConfiguration ? (
           <div className="gap-y-2 flex flex-col">
             <div>
               <h3 className="mb-2 text-xs">{libI18n.t("labels.stroke")}</h3>
@@ -507,6 +508,15 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
               </div>
             </div>
           </div>
+        ) : (
+          <Empty className="h-[calc(100vh-120px)]">
+            <EmptyContent>
+              <EmptyTitle>{t("Select a tool")}</EmptyTitle>
+              <EmptyDescription>
+                {t("Markder Sidebar Empty Tip")}
+              </EmptyDescription>
+            </EmptyContent>
+          </Empty>
         )}
       </ScrollArea>
     </Sidebar>
