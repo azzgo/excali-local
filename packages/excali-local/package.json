@@ -20,16 +20,16 @@
   "dependencies": {
     "excali-shared": "*",
     "@tabler/icons-react": "^3.24.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "sonner": "^1.7.1",
     "tailwind-merge": "^2.5.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.12",
     "@types/chrome": "^0.0.280",
-    "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0",
+    "@types/react": "^19.2.10",
+    "@types/react-dom": "^19.2.3",
     "@wxt-dev/module-react": "^1.1.1",
     "tailwindcss": "^4.1.12",
     "typescript": "^5.6.3",
