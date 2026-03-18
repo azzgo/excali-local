@@ -20,6 +20,9 @@ This document provides detailed instructions for manual verification of the Gall
 | [MT-GS-004](#mt-gs-004) | High | Split Button Save Behavior | Verify the Save button text and dropdown options change based on state. |
 | [MT-GS-005](#mt-gs-005) | Medium | Collection Menu Click Isolation | Verify clicking the "..." menu doesn't trigger collection selection. |
 | [MT-GS-006](#mt-gs-006) | Medium | Drawing Card Menu Click Isolation | Verify clicking the "..." menu doesn't trigger drawing loading. |
+| [MT-GS-007](#mt-gs-007) | High | ZIP Append Import | Verify ZIP import append mode preserves existing data. |
+| [MT-GS-008](#mt-gs-008) | Critical | ZIP Overwrite Restore | Verify overwrite restore clears and restores from ZIP. |
+| [MT-GS-009](#mt-gs-009) | High | ZIP Metadata Validation | Verify import is blocked when ZIP misses required metadata. |
 
 ---
 
@@ -168,6 +171,61 @@ This document provides detailed instructions for manual verification of the Gall
 - The canvas should still show "Safe Drawing".
 - "Other Drawing" should NOT be loaded.
 - **Success Criteria**: Clicking the menu button only opens the menu and does not trigger the `onClick` handler of the parent card.
+
+---
+
+<a name="mt-gs-007"></a>
+## MT-GS-007: ZIP Append Import
+**Priority**: High  
+**Description**: Importing ZIP in append mode should keep existing drawings and add imported ones.
+
+### Test Steps
+1. Prepare existing gallery with at least 2 drawings.
+2. Export a ZIP from another dataset (or previous backup) containing at least 1 drawing.
+3. In Gallery dropdown, click "Import Gallery", choose ZIP, keep default "Append Import (Default)", then confirm.
+4. Check drawing count and collection list.
+
+### Expected Results
+- Existing drawings remain.
+- Imported drawings are added.
+- Success toast shows imported count.
+
+---
+
+<a name="mt-gs-008"></a>
+## MT-GS-008: ZIP Overwrite Restore
+**Priority**: Critical  
+**Description**: Overwrite restore should clear current gallery data before import.
+
+### Test Steps
+1. Prepare current gallery with identifiable drawings/collections.
+2. Import a ZIP with different drawings and collections.
+3. In mode dialog, select "Overwrite Restore" and confirm.
+4. Refresh page and verify data in gallery.
+
+### Expected Results
+- Old drawings are removed.
+- Old collections are removed.
+- ZIP data is restored after import.
+- Success/failure toasts are shown appropriately.
+
+---
+
+<a name="mt-gs-009"></a>
+## MT-GS-009: ZIP Metadata Validation
+**Priority**: High  
+**Description**: Import should be rejected when ZIP is missing `data.json` or has malformed `data.json`.
+
+### Test Steps
+1. Prepare ZIP without `data.json`.
+2. Import it using append mode.
+3. Prepare ZIP with malformed `data.json` (missing required fields).
+4. Import it using append mode.
+
+### Expected Results
+- Import is blocked with clear error message.
+- No drawings or collections are written.
+- Existing gallery data remains unchanged.
 
 ---
 

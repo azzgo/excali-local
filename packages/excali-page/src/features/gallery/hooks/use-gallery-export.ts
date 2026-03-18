@@ -11,33 +11,40 @@ import {
 } from "../utils/export-helpers";
 
 const BATCH_SIZE = 50;
-const EXPORT_VERSION = "1.0.0";
+const EXPORT_VERSION = "1.1.0";
 
 export function useGalleryExport() {
   const [t] = useTranslation();
   const [isExporting, setIsExporting] = useState(false);
-  const { getAll, getFullData } = useDrawingCrud();
+  const { getAll, getFullData, getCollections } = useDrawingCrud();
 
   const processBatch = async (
     zip: JSZip,
-    drawingIds: string[],
+    drawings: Awaited<ReturnType<typeof getAll>>,
     startIndex: number,
-    endIndex: number
+    endIndex: number,
+    exportedDrawingsMeta: NonNullable<ExportMetadata["drawings"]>,
   ): Promise<void> => {
-    const batch = drawingIds.slice(startIndex, endIndex);
+    const batch = drawings.slice(startIndex, endIndex);
 
-    for (const drawingId of batch) {
-      const fullDrawing = await getFullData(drawingId);
+    for (const drawingMeta of batch) {
+      const fullDrawing = await getFullData(drawingMeta.id);
       const excalidrawData = transformToExcalidrawFormat(fullDrawing);
-      const drawingMetadata = (await getAll()).find((d) => d.id === drawingId);
-      const filename = drawingMetadata
-        ? sanitizeFilename(drawingMetadata.name)
-        : sanitizeFilename(drawingId);
+      const filename = sanitizeFilename(drawingMeta.name || drawingMeta.id);
+      const drawingPath = `drawings/${filename}.excalidraw`;
 
       zip.file(
-        `drawings/${filename}.excalidraw`,
+        drawingPath,
         JSON.stringify(excalidrawData, null, 2)
       );
+      exportedDrawingsMeta.push({
+        id: drawingMeta.id,
+        name: drawingMeta.name,
+        path: drawingPath,
+        collectionIds: drawingMeta.collectionIds || [],
+        createdAt: drawingMeta.createdAt,
+        updatedAt: drawingMeta.updatedAt,
+      });
     }
   };
 
@@ -54,24 +61,34 @@ export function useGalleryExport() {
       }
 
       const zip = new JSZip();
-      const drawingIds = drawings.map((d) => d.id);
+      const exportedDrawingsMeta: NonNullable<ExportMetadata["drawings"]> = [];
 
-      if (drawingIds.length >= BATCH_SIZE) {
-        for (let i = 0; i < drawingIds.length; i += BATCH_SIZE) {
-          await processBatch(zip, drawingIds, i, Math.min(i + BATCH_SIZE, drawingIds.length));
+      if (drawings.length >= BATCH_SIZE) {
+        for (let i = 0; i < drawings.length; i += BATCH_SIZE) {
+          await processBatch(
+            zip,
+            drawings,
+            i,
+            Math.min(i + BATCH_SIZE, drawings.length),
+            exportedDrawingsMeta,
+          );
 
-          if (i + BATCH_SIZE < drawingIds.length) {
+          if (i + BATCH_SIZE < drawings.length) {
             await new Promise((resolve) => requestAnimationFrame(resolve));
           }
         }
       } else {
-        await processBatch(zip, drawingIds, 0, drawingIds.length);
+        await processBatch(zip, drawings, 0, drawings.length, exportedDrawingsMeta);
       }
+
+      const collections = await getCollections();
 
       const metadata: ExportMetadata = {
         exportedAt: new Date().toISOString(),
         count: drawings.length,
         version: EXPORT_VERSION,
+        collections,
+        drawings: exportedDrawingsMeta,
       };
       zip.file("data.json", JSON.stringify(metadata, null, 2));
 
@@ -94,7 +111,7 @@ export function useGalleryExport() {
     } finally {
       setIsExporting(false);
     }
-  }, [getAll, getFullData, t]);
+  }, [getAll, getCollections, getFullData, t]);
 
   return {
     isExporting,

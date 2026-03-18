@@ -12,6 +12,7 @@ import {
   getCollections as getCollectionsDB,
   updateCollection as updateCollectionDB,
   deleteCollection as deleteCollectionDB,
+  clearGalleryData as clearGalleryDataDB,
 } from "../../editor/utils/indexdb";
 
 export function useDrawingCrud() {
@@ -49,6 +50,10 @@ export function useDrawingCrud() {
     return collection;
   }, []);
 
+  const saveCollection = useCallback(async (collection: Collection) => {
+    await createCollectionDB(collection);
+  }, []);
+
   const getCollections = useCallback(async () => {
     return await getCollectionsDB();
   }, []);
@@ -68,6 +73,10 @@ export function useDrawingCrud() {
     }
   }, []);
 
+  const clearGalleryData = useCallback(async () => {
+    await clearGalleryDataDB();
+  }, []);
+
   return {
     save,
     getAll,
@@ -76,8 +85,10 @@ export function useDrawingCrud() {
     update,
     remove,
     createCollection,
+    saveCollection,
     getCollections,
     updateCollection,
     deleteCollection,
+    clearGalleryData,
   };
 }

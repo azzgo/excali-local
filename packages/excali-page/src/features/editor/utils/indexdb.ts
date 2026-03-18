@@ -212,3 +212,12 @@ export async function getDrawingsFilesOnly(): Promise<Array<{ id: string; files:
   
   return filesData;
 }
+
+export async function clearGalleryData(): Promise<void> {
+  const db = await initDB();
+  const tx = db.transaction([STORE_NAME, DRAWINGS_STORE, COLLECTIONS_STORE], "readwrite");
+  await tx.objectStore(STORE_NAME).clear();
+  await tx.objectStore(DRAWINGS_STORE).clear();
+  await tx.objectStore(COLLECTIONS_STORE).clear();
+  await tx.done;
+}

@@ -15,6 +15,8 @@ import {
   IconTrash,
   IconInfoCircle,
   IconFileZip,
+  IconUpload,
+  IconLoader2,
 } from "@tabler/icons-react";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
@@ -32,8 +34,15 @@ import DrawingCardSkeleton from "./drawing-card-skeleton";
 import CollectionManager from "./collection-manager";
 import SearchBar from "./search-bar";
 import SaveDialog from "./save-dialog";
-import { Suspense, useCallback, useState, useEffect, useMemo } from "react";
-import { IconLoader2 } from "@tabler/icons-react";
+import {
+  Suspense,
+  useCallback,
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  ChangeEvent,
+} from "react";
 import {
   Drawing,
   DrawingMetadata,
@@ -52,6 +61,7 @@ import { toast } from "sonner";
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
 import { Hint } from "@/components/ui/hint";
 import { loadDrawingToScene } from "../../editor/utils/excalidraw-api.helper";
+import { useGalleryImport, GalleryImportMode } from "../hooks/use-gallery-import";
 
 interface GallerySidebarProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
@@ -146,10 +156,17 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
   const { generateThumbnail } = useThumbnail();
   const { cleanupOrphanedFiles } = useFileCleanup(excalidrawAPI);
   const { isExporting, exportAllDrawingsToZip } = useGalleryExport();
+  const { isImporting, validateZipFile, importFromZip } = useGalleryImport(
+    generateThumbnail,
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [currentName, setCurrentName] = useState("");
   const [isCleaningUp, setIsCleaningUp] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importMode, setImportMode] = useState<GalleryImportMode>("append");
+  const [selectedImportFile, setSelectedImportFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [allDrawings, setAllDrawings] = useState<DrawingMetadata[]>([]);
   const [collections, setCollections] = useState<Collection[]>([]);
@@ -274,6 +291,13 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
     };
     loadCollections();
   }, [getCollections]);
+
+  const refreshGalleryData = useCallback(async () => {
+    const [drawings, galleryCollections] = await Promise.all([getAll(), getCollections()]);
+    setAllDrawings(drawings);
+    setCollections(galleryCollections);
+    setCurrentPage(1);
+  }, [getAll, getCollections]);
 
   const getDrawingName = async (id: string) => {
     try {
@@ -513,6 +537,45 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
     }
   }, [cleanupOrphanedFiles, t]);
 
+  const handleImportFileSelect = useCallback(
+    async (event: ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = "";
+      if (!file) return;
+
+      if (!file.name.toLowerCase().endsWith(".zip")) {
+        toast.error(t("Please select a ZIP file"));
+        return;
+      }
+
+      const isValid = await validateZipFile(file);
+      if (!isValid) {
+        return;
+      }
+
+      setSelectedImportFile(file);
+      setImportMode("append");
+      setImportDialogOpen(true);
+    },
+    [t, validateZipFile],
+  );
+
+  const handleImportConfirm = useCallback(async () => {
+    if (!selectedImportFile) return;
+    const result = await importFromZip(selectedImportFile, importMode);
+    if (result.importedCount > 0) {
+      await refreshGalleryData();
+    }
+    setImportDialogOpen(false);
+    setSelectedImportFile(null);
+  }, [importFromZip, importMode, refreshGalleryData, selectedImportFile]);
+
+  const handleImportCancel = useCallback(() => {
+    if (isImporting) return;
+    setImportDialogOpen(false);
+    setSelectedImportFile(null);
+  }, [isImporting]);
+
   return (
     <Sidebar
       name="gallery"
@@ -607,7 +670,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={exportAllDrawingsToZip}
-                      disabled={isExporting}
+                      disabled={isExporting || isImporting}
                       className="flex flex-row justify-between"
                     >
                       <div className="flex items-center justify-start w-full gap-2">
@@ -620,6 +683,29 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
                       </div>
                       <Hint
                         label={t("Export Gallery Info")}
+                        align="end"
+                        side="bottom"
+                      >
+                        <Button variant="ghost">
+                          <IconInfoCircle className="h-4 w-4 opacity-50 hover:opacity-100 transition-opacity" />
+                        </Button>
+                      </Hint>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isImporting || isExporting}
+                      className="flex flex-row justify-between"
+                    >
+                      <div className="flex items-center justify-start w-full gap-2">
+                        {isImporting ? (
+                          <IconLoader2 className="mr-2 size-4 animate-spin" />
+                        ) : (
+                          <IconUpload className="mr-2 size-4" />
+                        )}
+                        <span className="block">{t("Import Gallery")}</span>
+                      </div>
+                      <Hint
+                        label={t("Import Gallery Info")}
                         align="end"
                         side="bottom"
                       >
@@ -675,6 +761,68 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
         defaultName={currentName}
         collections={collections}
       />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".zip,application/zip"
+        className="hidden"
+        onChange={handleImportFileSelect}
+      />
+      {importDialogOpen && selectedImportFile && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all"
+          onClick={handleImportCancel}
+        >
+          <div
+            className="bg-card rounded-lg p-6 w-full max-w-md mx-4 border border-border shadow-xl animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-2">
+              {t("Import Gallery")}
+            </h2>
+            <p className="text-sm text-[var(--text-secondary-color)] mb-4 break-all">
+              {selectedImportFile.name}
+            </p>
+
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => setImportMode("append")}
+                className={`w-full text-left rounded-md border p-3 transition-colors ${importMode === "append" ? "border-[var(--color-primary)] bg-[var(--button-hover-bg)]" : "border-border"}`}
+              >
+                <div className="text-sm font-medium text-[var(--text-primary-color)]">
+                  {t("Append Import (Default)")}
+                </div>
+                <div className="text-xs text-[var(--text-secondary-color)] mt-1">
+                  {t("Append Import Description")}
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setImportMode("overwrite")}
+                className={`w-full text-left rounded-md border p-3 transition-colors ${importMode === "overwrite" ? "border-[var(--color-primary)] bg-[var(--button-hover-bg)]" : "border-border"}`}
+              >
+                <div className="text-sm font-medium text-[var(--text-primary-color)]">
+                  {t("Overwrite Restore")}
+                </div>
+                <div className="text-xs text-[var(--text-secondary-color)] mt-1">
+                  {t("Overwrite Restore Description")}
+                </div>
+              </button>
+            </div>
+
+            <div className="flex gap-2 justify-end mt-5">
+              <Button variant="ghost" onClick={handleImportCancel} disabled={isImporting}>
+                {t("Cancel")}
+              </Button>
+              <Button onClick={handleImportConfirm} disabled={isImporting}>
+                {isImporting ? <IconLoader2 className="h-4 w-4 animate-spin" /> : null}
+                <span>{t("Start Import")}</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </Sidebar>
   );
 };

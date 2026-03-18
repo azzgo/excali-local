@@ -22,6 +22,19 @@ export interface ExportMetadata {
   exportedAt: string;
   count: number;
   version: string;
+  collections?: Array<{
+    id: string;
+    name: string;
+    createdAt: number;
+  }>;
+  drawings?: Array<{
+    id: string;
+    name: string;
+    path: string;
+    collectionIds?: string[];
+    createdAt?: number;
+    updatedAt?: number;
+  }>;
 }
 
 /**

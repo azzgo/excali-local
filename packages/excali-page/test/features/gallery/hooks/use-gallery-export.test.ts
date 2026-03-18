@@ -1,16 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, waitFor, act } from "@testing-library/react";
+import { renderHook, waitFor } from "@testing-library/react";
 import { useGalleryExport } from "@/features/gallery/hooks/use-gallery-export";
 import { toast } from "sonner";
 import * as exportHelpers from "@/features/gallery/utils/export-helpers";
+import JSZip from "jszip";
 
 const mockGetAll = vi.fn();
 const mockGetFullData = vi.fn();
+const mockGetCollections = vi.fn();
 
 vi.mock("@/features/gallery/hooks/use-drawing-crud", () => ({
   useDrawingCrud: () => ({
     getAll: mockGetAll,
     getFullData: mockGetFullData,
+    getCollections: mockGetCollections,
   }),
 }));
 
@@ -44,6 +47,7 @@ vi.mock("@/features/gallery/utils/export-helpers", async () => {
 describe("useGalleryExport", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGetCollections.mockResolvedValue([]);
   });
 
   describe("initial state", () => {
@@ -248,6 +252,50 @@ describe("useGalleryExport", () => {
       expect(toast.success).toHaveBeenCalledWith(
         "Exported 3 drawings successfully"
       );
+    });
+
+    it("should include export metadata v1.1.0 with collections and drawing mapping", async () => {
+      mockGetAll.mockResolvedValue([
+        {
+          id: "drawing-1",
+          name: "Drawing 1",
+          collectionIds: ["collection-1"],
+          createdAt: 1000,
+          updatedAt: 2000,
+        },
+      ]);
+      mockGetCollections.mockResolvedValue([
+        { id: "collection-1", name: "Work", createdAt: 100 },
+      ]);
+      mockGetFullData.mockResolvedValue({
+        id: "drawing-1",
+        elements: "[]",
+        appState: "{}",
+        files: "{}",
+      });
+
+      const { result } = renderHook(() => useGalleryExport());
+      await result.current.exportAllDrawingsToZip();
+
+      const blob = vi.mocked(exportHelpers.downloadBlob).mock.calls[0]?.[0] as Blob;
+      const zip = await JSZip.loadAsync(blob);
+      const metadataRaw = await zip.file("data.json")?.async("string");
+      const metadata = JSON.parse(metadataRaw || "{}");
+
+      expect(metadata.version).toBe("1.1.0");
+      expect(metadata.collections).toEqual([
+        { id: "collection-1", name: "Work", createdAt: 100 },
+      ]);
+      expect(metadata.drawings).toEqual([
+        {
+          id: "drawing-1",
+          name: "Drawing 1",
+          path: "drawings/drawing_1.excalidraw",
+          collectionIds: ["collection-1"],
+          createdAt: 1000,
+          updatedAt: 2000,
+        },
+      ]);
     });
   });
 });

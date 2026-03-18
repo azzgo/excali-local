@@ -14,6 +14,7 @@ vi.mock("@/features/editor/utils/indexdb", () => ({
   getCollections: vi.fn(),
   updateCollection: vi.fn(),
   deleteCollection: vi.fn(),
+  clearGalleryData: vi.fn(),
 }));
 
 describe("useDrawingCrud", () => {
@@ -160,6 +161,20 @@ describe("useDrawingCrud", () => {
       expect(collections).toEqual(mockCollections);
     });
 
+    test("saveCollection should call createCollection with provided collection", async () => {
+      const collection: indexdb.Collection = {
+        id: "collection-1",
+        name: "Collection 1",
+        createdAt: Date.now(),
+      };
+
+      const { result } = renderHook(() => useDrawingCrud());
+      await result.current.saveCollection(collection);
+
+      expect(indexdb.createCollection).toHaveBeenCalledWith(collection);
+      expect(indexdb.createCollection).toHaveBeenCalledTimes(1);
+    });
+
     test("updateCollection should call updateCollection with id and updates", async () => {
       const { result } = renderHook(() => useDrawingCrud());
 
@@ -205,6 +220,14 @@ describe("useDrawingCrud", () => {
   });
 
   describe("Error Handling", () => {
+    test("clearGalleryData should call clearGalleryData", async () => {
+      const { result } = renderHook(() => useDrawingCrud());
+
+      await result.current.clearGalleryData();
+
+      expect(indexdb.clearGalleryData).toHaveBeenCalledTimes(1);
+    });
+
     test("save should propagate errors from saveDrawing", async () => {
       vi.mocked(indexdb.saveDrawing).mockRejectedValue(new Error("Save failed"));
 

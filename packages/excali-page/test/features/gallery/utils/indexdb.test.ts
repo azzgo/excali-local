@@ -10,6 +10,7 @@ import {
   getCollections,
   updateCollection,
   deleteCollection,
+  clearGalleryData,
   type Drawing,
   type DrawingMetadata,
   type Collection,
@@ -20,13 +21,21 @@ vi.mock("idb", () => {
     put: vi.fn(),
     get: vi.fn(),
     delete: vi.fn(),
+    clear: vi.fn(),
     getAll: vi.fn(),
     openCursor: vi.fn(),
     index: vi.fn(),
   };
 
+  const objectStoreMap: Record<string, { clear: ReturnType<typeof vi.fn> }> = {
+    files: { clear: vi.fn() },
+    drawings: { clear: vi.fn() },
+    collections: { clear: vi.fn() },
+  };
+
   const mockTransaction = {
     store: mockStore,
+    objectStore: vi.fn((name: string) => objectStoreMap[name] || { clear: vi.fn() }),
     done: Promise.resolve(),
   };
 
@@ -395,6 +404,26 @@ describe("IndexedDB - Lazy Loading Functions", () => {
       expect(result[0]).not.toHaveProperty("elements");
       expect(result[0]).not.toHaveProperty("appState");
       expect(result[0]).not.toHaveProperty("thumbnail");
+    });
+  });
+
+  describe("clearGalleryData", () => {
+    test("should clear files, drawings, and collections stores", async () => {
+      await clearGalleryData();
+
+      expect(mockDB.transaction).toHaveBeenCalledWith(
+        ["files", "drawings", "collections"],
+        "readwrite"
+      );
+      expect(mockTransaction.objectStore).toHaveBeenCalledWith("files");
+      expect(mockTransaction.objectStore).toHaveBeenCalledWith("drawings");
+      expect(mockTransaction.objectStore).toHaveBeenCalledWith("collections");
+      const returnedStores = mockTransaction.objectStore.mock.results.map(
+        (result: { value: { clear: ReturnType<typeof vi.fn> } }) => result.value
+      );
+      returnedStores.forEach((store: { clear: ReturnType<typeof vi.fn> }) => {
+        expect(store.clear).toHaveBeenCalledTimes(1);
+      });
     });
   });
 });
