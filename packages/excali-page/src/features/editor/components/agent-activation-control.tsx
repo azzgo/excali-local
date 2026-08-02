@@ -8,12 +8,18 @@
  * registry is wiped → the page offers one-click re-activate (never silent).
  */
 
+import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { IconRobot, IconRobotOff } from "@tabler/icons-react";
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
-import { useAgentBridge } from "../hooks/use-agent-bridge";
+import { Modal } from "@/components/ui/modal";
+import {
+  useAgentBridge,
+  type AgentBridgeActivateError,
+} from "../hooks/use-agent-bridge";
 
 interface AgentActivationControlProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
@@ -25,7 +31,27 @@ const AgentActivationControl = ({
   editorType,
 }: AgentActivationControlProps) => {
   const [t] = useTranslation();
-  const bridge = useAgentBridge({ excalidrawAPI, editorType });
+
+  // Surface activation failures (SW unreachable / consent denied) as a toast
+  // instead of the toggle silently doing nothing (review P2).
+  const handleActivateError = useCallback(
+    (reason: AgentBridgeActivateError) => {
+      const key =
+        reason === "transport"
+          ? "AgentActivateFailedTransport"
+          : reason === "consent-off"
+            ? "AgentActivateFailedConsent"
+            : "AgentActivateFailedNotActivatable";
+      toast.error(t(key));
+    },
+    [t],
+  );
+
+  const bridge = useAgentBridge({
+    excalidrawAPI,
+    editorType,
+    onActivateError: handleActivateError,
+  });
 
   // Kill-switch (Layer 0 OFF) / Gate 1 closed → nothing renders.
   if (!bridge.canActivate) return null;
@@ -74,59 +100,41 @@ const AgentActivationControl = ({
         </Button>
       </Hint>
 
-      {bridge.showConfirm && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all"
-          onClick={() => bridge.cancelConfirm()}
-        >
-          <div
-            className="bg-card rounded-lg p-6 w-full max-w-md mx-4 border border-border shadow-xl animate-in fade-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-2">
-              {t("AgentConfirmTitle")}
-            </h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              {t("AgentConfirmContent")}
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => bridge.cancelConfirm()}>
-                {t("Cancel")}
-              </Button>
-              <Button onClick={() => bridge.confirmActivation()}>
-                {t("AgentConfirmButton")}
-              </Button>
-            </div>
-          </div>
+      <Modal
+        open={bridge.showConfirm}
+        title={t("AgentConfirmTitle")}
+        onDismiss={() => bridge.cancelConfirm()}
+      >
+        <p className="text-sm text-muted-foreground mb-6">
+          {t("AgentConfirmContent")}
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => bridge.cancelConfirm()}>
+            {t("Cancel")}
+          </Button>
+          <Button onClick={() => bridge.confirmActivation()}>
+            {t("AgentConfirmButton")}
+          </Button>
         </div>
-      )}
+      </Modal>
 
-      {bridge.swRestartOffer && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all"
-          onClick={() => bridge.dismissReconnect()}
-        >
-          <div
-            className="bg-card rounded-lg p-6 w-full max-w-md mx-4 border border-border shadow-xl animate-in fade-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-2">
-              {t("AgentSessionEndedTitle")}
-            </h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              {t("AgentSessionEndedContent")}
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => bridge.dismissReconnect()}>
-                {t("AgentDismiss")}
-              </Button>
-              <Button onClick={() => bridge.acceptReconnect()}>
-                {t("AgentReactivate")}
-              </Button>
-            </div>
-          </div>
+      <Modal
+        open={bridge.swRestartOffer}
+        title={t("AgentSessionEndedTitle")}
+        onDismiss={() => bridge.dismissReconnect()}
+      >
+        <p className="text-sm text-muted-foreground mb-6">
+          {t("AgentSessionEndedContent")}
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => bridge.dismissReconnect()}>
+            {t("AgentDismiss")}
+          </Button>
+          <Button onClick={() => bridge.acceptReconnect()}>
+            {t("AgentReactivate")}
+          </Button>
         </div>
-      )}
+      </Modal>
     </>
   );
 };

@@ -340,4 +340,28 @@ describe("useAgentBridge", () => {
     ).toBe(false);
     expect(result.current.isActive).toBe(false);
   });
+
+  test("activation failure: SW unreachable → onActivateError('transport')", async () => {
+    setConsent(true, true);
+    const original = harness.browser.runtime.sendMessage.getMockImplementation();
+    harness.browser.runtime.sendMessage.mockImplementation(() =>
+      Promise.reject(new Error("no SW")),
+    );
+    const onError = vi.fn();
+    const { result } = renderHook(() =>
+      useAgentBridge({
+        excalidrawAPI: {} as never,
+        editorType: "local",
+        onActivateError: onError,
+      }),
+    );
+    try {
+      await waitFor(() => expect(result.current.canActivate).toBe(true));
+      act(() => result.current.toggleActivation());
+      act(() => result.current.confirmActivation());
+      await waitFor(() => expect(onError).toHaveBeenCalledWith("transport"));
+    } finally {
+      harness.browser.runtime.sendMessage.mockImplementation(original);
+    }
+  });
 });

@@ -74,14 +74,26 @@ export interface UseAgentBridgeResult {
   dismissReconnect(): void;
 }
 
+/** Why an activation request failed — surfaced via `onActivateError`. */
+export type AgentBridgeActivateError =
+  | "transport"
+  | "consent-off"
+  | "not-activatable";
+
 interface UseAgentBridgeOptions {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
   editorType: "local" | "quick";
+  /**
+   * Fired when an activation request is denied or can't reach the SW — lets
+   * the UI surface a transient error (e.g. toast) instead of failing silently.
+   */
+  onActivateError?: (reason: AgentBridgeActivateError) => void;
 }
 
 export function useAgentBridge({
   excalidrawAPI,
   editorType,
+  onActivateError,
 }: UseAgentBridgeOptions): UseAgentBridgeResult {
   const isLocal = editorType === "local";
 
@@ -102,10 +114,8 @@ export function useAgentBridge({
   const lastSwIdRef = useRef<string | null>(null);
   const wasActiveRef = useRef(false);
   const confirmShownRef = useRef(false);
-  const storageRef = useRef<{ masterOn: boolean; paired: boolean }>({
-    masterOn: false,
-    paired: false,
-  });
+  const onActivateErrorRef = useRef(onActivateError);
+  onActivateErrorRef.current = onActivateError;
   const excalidrawAPIRef = useRef(excalidrawAPI);
   excalidrawAPIRef.current = excalidrawAPI;
 
@@ -123,10 +133,6 @@ export function useAgentBridge({
         const consent = stored ?? AGENT_BRIDGE_DEFAULT_STORAGE;
         setMasterOn(consent.master);
         setPaired(consent.pairing);
-        storageRef.current = {
-          masterOn: consent.master,
-          paired: consent.pairing,
-        };
       })
       .catch(() => {});
 
@@ -139,10 +145,6 @@ export function useAgentBridge({
           AGENT_BRIDGE_DEFAULT_STORAGE) as AgentBridgeStorage;
         setMasterOn(consent.master);
         setPaired(consent.pairing);
-        storageRef.current = {
-          masterOn: consent.master,
-          paired: consent.pairing,
-        };
         // a new paired connection resets the first-time confirm
         if (consent.pairing) confirmShownRef.current = false;
       }
@@ -238,11 +240,21 @@ export function useAgentBridge({
   const requestActivation = useCallback(() => {
     if (!isLocal) return;
     void sendToSW({ type: AB_ACTIVATE }).then((reply) => {
-      const r = reply as { granted?: boolean } | undefined;
+      const r = reply as { granted?: boolean; reason?: string } | undefined;
       if (r?.granted) {
         sessionActiveRef.current = true;
         // isActive flips true when the SW broadcast STATE arrives
+        return;
       }
+      // Grant denied or the SW was unreachable — surface it instead of
+      // failing silently (review P2: silent activation failure).
+      const reason: AgentBridgeActivateError =
+        r?.reason === "consent-off"
+          ? "consent-off"
+          : r?.reason === "not-activatable"
+            ? "not-activatable"
+            : "transport";
+      onActivateErrorRef.current?.(reason);
     });
   }, [isLocal, sendToSW]);
 
@@ -289,6 +301,8 @@ export function useAgentBridge({
       return;
     }
 
+    const api = excalidrawAPIRef.current;
+    let portRef: number | null = null;
     const token = mintBridgeToken(); // ≥128-bit, per activation session
     const session = new AgentBridgeSession({
       origin,
@@ -303,8 +317,6 @@ export function useAgentBridge({
     });
     session.start();
 
-    const api = excalidrawAPIRef.current;
-    let portRef: number | null = null;
     window.excaliAPI = {
       excalidrawAPI: api,
       ping: () => session.ping(),
