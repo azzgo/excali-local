@@ -11,6 +11,7 @@ import { Hint } from "@/components/ui/hint";
 import { useAtomValue } from "jotai";
 import { galleryIsOpenAtom } from "../../gallery/store/gallery-atoms";
 import { useSlide } from "../hooks/use-slide";
+import AgentActivationControl from "./agent-activation-control";
 
 interface TopRightToolbarProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
@@ -84,6 +85,12 @@ const TopRightToolbar = ({
             {presentationMode ? <IconPresentationOff /> : <IconPresentation />}
           </Button>
         </Hint>
+      )}
+      {editorType === "local" && (
+        <AgentActivationControl
+          excalidrawAPI={excalidrawAPI}
+          editorType="local"
+        />
       )}
     </div>
   );

@@ -53,7 +53,7 @@ export const BRIDGE_RECONNECT_BASE_MS = 1000;
 export const BRIDGE_RECONNECT_MAX_MS = 15000;
 
 /** Page → SW heartbeat interval while an activation is live (keeps SW + epoch alive). */
-export const AGENT_BRIDGE_HEARTBEAT_MS = 25000;
+export const AGENT_BRIDGE_HEARTBEAT_MS = 20000;
 
 // WS message types (Leg B protocol framing — minimal custom JSON-RPC-ish)
 export const WS_HANDSHAKE = "handshake";
