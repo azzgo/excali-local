@@ -45,6 +45,9 @@ export const defaultWsFactory: WsFactory = (url) => new WebSocket(url);
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+// WebSocket readyState values (numeric — avoids depending on the global's constant)
+const WS_OPEN = 1;
+
 // ---------------------------------------------------------------------------
 // Single connection + token handshake
 // ---------------------------------------------------------------------------
@@ -77,7 +80,7 @@ export class AgentBridgeClient {
   constructor(private opts: AgentBridgeClientOptions) {}
 
   get isOpen(): boolean {
-    return !!this.ws && this.ws.readyState === WebSocket.OPEN;
+    return !!this.ws && this.ws.readyState === WS_OPEN;
   }
 
   /** Open the socket and complete the token handshake. Resolves true on handshake_ok. */
@@ -88,6 +91,11 @@ export class AgentBridgeClient {
         return;
       }
       this.connectResolve = resolve;
+      // connect-level timeout: covers the socket never opening (no open event)
+      this.handshakeTimer = setTimeout(
+        () => finish(false),
+        this.opts.handshakeTimeoutMs ?? BRIDGE_HANDSHAKE_TIMEOUT_MS,
+      );
       const ws = (this.opts.wsFactory ?? defaultWsFactory)(this.opts.url);
       this.ws = ws;
 
@@ -108,10 +116,6 @@ export class AgentBridgeClient {
             token: this.opts.token,
             origin: this.opts.origin,
           }),
-        );
-        this.handshakeTimer = setTimeout(
-          () => finish(false),
-          this.opts.handshakeTimeoutMs ?? BRIDGE_HANDSHAKE_TIMEOUT_MS,
         );
       };
       const onMessage = (event: unknown) => {
