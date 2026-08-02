@@ -127,5 +127,11 @@
   },
   "UnpairAgent": {
     "message": "Unpair agent"
+  },
+  "AgentPairingPaired": {
+    "message": "Paired — agent connection open"
+  },
+  "AgentPairingUnpaired": {
+    "message": "Not paired"
   }
 }

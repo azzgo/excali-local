@@ -127,5 +127,11 @@
   },
   "UnpairAgent": {
     "message": "解除 Agent 配对"
+  },
+  "AgentPairingPaired": {
+    "message": "已配对 — Agent 连接已打开"
+  },
+  "AgentPairingUnpaired": {
+    "message": "未配对"
   }
 }
