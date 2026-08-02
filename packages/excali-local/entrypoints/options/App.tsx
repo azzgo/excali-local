@@ -12,6 +12,7 @@ import { getFontConfig, saveFontConfig } from "excali-shared";
 import { toast } from "sonner";
 import { IconCheck, IconX } from "@tabler/icons-react";
 
+import AgentControl from "./AgentControl";
 const OptionsPage = () => {
   const formRef = useRef<HTMLFormElement>(null);
   const [fontConfig, setFontConfig] = useState<FontConfig>({
@@ -74,6 +75,9 @@ const OptionsPage = () => {
         onSubmit={handleSave}
         className="w-full min-w-xl max-w-2xl bg-white dark:bg-gray-800 shadow-md rounded-xl p-6 border border-gray-200 dark:border-gray-700 transition-colors duration-200"
       >
+        <div className="mb-6">
+          <AgentControl />
+        </div>
         <div className="mb-4">
           <header className="mb-4">
             <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">

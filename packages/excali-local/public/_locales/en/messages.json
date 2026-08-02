@@ -97,5 +97,35 @@
   },
   "OpenWithExcaliLocal": {
     "message": "Open with Excali Local"
+  },
+  "AgentControl": {
+    "message": "Agent control"
+  },
+  "AgentControlDescription": {
+    "message": "Allow a local agent to connect to and drive your canvases. Off by default; when off, all agent UI is hidden."
+  },
+  "AgentControlOn": {
+    "message": "Enabled"
+  },
+  "AgentControlOff": {
+    "message": "Disabled"
+  },
+  "AgentControlEnabledHint": {
+    "message": "Agent controls are available in the popup and on the Local editor."
+  },
+  "AgentControlDisabledHint": {
+    "message": "Agent controls are hidden everywhere."
+  },
+  "AgentPairing": {
+    "message": "Agent connection"
+  },
+  "AgentPairingDescription": {
+    "message": "Open a paired connection to your local agent bridge. Required before a canvas can be activated."
+  },
+  "PairAgent": {
+    "message": "Pair with agent"
+  },
+  "UnpairAgent": {
+    "message": "Unpair agent"
   }
 }

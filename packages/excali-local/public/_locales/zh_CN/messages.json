@@ -97,5 +97,35 @@
   },
   "OpenWithExcaliLocal": {
     "message": "使用 Excali Local 打开"
+  },
+  "AgentControl": {
+    "message": "Agent 控制"
+  },
+  "AgentControlDescription": {
+    "message": "允许本地 Agent 连接到你的画布并进行绘制。默认关闭；关闭时所有 Agent 界面均隐藏。"
+  },
+  "AgentControlOn": {
+    "message": "已启用"
+  },
+  "AgentControlOff": {
+    "message": "已禁用"
+  },
+  "AgentControlEnabledHint": {
+    "message": "Agent 控制在弹出菜单和本地编辑器中可用。"
+  },
+  "AgentControlDisabledHint": {
+    "message": "所有 Agent 界面均已隐藏。"
+  },
+  "AgentPairing": {
+    "message": "Agent 连接"
+  },
+  "AgentPairingDescription": {
+    "message": "打开与本地 Agent 桥的配对连接。激活画布前需要先配对。"
+  },
+  "PairAgent": {
+    "message": "与 Agent 配对"
+  },
+  "UnpairAgent": {
+    "message": "解除 Agent 配对"
   }
 }

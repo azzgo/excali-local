@@ -48,7 +48,7 @@ function genManifest(env: ConfigEnv) {
         description: "Capture select area",
       },
     },
-    permissions: ["activeTab", "scripting"],
+    permissions: ["activeTab", "scripting", "storage"],
     optional_host_permissions: ["file:///*.excalidraw"],
   };
 
