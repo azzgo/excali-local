@@ -81,3 +81,5 @@ export function getFileNameWithoutExtension(fileName: string) {
   }
   return fileName;
 }
+
+export * from "./agent-bridge"
