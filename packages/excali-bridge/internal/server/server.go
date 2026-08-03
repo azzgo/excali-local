@@ -323,7 +323,10 @@ func (s *Server) registerControl(cl *client) {
 	s.controls[cl.identity] = cl
 	s.mu.Unlock()
 	if prev != nil && prev != cl {
+		// Send `displaced` BEFORE closing so the displaced page stops its
+		// session (never re-enters the reconnect → re-displace thrash loop).
 		s.log.Printf("displacing prior control page (same profile)")
+		_ = s.sendJSON(prev.conn, map[string]any{typeKey: contract.WSDisplaced})
 		_ = prev.conn.Close()
 	}
 }

@@ -306,7 +306,12 @@ func TestSameProfileControlDisplaces(t *testing.T) {
 	if _, err := dialControlPage(t, s, "11111111-2222-4333-8444-555555555555", validToken); err != nil {
 		t.Fatal(err)
 	}
-	// The prior same-profile control connection is closed by the daemon.
+	// The prior same-profile control connection receives `displaced` BEFORE
+	// being closed — so the page stops its session (no reconnect thrash).
+	msg := mustReadJSON(t, a)
+	if msg["type"] != contract.WSDisplaced {
+		t.Fatalf("prior control got %v, want displaced before close", msg)
+	}
 	_ = a.SetReadDeadline(time.Now().Add(2 * time.Second))
 	if _, err := a.ReadMessage(); err == nil {
 		t.Fatal("prior same-profile control should have been closed")
