@@ -25,6 +25,7 @@ import {
   WS_HANDSHAKE_ERROR,
   WS_PING,
   WS_PONG,
+  WS_PROFILE_ID_FIELD,
 } from "excali-shared";
 
 // ---------------------------------------------------------------------------
@@ -58,6 +59,13 @@ export interface AgentBridgeClientOptions {
   origin: string;
   /** ≥128-bit per-activation-session handshake token. */
   token: string;
+  /**
+   * Connection role (goal 3): "control-page" for the paired-but-not-activated
+   * control connection. Absent/"page" = active-slot page; "agent" = CLI.
+   */
+  role?: string;
+  /** Per-profile uuid — REQUIRED by the daemon for page + control-page roles. */
+  profileId?: string;
   wsFactory?: WsFactory;
   handshakeTimeoutMs?: number;
   pingTimeoutMs?: number;
@@ -115,6 +123,8 @@ export class AgentBridgeClient {
             type: WS_HANDSHAKE,
             token: this.opts.token,
             origin: this.opts.origin,
+            ...(this.opts.role ? { role: this.opts.role } : {}),
+            ...(this.opts.profileId ? { [WS_PROFILE_ID_FIELD]: this.opts.profileId } : {}),
           }),
         );
       };
@@ -210,6 +220,10 @@ export interface FindBridgePortOptions {
   ports?: readonly number[];
   origin: string;
   token: string;
+  /** Connection role (goal 3: "control-page" for the paired control dial). */
+  role?: string;
+  /** Per-profile uuid — sent in the handshake (page + control-page roles). */
+  profileId?: string;
   wsFactory?: WsFactory;
   handshakeTimeoutMs?: number;
   /** Cached port from the previous connection — tried first, then re-scan. */
@@ -231,6 +245,8 @@ export async function findBridgePort(
       url: `ws://127.0.0.1:${port}`,
       origin: opts.origin,
       token: opts.token,
+      role: opts.role,
+      profileId: opts.profileId,
       wsFactory: opts.wsFactory,
       handshakeTimeoutMs: opts.handshakeTimeoutMs,
     });
@@ -262,6 +278,10 @@ export interface AgentBridgeSessionOptions {
   ports?: readonly number[];
   origin: string;
   token: string;
+  /** Connection role (goal 3: "control-page" for the paired control dial). */
+  role?: string;
+  /** Per-profile uuid — sent in the handshake (page + control-page roles). */
+  profileId?: string;
   wsFactory?: WsFactory;
   handshakeTimeoutMs?: number;
   pingTimeoutMs?: number;
@@ -334,6 +354,8 @@ export class AgentBridgeSession {
         ports: this.opts.ports,
         origin: this.opts.origin,
         token: this.opts.token,
+        role: this.opts.role,
+        profileId: this.opts.profileId,
         wsFactory: this.opts.wsFactory,
         handshakeTimeoutMs: this.opts.handshakeTimeoutMs,
         preferredPort: this.preferredPort,
@@ -353,6 +375,8 @@ export class AgentBridgeSession {
         url: `ws://127.0.0.1:${port}`,
         origin: this.opts.origin,
         token: this.opts.token,
+        role: this.opts.role,
+        profileId: this.opts.profileId,
         wsFactory: this.opts.wsFactory,
         handshakeTimeoutMs: this.opts.handshakeTimeoutMs,
         pingTimeoutMs: this.opts.pingTimeoutMs,

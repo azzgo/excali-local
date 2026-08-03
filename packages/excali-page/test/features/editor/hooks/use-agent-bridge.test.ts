@@ -8,6 +8,7 @@ import {
 	AB_READY,
 	AB_STATE,
 	AGENT_BRIDGE_STORAGE_KEY,
+	PROFILE_ID_STORAGE_KEY,
 } from "excali-shared";
 
 // ---------------------------------------------------------------------------
@@ -75,6 +76,8 @@ const harness = vi.hoisted(() => {
 	opts: {
 	  onStatus?: (s: string, info?: unknown) => void;
 	  onInbound?: (msg: Record<string, unknown>) => void;
+	  role?: string;
+	  profileId?: string;
 	};
 	started = false;
 	stopped = false;
@@ -83,6 +86,8 @@ const harness = vi.hoisted(() => {
 	constructor(opts: {
 	  onStatus?: (s: string, info?: unknown) => void;
 	  onInbound?: (msg: Record<string, unknown>) => void;
+	  role?: string;
+	  profileId?: string;
 	}) {
 	  this.opts = opts;
 	  MockSession.instances.push(this);
@@ -127,6 +132,29 @@ vi.mock("@/features/editor/lib/agent-bridge-client", () => ({
   findBridgePort: vi.fn(),
 }));
 
+// The gallery dispatcher is PURE — use the real one with mocked IndexedDB so
+// hook tests observe the genuine inbound → confirm-gate → response path.
+vi.mock("@/features/editor/utils/indexdb", () => ({
+  getDrawings: vi.fn(async () => []),
+  getDrawingFullData: vi.fn(),
+  getCollections: vi.fn(async () => []),
+  saveDrawing: vi.fn(),
+  updateDrawing: vi.fn(),
+  deleteDrawing: vi.fn(),
+  createCollection: vi.fn(),
+  updateCollection: vi.fn(),
+  deleteCollection: vi.fn(),
+}));
+vi.mock("@/features/editor/utils/excalidraw-api.helper", () => ({
+  loadDrawingToScene: vi.fn(),
+}));
+vi.mock("@/features/gallery/hooks/use-thumbnail", () => ({
+  useThumbnail: () => ({ generateThumbnail: vi.fn(async () => "data:image/webp;base64,x") }),
+}));
+vi.mock("@/features/gallery/hooks/use-gallery", () => ({
+  useGallery: () => ({ setCurrentLoadedDrawingId: vi.fn() }),
+}));
+
 const renderLocal = (excalidrawAPI: unknown = {}) =>
   renderHook(() =>
     useAgentBridge({ excalidrawAPI: excalidrawAPI as never, editorType: "local" }),
@@ -152,6 +180,14 @@ const broadcast = (state: {
 const setConsent = (master: boolean, pairing: boolean) => {
   harness.swState.storage[AGENT_BRIDGE_STORAGE_KEY] = { master, pairing };
 };
+
+// The control session is dialed FIRST (paired, no activation) — the active
+// session only exists after activation. Select by role; the effect may
+// re-create sessions when deps flip, so prefer the LATEST instance.
+const controlSession = () =>
+  [...harness.MockSession.instances].reverse().find((s) => s.opts.role === "control-page");
+const activeSession = () =>
+  [...harness.MockSession.instances].reverse().find((s) => s.opts.role !== "control-page");
 
 const fireStorageChange = (master: boolean, pairing: boolean) => {
   act(() => {
@@ -220,9 +256,10 @@ describe("useAgentBridge", () => {
     broadcast({ swInstanceId: "sw-1", activeTabId: 1, isActive: true });
     await waitFor(() => expect(result.current.isActive).toBe(true));
 
-    // WS session started + window.excaliAPI exposed with the excalidrawAPI
+    // WS sessions started (control on paired + active on activation) +
+    // window.excaliAPI exposed with the excalidrawAPI
     expect(harness.MockSession.instances.length).toBeGreaterThan(0);
-    expect(harness.MockSession.instances[0].started).toBe(true);
+    expect(harness.MockSession.instances.every((s) => s.started)).toBe(true);
     expect(window.excaliAPI?.excalidrawAPI).toBe(api);
   });
 
@@ -266,9 +303,10 @@ describe("useAgentBridge", () => {
 
     // tab B activates → SW broadcasts STATE active elsewhere
     broadcast({ swInstanceId: "sw-1", activeTabId: 2, isActive: false });
-    await waitFor(() => expect(result.current.isActive).toBe(false));
     await waitFor(() => expect(window.excaliAPI).toBeUndefined());
-    expect(harness.MockSession.instances[0].stopped).toBe(true);
+    // The ACTIVE session stops; the CONTROL session persists (still paired).
+    expect(activeSession()!.stopped).toBe(true);
+    expect(controlSession()!.stopped).toBe(false);
   });
 
   test("kill-switch: master OFF tears everything down immediately", async () => {
@@ -404,13 +442,15 @@ describe("useAgentBridge", () => {
 	expect(window.excaliAPI).toBeDefined();
 
 	// The daemon sends {type:"displaced"} on the live WS → the hook must stop
-	// the session (no reconnect), tell the SW (AB_DISPLACED), and flip the UI.
+	// the ACTIVE session (no reconnect), tell the SW (AB_DISPLACED), flip the UI.
 	act(() => {
-	  harness.MockSession.instances[0].opts.onInbound?.({ type: "displaced" });
+	  activeSession()!.opts.onInbound?.({ type: "displaced" });
 	});
 	await waitFor(() => expect(result.current.isActive).toBe(false));
 	expect(result.current.displaced).toBe(true);
-	expect(harness.MockSession.instances[0].stopped).toBe(true);
+	expect(activeSession()!.stopped).toBe(true);
+	// The control connection is untouched by active-slot displacement.
+	expect(controlSession()!.stopped).toBe(false);
 	expect(
 	  harness.swState.sendMessages.some((m: any) => m.type === AB_DISPLACED),
 	).toBe(true);
@@ -476,7 +516,7 @@ describe("useAgentBridge", () => {
 	broadcast({ swInstanceId: "sw-1", activeTabId: 1, isActive: true });
 	await waitFor(() => expect(result.current.isActive).toBe(true));
 
-	const session = harness.MockSession.instances[0];
+	const session = activeSession()!;
 	await act(async () => {
 	  session.opts.onInbound?.({ jsonrpc: "2.0", id: 6, method: "elements.clear", params: {} });
 	});
@@ -486,5 +526,116 @@ describe("useAgentBridge", () => {
 
 	// Flash auto-clears.
 	await waitFor(() => expect(result.current.destructiveFlash).toBeNull(), { timeout: 3000 });
+  });
+
+  // ------------------------------------------------------------------
+  // Goal 3 — paired-control connection (Option A)
+  // ------------------------------------------------------------------
+
+  test("paired (master+paired) dials a CONTROL session WITHOUT activation", async () => {
+    setConsent(true, true);
+    const { result } = renderLocal({});
+    await waitFor(() => expect(result.current.masterOn).toBe(true));
+    await waitFor(() => expect(controlSession()).toBeDefined());
+
+    // Control session present + started, role control-page, no activation.
+    expect(controlSession()!.opts.role).toBe("control-page");
+    expect(controlSession()!.started).toBe(true);
+    expect(activeSession()).toBeUndefined();
+    expect(result.current.isActive).toBe(false);
+    expect(window.excaliAPI).toBeUndefined(); // control only — no excaliAPI
+  });
+
+  test("profileId is minted once and persisted in chrome.storage.local", async () => {
+    setConsent(true, true);
+    const { result } = renderLocal({});
+    await waitFor(() => expect(result.current.profileId).not.toBeNull());
+    // Minted lazily on first need and persisted.
+    expect(harness.browser.storage.local.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        [PROFILE_ID_STORAGE_KEY]: result.current.profileId,
+      }),
+    );
+    // A second hook (another tab, same profile) reuses the persisted id.
+    const firstId = result.current.profileId;
+    const { result: second } = renderLocal({});
+    await waitFor(() => expect(second.current.profileId).toBe(firstId));
+  });
+
+  test("control connection dispatches gallery/v1 (real dispatcher, mocked IndexedDB)", async () => {
+    setConsent(true, true);
+    const { result } = renderLocal({});
+    await waitFor(() => expect(controlSession()).toBeDefined());
+
+    const session = controlSession()!;
+    await act(async () => {
+      session.opts.onInbound?.({ jsonrpc: "2.0", id: 7, method: "gallery.list", params: {} });
+    });
+    await waitFor(() => expect(session.sent.length).toBeGreaterThan(0));
+    expect(session.sent[0]).toMatchObject({ jsonrpc: "2.0", id: 7, result: [] });
+    expect(session.sent[0].error).toBeUndefined();
+  });
+
+  test("blocking gallery op shows the confirm modal; confirm executes, cancel returns -32005", async () => {
+    setConsent(true, true);
+    const { result } = renderLocal({});
+    await waitFor(() => expect(controlSession()).toBeDefined());
+    const session = controlSession()!;
+
+    // gallery.delete is BLOCKING → the confirm gate fires; the request stays
+    // pending until the user decides (page-side UX gate, 013/014).
+    await act(async () => {
+      session.opts.onInbound?.({ jsonrpc: "2.0", id: 8, method: "gallery.delete", params: { id: "d1" } });
+    });
+    await waitFor(() => expect(result.current.galleryConfirm).not.toBeNull());
+    expect(result.current.galleryConfirm?.method).toBe("gallery.delete");
+    expect(result.current.galleryConfirm?.params).toEqual({ id: "d1" });
+    expect(session.sent.length).toBe(0); // still pending
+
+    // User confirms → the op executes and the correlated response goes back.
+    act(() => result.current.confirmGallery());
+    await waitFor(() => expect(session.sent.length).toBeGreaterThan(0));
+    expect(session.sent[0]).toMatchObject({
+      jsonrpc: "2.0",
+      id: 8,
+      result: { id: "d1", deleted: true },
+    });
+    await waitFor(() => expect(result.current.galleryConfirm).toBeNull());
+  });
+
+  test("blocking gallery op cancelled → -32005 cancelled by user", async () => {
+    setConsent(true, true);
+    const { result } = renderLocal({});
+    await waitFor(() => expect(controlSession()).toBeDefined());
+    const session = controlSession()!;
+
+    await act(async () => {
+      session.opts.onInbound?.({ jsonrpc: "2.0", id: 9, method: "gallery.delete", params: { id: "d2" } });
+    });
+    await waitFor(() => expect(result.current.galleryConfirm).not.toBeNull());
+
+    act(() => result.current.cancelGallery());
+    await waitFor(() => expect(session.sent.length).toBe(1));
+    expect(session.sent[0]).toMatchObject({
+      jsonrpc: "2.0",
+      id: 9,
+      error: { code: -32005, message: expect.stringContaining("cancelled") },
+    });
+    await waitFor(() => expect(result.current.galleryConfirm).toBeNull());
+  });
+
+  test("control connection displaced (same-profile newer dial) → session stops, no reconnect", async () => {
+    setConsent(true, true);
+    const { result } = renderLocal({});
+    await waitFor(() => expect(controlSession()).toBeDefined());
+    const session = controlSession()!;
+
+    act(() => {
+      session.opts.onInbound?.({ type: "displaced" });
+    });
+    expect(session.stopped).toBe(true);
+    // Displacing the control connection must NOT touch activation state.
+    expect(result.current.isActive).toBe(false);
+    expect(result.current.displaced).toBe(false);
   });
 });
