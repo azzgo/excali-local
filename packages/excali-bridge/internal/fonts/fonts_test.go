@@ -279,9 +279,12 @@ func TestParseNameTableMacOnlyEvenLengthASCII(t *testing.T) {
 		pair(nameRec(1, 6, "AcademyEngravedLetPlain")),
 	}
 	// nameRec emits UTF-16BE payloads; for the platform-1 case we need raw
-	// ASCII — rebuild the strings as plain bytes.
+	// ASCII — rebuild the strings as plain bytes AND patch each record's
+	// length field (which was computed as 2× the UTF-16 byte length).
 	recs[0].str = []byte("AcademyEngravedLET")
 	recs[1].str = []byte("AcademyEngravedLetPlain")
+	binary.BigEndian.PutUint16(recs[0].rec[8:10], uint16(len(recs[0].str)))
+	binary.BigEndian.PutUint16(recs[1].rec[8:10], uint16(len(recs[1].str)))
 	fonts, err := ParseNameTable(buildSFNT(buildNameTable(recs)))
 	if err != nil {
 		t.Fatalf("ParseNameTable: %v", err)
