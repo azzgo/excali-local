@@ -22,15 +22,21 @@ export default defineConfig({
     port: 3000,
   },
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "src")
-    },
+	alias: {
+	  "@": path.resolve(__dirname, "src"),
+	},
   },
   plugins: [react(), tailwindcss()],
   test: {
-    environment: "happy-dom",
-    include: ["test/**/*.test.ts", "test/**/*.test.tsx"],
-    setupFiles: ["./test/setup.ts"],
+	environment: "happy-dom",
+	include: ["test/**/*.test.ts", "test/**/*.test.tsx"],
+	setupFiles: ["./test/setup.ts"],
+	// The patched tgz + roughjs use extensionless imports; vitest externalizes
+	// node_modules by default (strict ESM resolution fails). Inline them so
+	// Vite's resolver handles them — required for canvas/v1 real-helpers tests.
+	server: {
+	  deps: { inline: [/@excalidraw\/excalidraw/, /roughjs/] },
+	},
     onConsoleLog: (log) => {
       return !(log.includes('[test]') || log.includes('[font-injector]'));
     },
