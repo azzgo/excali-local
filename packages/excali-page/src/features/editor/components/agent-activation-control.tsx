@@ -8,7 +8,7 @@
  * registry is wiped → the page offers one-click re-activate (never silent).
  */
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { IconRobot, IconRobotOff } from "@tabler/icons-react";
@@ -48,10 +48,22 @@ const AgentActivationControl = ({
   );
 
   const bridge = useAgentBridge({
-    excalidrawAPI,
-    editorType,
-    onActivateError: handleActivateError,
+	  excalidrawAPI,
+	  editorType,
+	  onActivateError: handleActivateError,
   });
+
+  // Displacement toast: the daemon moved agent control to another canvas
+  // (a newer activation from any profile — Tickets 016/017). Fire once per
+  // displacement, not on every render.
+  const displacedShownRef = useRef(false);
+  useEffect(() => {
+	  if (bridge.displaced && !displacedShownRef.current) {
+		    displacedShownRef.current = true;
+		    toast.info(t("AgentDisplaced"));
+	  }
+	  if (!bridge.displaced) displacedShownRef.current = false;
+  }, [bridge.displaced, t]);
 
   // Kill-switch (Layer 0 OFF) / Gate 1 closed → nothing renders.
   if (!bridge.canActivate) return null;

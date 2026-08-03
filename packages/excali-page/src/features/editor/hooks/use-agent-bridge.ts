@@ -14,17 +14,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
 import {
-  AB_READY,
-  AB_STATE,
-  AB_ACTIVATE,
-  AB_DEACTIVATE,
-  AB_HEARTBEAT,
-  AGENT_BRIDGE_STORAGE_KEY,
-  AGENT_BRIDGE_DEFAULT_STORAGE,
-  AGENT_BRIDGE_HEARTBEAT_MS,
-  mintBridgeToken,
-  type AgentBridgeStorage,
-  type AgentBridgeStatePayload,
+	AB_READY,
+	AB_STATE,
+	AB_ACTIVATE,
+	AB_DEACTIVATE,
+	AB_DISPLACED,
+	AB_HEARTBEAT,
+	AGENT_BRIDGE_STORAGE_KEY,
+	AGENT_BRIDGE_DEFAULT_STORAGE,
+	AGENT_BRIDGE_HEARTBEAT_MS,
+	WS_DISPLACED,
+	mintBridgeToken,
+	type AgentBridgeStorage,
+	type AgentBridgeStatePayload,
 } from "excali-shared";
 import { getBrowser } from "@/lib/utils";
 import {
@@ -63,6 +65,12 @@ export interface UseAgentBridgeResult {
   connectedPort: number | null;
   /** true when the SW restarted while this canvas was active → offer re-activate. */
   swRestartOffer: boolean;
+  /**
+   * true (transient) when the daemon displaced this canvas — a newer
+   * activation from another profile took the cross-profile single-active slot
+   * (Tickets 016/017). Cleared on the next activation request.
+   */
+  displaced: boolean;
   /** first-time-per-connection confirm modal. */
   showConfirm: boolean;
   /** The activation toggle may be shown (master ON + paired + Local editor). */
@@ -108,6 +116,7 @@ export function useAgentBridge({
   const [connectedPort, setConnectedPort] = useState<number | null>(null);
   const [swRestartOffer, setSwRestartOffer] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [displacedNotice, setDisplacedNotice] = useState(false);
 
   // refs (avoid stale closures in listeners/timers)
   const sessionActiveRef = useRef(false);
@@ -238,8 +247,9 @@ export function useAgentBridge({
 
   // --- activation actions ----------------------------------------------------
   const requestActivation = useCallback(() => {
-    if (!isLocal) return;
-    void sendToSW({ type: AB_ACTIVATE }).then((reply) => {
+	if (!isLocal) return;
+	setDisplacedNotice(false);
+	void sendToSW({ type: AB_ACTIVATE }).then((reply) => {
       const r = reply as { granted?: boolean; reason?: string } | undefined;
       if (r?.granted) {
         sessionActiveRef.current = true;
@@ -314,6 +324,21 @@ export function useAgentBridge({
           portRef = info?.port ?? null;
         }
       },
+      onInbound: (msg) => {
+        if ((msg as { type?: string })?.type === WS_DISPLACED) {
+          // Daemon displaced us: a newer activation (any profile) took the
+          // cross-profile single-active slot (Tickets 016/017). Stop the
+          // session BEFORE the reconnect backoff re-dials (mirroring 003's
+          // "B deactivates A" at PC scope), tell the SW to clear our
+          // activeTabId, and flip the UI.
+          sessionActiveRef.current = false;
+          wasActiveRef.current = false;
+          setIsActive(false);
+          setDisplacedNotice(true);
+          session.stop();
+          void sendToSW({ type: AB_DISPLACED });
+        }
+      },
     });
     session.start();
 
@@ -350,6 +375,7 @@ export function useAgentBridge({
     connection,
     connectedPort,
     swRestartOffer,
+    displaced: displacedNotice,
     showConfirm,
     canActivate: isLocal && masterOn && paired,
     toggleActivation,

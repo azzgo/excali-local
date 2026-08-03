@@ -1,10 +1,11 @@
 import { PromiseWithResolver, WithResolvers } from "./lib/utils";
 import {
-  AB_READY,
-  AB_STATE,
-  AB_ACTIVATE,
-  AB_DEACTIVATE,
-  AB_HEARTBEAT,
+	AB_READY,
+	AB_STATE,
+	AB_ACTIVATE,
+	AB_DEACTIVATE,
+	AB_DISPLACED,
+	AB_HEARTBEAT,
   AGENT_BRIDGE_STORAGE_KEY,
   AGENT_BRIDGE_DEFAULT_STORAGE,
   type AgentBridgeStorage,
@@ -180,6 +181,18 @@ const handleAgentBridgeMessage = async (
       return;
     }
     case AB_DEACTIVATE: {
+      if (tabId != null && activeTabId === tabId) {
+        activeTabId = null;
+        broadcastState();
+      }
+      sendResponse(true);
+      return;
+    }
+    case AB_DISPLACED: {
+      // The daemon displaced this page: a newer activation (from any profile)
+      // took the cross-profile single-active slot (Tickets 016/017). Same
+      // teardown as DEACTIVATE; the type is distinct so the cause stays
+      // distinguishable (displacement is not the user deactivating).
       if (tabId != null && activeTabId === tabId) {
         activeTabId = null;
         broadcastState();

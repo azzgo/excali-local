@@ -120,6 +120,7 @@ export function initI18n() {
           "AgentActivateFailedTransport": "Couldn't activate agent control — is the bridge running?",
           "AgentActivateFailedConsent": "Agent control was turned off.",
           "AgentActivateFailedNotActivatable": "This canvas can't be activated.",
+          "AgentDisplaced": "Agent control was moved to another canvas on this device — this canvas is no longer active.",
         },
       },
       "zh-CN": {
@@ -237,6 +238,7 @@ export function initI18n() {
           "AgentActivateFailedTransport": "无法启用 Agent 控制——桥是否在运行？",
           "AgentActivateFailedConsent": "Agent 控制已关闭。",
           "AgentActivateFailedNotActivatable": "此画布无法被激活。",
+          "AgentDisplaced": "Agent 控制已转移到此设备上的另一个画布——此画布已不再受控。",
         },
       },
     },

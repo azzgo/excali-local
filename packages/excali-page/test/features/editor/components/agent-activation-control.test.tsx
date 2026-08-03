@@ -8,24 +8,28 @@ vi.mock("react-i18next", () => ({
 }));
 
 const bridgeMock = vi.hoisted(() => {
-  const base = (overrides: Partial<UseAgentBridgeResult> = {}): UseAgentBridgeResult => ({
-    masterOn: true,
-    paired: true,
-    isActive: false,
-    connection: "idle",
-    connectedPort: null,
-    swRestartOffer: false,
-    showConfirm: false,
-    canActivate: true,
-    toggleActivation: vi.fn(),
-    confirmActivation: vi.fn(),
-    cancelConfirm: vi.fn(),
-    acceptReconnect: vi.fn(),
-    dismissReconnect: vi.fn(),
-    ...overrides,
-  });
-  return { base };
+	const base = (overrides: Partial<UseAgentBridgeResult> = {}): UseAgentBridgeResult => ({
+	  masterOn: true,
+	  paired: true,
+	  isActive: false,
+	  connection: "idle",
+	  connectedPort: null,
+	  swRestartOffer: false,
+	  displaced: false,
+	  showConfirm: false,
+	  canActivate: true,
+	  toggleActivation: vi.fn(),
+	  confirmActivation: vi.fn(),
+	  cancelConfirm: vi.fn(),
+	  acceptReconnect: vi.fn(),
+	  dismissReconnect: vi.fn(),
+	  ...overrides,
+	});
+	return { base };
 });
+
+const toastMock = vi.hoisted(() => ({ error: vi.fn(), info: vi.fn() }));
+vi.mock("sonner", () => ({ toast: toastMock }));
 
 vi.mock("@/features/editor/hooks/use-agent-bridge", () => ({
   useAgentBridge: (opts: { editorType: "local" | "quick" }) => {
@@ -79,9 +83,15 @@ describe("AgentActivationControl", () => {
   });
 
   test("SW-restart offer renders with Re-activate", () => {
-    setOverrides({ swRestartOffer: true, isActive: false });
-    renderControl();
-    expect(screen.getByText("AgentSessionEndedTitle")).toBeTruthy();
-    expect(screen.getByText("AgentReactivate")).toBeTruthy();
+	setOverrides({ swRestartOffer: true, isActive: false });
+	renderControl();
+	expect(screen.getByText("AgentSessionEndedTitle")).toBeTruthy();
+	expect(screen.getByText("AgentReactivate")).toBeTruthy();
+  });
+
+  test("displaced: fires the displacement toast once", () => {
+	setOverrides({ displaced: true });
+	renderControl();
+	expect(toastMock.info).toHaveBeenCalledWith("AgentDisplaced");
   });
 });

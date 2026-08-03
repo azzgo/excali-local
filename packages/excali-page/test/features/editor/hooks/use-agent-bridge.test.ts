@@ -2,11 +2,12 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 import { useAgentBridge } from "@/features/editor/hooks/use-agent-bridge";
 import {
-  AB_ACTIVATE,
-  AB_DEACTIVATE,
-  AB_READY,
-  AB_STATE,
-  AGENT_BRIDGE_STORAGE_KEY,
+	AB_ACTIVATE,
+	AB_DEACTIVATE,
+	AB_DISPLACED,
+	AB_READY,
+	AB_STATE,
+	AGENT_BRIDGE_STORAGE_KEY,
 } from "excali-shared";
 
 // ---------------------------------------------------------------------------
@@ -70,14 +71,20 @@ const harness = vi.hoisted(() => {
   };
 
   class MockSession {
-    static instances: MockSession[] = [];
-    opts: { onStatus?: (s: string, info?: unknown) => void };
-    started = false;
-    stopped = false;
-    currentStatus = "idle";
-    constructor(opts: { onStatus?: (s: string, info?: unknown) => void }) {
-      this.opts = opts;
-      MockSession.instances.push(this);
+	static instances: MockSession[] = [];
+	opts: {
+	  onStatus?: (s: string, info?: unknown) => void;
+	  onInbound?: (msg: Record<string, unknown>) => void;
+	};
+	started = false;
+	stopped = false;
+	currentStatus = "idle";
+	constructor(opts: {
+	  onStatus?: (s: string, info?: unknown) => void;
+	  onInbound?: (msg: Record<string, unknown>) => void;
+	}) {
+	  this.opts = opts;
+	  MockSession.instances.push(this);
     }
     start() {
       this.started = true;
@@ -362,6 +369,40 @@ describe("useAgentBridge", () => {
       await waitFor(() => expect(onError).toHaveBeenCalledWith("transport"));
     } finally {
       harness.browser.runtime.sendMessage.mockImplementation(original);
-    }
+	}
+  });
+
+  test("displaced: daemon takes the slot (another profile) → session stops, AB_DISPLACED to SW, UI flips", async () => {
+	setConsent(true, true);
+	const { result } = renderLocal({});
+	await waitFor(() => expect(result.current.canActivate).toBe(true));
+	act(() => result.current.toggleActivation());
+	act(() => result.current.confirmActivation());
+	await waitFor(() =>
+	  expect(harness.swState.sendMessages.some((m: any) => m.type === AB_ACTIVATE)).toBe(
+	    true,
+	  ),
+	);
+	broadcast({ swInstanceId: "sw-1", activeTabId: 1, isActive: true });
+	await waitFor(() => expect(result.current.isActive).toBe(true));
+	expect(window.excaliAPI).toBeDefined();
+
+	// The daemon sends {type:"displaced"} on the live WS → the hook must stop
+	// the session (no reconnect), tell the SW (AB_DISPLACED), and flip the UI.
+	act(() => {
+	  harness.MockSession.instances[0].opts.onInbound?.({ type: "displaced" });
+	});
+	await waitFor(() => expect(result.current.isActive).toBe(false));
+	expect(result.current.displaced).toBe(true);
+	expect(harness.MockSession.instances[0].stopped).toBe(true);
+	expect(
+	  harness.swState.sendMessages.some((m: any) => m.type === AB_DISPLACED),
+	).toBe(true);
+	await waitFor(() => expect(window.excaliAPI).toBeUndefined());
+
+	// Re-activating clears the displaced notice.
+	act(() => result.current.toggleActivation());
+	act(() => result.current.confirmActivation());
+	await waitFor(() => expect(result.current.displaced).toBe(false));
   });
 });
