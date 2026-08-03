@@ -14,9 +14,14 @@ const bridgeMock = vi.hoisted(() => {
 	  isActive: false,
 	  connection: "idle",
 	  connectedPort: null,
+	  profileId: "11111111-2222-4333-8444-555555555555",
+	  controlConnection: "idle",
 	  swRestartOffer: false,
 	  displaced: false,
 	  destructiveFlash: null,
+	  galleryConfirm: null,
+	  confirmGallery: vi.fn(),
+	  cancelGallery: vi.fn(),
 	  showConfirm: false,
 	  canActivate: true,
 	  toggleActivation: vi.fn(),
@@ -102,5 +107,23 @@ describe("AgentActivationControl", () => {
 	const flash = screen.getByTestId("agent-destructive-flash");
 	expect(flash).toBeTruthy();
 	expect(flash.textContent).toContain("AgentDestructiveOp");
+  });
+
+  test("gallery BLOCKING confirm: renders the modal; Confirm/Cancel wired", () => {
+	const confirmGallery = vi.fn();
+	const cancelGallery = vi.fn();
+	setOverrides({
+	  galleryConfirm: { method: "gallery.delete", params: { id: "d1" }, key: 7 },
+	  confirmGallery,
+	  cancelGallery,
+	});
+	renderControl();
+	expect(screen.getByText("AgentGalleryConfirmTitle")).toBeTruthy();
+	expect(screen.getByText("AgentGalleryConfirmContent")).toBeTruthy();
+	const confirmBtn = screen.getByTestId("agent-gallery-confirm");
+	confirmBtn.click();
+	expect(confirmGallery).toHaveBeenCalled();
+	screen.getByTestId("agent-gallery-cancel").click();
+	expect(cancelGallery).toHaveBeenCalled();
   });
 });

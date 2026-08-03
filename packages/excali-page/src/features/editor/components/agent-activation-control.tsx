@@ -161,6 +161,36 @@ const AgentActivationControl = ({
           </Button>
         </div>
       </Modal>
+
+      {/**
+       * Gallery BLOCKING confirm (013/014): a global destructive gallery op
+       * (delete/rename/collections.delete/collections.rename/save-overwrite)
+       * waits on the user. Rendered on BOTH active and control-only paired
+       * pages. The protocol layer stays non-blocking — the request is simply
+       * held until the user decides (confirm → execute; cancel → -32005).
+       */}
+      <Modal
+        open={bridge.galleryConfirm != null}
+        title={t("AgentGalleryConfirmTitle")}
+        onDismiss={() => bridge.cancelGallery()}
+      >
+        <p className="text-sm text-muted-foreground mb-6">
+          {t("AgentGalleryConfirmContent", {
+            method: bridge.galleryConfirm?.method ?? "",
+          })}
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" data-testid="agent-gallery-cancel" onClick={() => bridge.cancelGallery()}>
+            {t("Cancel")}
+          </Button>
+          <Button
+            data-testid="agent-gallery-confirm"
+            onClick={() => bridge.confirmGallery()}
+          >
+            {t("AgentConfirmButton")}
+          </Button>
+        </div>
+      </Modal>
     </>
   );
 };
