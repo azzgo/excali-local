@@ -278,6 +278,27 @@ func TestControlPageHandshakeRequiresProfileID(t *testing.T) {
 	}
 }
 
+func TestIdentityHandshakeRejectsInvalidProfileID(t *testing.T) {
+	s := startServer(t)
+	// A malformed profileId (not a uuid shape) is rejected for page roles.
+	c, err := ws.Dial(context.Background(), fmt.Sprintf("127.0.0.1:%d", s.Port()), testOrigin, 2*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if err := writeJSON(c, map[string]any{
+		"type": contract.WSHandshake, "token": validToken, "origin": testOrigin,
+		"role":                  contract.RolePage,
+		contract.ProfileIDField: "not-a-uuid",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	reply := mustReadJSON(t, c)
+	if reply["type"] != contract.WSHandshakeError || reply["reason"] != "missing-profile-id" {
+		t.Fatalf("page with invalid profileId reply = %v", reply)
+	}
+}
+
 func TestControlPagesAreNotSingleton(t *testing.T) {
 	s := startServer(t)
 	// Two DIFFERENT profiles each hold a control connection simultaneously —
@@ -387,12 +408,16 @@ func TestPairedRoutingSingleControlFallback(t *testing.T) {
 func TestPairedRoutingAmbiguousControlPages(t *testing.T) {
 	s := startServer(t)
 	// NO canvas, TWO control pages → -32004 disambiguation error, never a guess.
-	if _, err := dialControlPage(t, s, "11111111-2222-4333-8444-555555555555", validToken); err != nil {
+	controlA, err := dialControlPage(t, s, "11111111-2222-4333-8444-555555555555", validToken)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dialControlPage(t, s, "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", validToken); err != nil {
+	defer controlA.Close()
+	controlB, err := dialControlPage(t, s, "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", validToken)
+	if err != nil {
 		t.Fatal(err)
 	}
+	defer controlB.Close()
 	agent, err := dialAgent(t, s, contract.LegAProtocolVersion)
 	if err != nil {
 		t.Fatal(err)
@@ -403,6 +428,15 @@ func TestPairedRoutingAmbiguousControlPages(t *testing.T) {
 	errObj, ok := reply["error"].(map[string]any)
 	if !ok || errObj["code"] != float64(contract.JSONRPCErrorAmbiguousTarget) {
 		t.Fatalf("expected -32004 ambiguous, got %v", reply)
+	}
+
+	// The headline guarantee: NEITHER control page received the request — the
+	// daemon must never silently pick one when the target is ambiguous.
+	for name, c := range map[string]*ws.Conn{"A": controlA, "B": controlB} {
+		_ = c.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
+		if msg, err := c.ReadMessage(); err == nil {
+			t.Fatalf("control %s received %v on an ambiguous paired-only op — never a silent guess", name, string(msg))
+		}
 	}
 }
 
@@ -423,9 +457,11 @@ func TestPairedRoutingNoPageAtAll(t *testing.T) {
 func TestCanvasBoundIgnoresControlPages(t *testing.T) {
 	s := startServer(t)
 	// gallery.load/save are ACTIVATED — control pages must NOT satisfy them.
-	if _, err := dialControlPage(t, s, "11111111-2222-4333-8444-555555555555", validToken); err != nil {
+	control, err := dialControlPage(t, s, "11111111-2222-4333-8444-555555555555", validToken)
+	if err != nil {
 		t.Fatal(err)
 	}
+	defer control.Close()
 	agent, err := dialAgent(t, s, contract.LegAProtocolVersion)
 	if err != nil {
 		t.Fatal(err)
@@ -436,6 +472,20 @@ func TestCanvasBoundIgnoresControlPages(t *testing.T) {
 	errObj, ok := reply["error"].(map[string]any)
 	if !ok || errObj["code"] != float64(contract.JSONRPCErrorNoActiveCanvas) {
 		t.Fatalf("gallery.load with only controls = %v, want -32001", reply)
+	}
+
+	// The control page must NOT have received the canvas-bound op.
+	_ = control.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
+	if msg, err := control.ReadMessage(); err == nil {
+		t.Fatalf("control page received canvas-bound op %v — controls don't satisfy ACTIVATED", string(msg))
+	}
+
+	// gallery.save is ACTIVATED too.
+	sendRPC(t, agent, 26, "gallery.save", map[string]any{"name": "x"})
+	reply = rpcReply(t, agent, 26)
+	errObj, ok = reply["error"].(map[string]any)
+	if !ok || errObj["code"] != float64(contract.JSONRPCErrorNoActiveCanvas) {
+		t.Fatalf("gallery.save with only controls = %v, want -32001", reply)
 	}
 }
 
