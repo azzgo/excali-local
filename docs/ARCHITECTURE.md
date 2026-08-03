@@ -9,13 +9,14 @@ Excalidraw **fully offline**: screenshot annotation, an offline editor, a local 
 with collections, presentation mode, and custom fonts. No backend — all data in
 IndexedDB / localStorage.
 
-Bun workspaces, three packages:
+Bun workspaces, three packages (plus a Go package that is NOT a workspace member):
 
 | Package | Role |
 | --- | --- |
 | `packages/excali-local` | **Extension shell** (WXT). Generates the MV3 manifest; hosts the background service worker, content script, crop script, popup, and options page. Embeds the built editor from `excali-page`. |
 | `packages/excali-page` | **Editor app** (React 19 + Vite 5). The Excalidraw UI — editor, gallery, presentation, marker. Ships as a standalone web app and as the extension's editor. |
 | `packages/excali-shared` | **Shared layer**. Font-config IndexedDB (`excali-fonts`) + pure utils/types (`cn`, `getBrowser`, `getLang`). Imported via the `excali-shared` workspace alias. |
+| `packages/excali-bridge` | **Go daemon** (Go, not Bun). The Agent Bridge: a 127.0.0.1-only WS server + agent CLI. Cross-profile single-active-canvas arbiter. See the bridge section below. |
 
 ## Repository layout
 
@@ -42,6 +43,9 @@ packages/
       lib/ locales/        # utils + i18n
     test/                  # mirrors src/features/...; setup.ts + provider.helper.tsx
   excali-shared/src/       # db.ts (fonts) + index.ts (shared utils/types)
+  excali-bridge/           # Go daemon (NOT a bun workspace): go.mod + main.go +
+    internal/              #   contract (wire mirror), pidfile, ws (RFC 6455),
+    bin/                   #   server (daemon), client (Leg-A CLI); bin/ gitignored
 scripts/                   # build.ts clean.ts tar.ts zip.ts sync-version.sh
 .github/workflows/release.yml
 ```
@@ -61,6 +65,40 @@ Message `type` values are string literals (no enum). Defined in
 - **Editor → background**: `READY` (editor finished booting; can accept canvas updates).
 
 Adding a message type: update both the background router and the editor hook.
+
+## Agent bridge daemon (cross-profile single-active-canvas)
+
+The **Agent Bridge** lets an external local agent drive the activated canvas. It is a
+**three-layer opt-in consent** (Wayfinder 003): Options master switch (Layer 0, default
+OFF = kill-switch) → popup pairing (Gate 1) → per-canvas activation on the Local editor
+page (Gate 2; Quick never activates). The background SW is the per-profile control plane
+(ephemeral activation registry `{activeTabId, swInstanceId}`); the page owns the WS data
+path and exposes `window.excaliAPI` only while active.
+
+The **Go daemon** (`packages/excali-bridge`, Tickets 009/016/017) is the **cross-profile
+arbiter** — the only entity shared across browsers/profiles (loopback). One self-contained
+binary, two faces:
+
+- **serve** — 127.0.0.1-only WS server on the fixed range `[17331..17335]` (first free
+  wins). Auth per 011: origin allow-list (`chrome-extension://<id>`) at upgrade + ≥128-bit
+  per-session hex token in the `handshake` message (never logged). Holds **≤1 active page**
+  keyed on the WS connection (never tabId — per-profile, not global); a new activation
+  **displaces** the prior page: it receives `{type:"displaced"}`, then its socket closes.
+  The page hook stops its session on `displaced`, tells its SW (`AGENT_BRIDGE_DISPLACED`),
+  and flips the UI. Agent CLI connections handshake with `role:"agent"` — authenticated but
+  never claiming the slot (a CLI ping must not kick the active canvas).
+- **ping / status** — Leg-A agent CLI: versioned minimal JSON-RPC over the same WS server
+  (ADR 0001; only `ping` framing in scope; `canvas/v1+` is a follow-up). CLI subcommand ==
+  JSON-RPC method. Lazy daemon: the first CLI command spawns `serve` detached if needed.
+- **Single-instance** = fixed-path pidfile `~/.excali-local/bridge.pid` holding
+  `{pid, port}` **only** (never the token, per 011/017); stale pid cleaned up; a later
+  invocation finds a live pid + answering daemon → reuses, no respawn.
+
+Wire contract: `packages/excali-shared/src/agent-bridge.ts` is the source of truth for
+the Leg-B message types/ports/token rules; `packages/excali-bridge/internal/contract/`
+mirrors it (single source of truth TBD: code-gen vs documented duplication). The
+e2e harness `scripts/agent-bridge/driver.ts` exercises the page's real client code against
+the daemon (ping round-trip + two-page displacement proof).
 
 ## Editor boot & forms
 
@@ -100,6 +138,9 @@ Three editor components under `features/editor/components/`:
 | `packages/excali-page/src/features/editor/utils/indexdb.ts` | `excali` DB schema (v2) + gallery CRUD. |
 | `packages/excali-page/src/features/editor/components/local-editor.tsx` | Main editor UI + save pipeline. |
 | `packages/excali-page/src/features/gallery/store/gallery-atoms.ts` | Gallery Jotai state. |
-| `packages/excali-shared/src/db.ts` + `index.ts` | Font-config storage + shared utils/types. |
+| `packages/excali-shared/src/db.ts` + `index.ts` | Font-config storage + shared utils/types.
+| `packages/excali-shared/src/agent-bridge.ts` | Agent-bridge wire contract (ports, WS types, token rules, consent keys).
+| `packages/excali-bridge/` (`main.go` + `internal/`) | Go daemon: WS server + agent CLI, pidfile single-instance, displacement. |
+| `scripts/agent-bridge/driver.ts` | e2e driver: page client vs the Go daemon (ping + displacement). |
 | `scripts/{build,clean,tar,zip}.ts` + `sync-version.sh` | Build/pack/version tooling. |
 | `.github/workflows/release.yml` | Tag → test → build → pack → draft release. |

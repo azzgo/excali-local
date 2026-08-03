@@ -17,7 +17,9 @@
 | `bun run local:build` | Build the extension for Chrome **and** Firefox (WXT). |
 | `bun run local:tar` / `local:zip` | Pack `.output/` into release archives. |
 | `bun run local:clean` | Remove `public/editor`, `.output`, archives. |
-| `bun run sync:version` | Propagate root version to all `package.json`s. |
+| `bun run sync:version` | Propagate root version to all `package.json`s.
+| `bun run bridge:build` | `go build` the Go bridge daemon into `excali-bridge/bin/` (gitignored).
+| `bun run bridge:test` | `go test ./...` for the Go daemon. |
 
 > `README.md` mentions `bun run local:dev`, but **no such script exists**. To develop
 > the extension UI use `page:dev`; for the full extension, build and load
@@ -30,6 +32,13 @@
 2. `local:build` runs WXT, which packages the shell + the embedded editor into
    `.output/chrome-mv3` and `.output/firefox-mv3`.
 3. `local:tar` / `local:zip` archive `.output/` for release.
+
+**Go bridge daemon** (`packages/excali-bridge`): NOT a bun workspace. Build/test with
+`bun run bridge:build` / `bridge:test` (plain `go build` / `go test`; stdlib-only, no
+module downloads, so it builds offline). The daemon is NOT packaged into the extension —
+it is the agent-side binary (skill packaging/distribution is a follow-up goal).
+Verify against the extension with `bun scripts/agent-bridge/driver.ts` (spawns the daemon
+lazily via the CLI).
 
 `public/editor/`, `.output/`, `.wxt/`, `dist/`, and `*.tgz` (except the committed
 Excalidraw dep) are gitignored build artifacts — skip them when exploring.

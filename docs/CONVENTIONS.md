@@ -44,6 +44,23 @@ Check which package you're in before importing.
 - **`excali-fonts` (v1):** single `fontConfig` store keyed by `"font-config"`
   (`excali-shared/src/db.ts`).
 
+## Agent bridge (Go daemon)
+
+- **Wire contract**: `packages/excali-shared/src/agent-bridge.ts` is the single source
+  of truth for the Leg-B protocol (ports, WS message types, token rules, consent
+  keys). The Go daemon mirrors it in `packages/excali-bridge/internal/contract/` —
+  change both together (code-gen is a tracked follow-up).
+- **Auth posture (011)**: loopback-only; origin allow-list `chrome-extension://<id>` at
+  the WS upgrade; ≥128-bit per-session hex token in the `handshake` message. The token
+  is **never logged or persisted** — the pidfile holds `{pid, port}` only.
+- **Displacement (016/017)**: the daemon holds ≤1 active page; a new activation
+  displaces the prior — it receives `{type:"displaced"}` then its socket closes. The
+  page hook stops its session and sends `AGENT_BRIDGE_DISPLACED` to its SW. The SW
+  (per-profile control plane) stays the consent/UI authority; the daemon is the
+  cross-profile arbiter.
+- **Leg A (agent CLI)**: versioned minimal JSON-RPC (ADR 0001); CLI subcommand ==
+  method. Only `ping` framing exists today (`canvas/v1+` is a follow-up).
+
 ## Testing
 
 Vitest + Testing Library + happy-dom. Tests mirror `src/features/...` under

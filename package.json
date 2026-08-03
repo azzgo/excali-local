@@ -10,7 +10,9 @@
     "local:build": "bun ./scripts/build.ts",
     "local:tar": "bun ./scripts/tar.ts",
     "local:zip": "bun ./scripts/zip.ts",
-    "sync:version": "bash ./scripts/sync-version.sh"
+    "sync:version": "bash ./scripts/sync-version.sh",
+    "bridge:build": "cd packages/excali-bridge && go build -o bin/excali-bridge .",
+    "bridge:test": "cd packages/excali-bridge && go test ./..."
   },
   "workspaces": [
     "packages/*"

@@ -4,11 +4,18 @@
 runs Excalidraw **fully offline**: screenshot annotation, an offline editor, a local
 gallery, presentation mode, custom fonts. No backend; all data in IndexedDB.
 
-Bun-workspaces monorepo, three packages:
+Bun-workspaces monorepo, three packages (plus one Go package that is NOT a workspace
+member — it builds with `go build`, not Bun):
 
 - `packages/excali-local` — WXT **extension shell** (manifest, background, content, crop, popup, options).
 - `packages/excali-page` — React 19 + Vite **editor app** (the Excalidraw UI).
 - `packages/excali-shared` — font-config DB + shared utils/types.
+- `packages/excali-bridge` — **Go daemon** (NOT a bun workspace): the Agent Bridge
+  (Tickets 009/016/017) — a 127.0.0.1-only WS server (Leg B: the activated editor
+  page dials out) + agent CLI (Leg A: versioned minimal JSON-RPC). Cross-profile
+  single-active-canvas arbiter: pidfile single-instance, ≤1 active page, new
+  activation displaces. Wire contract mirrored from `excali-shared/src/agent-bridge.ts`
+  (single source of truth TBD). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 This file is **agent guidance + routing**, not a repo manual. For the why and the
 detail, read the doc relevant to your task (links below).
@@ -24,6 +31,9 @@ detail, read the doc relevant to your task (links below).
   (users have existing data). Two DBs: `excali` (gallery) and `excali-fonts`. See
   [docs/CONVENTIONS.md](docs/CONVENTIONS.md).
 - **Two i18n systems** — chrome.i18n (shell) vs i18next (page). Don't mix.
+- **`packages/excali-bridge` is Go, not a Bun workspace** — `bun install`/workspace
+  tooling ignores it. Build with `bun run bridge:build` (`go build`); its Leg-B wire
+  contract MUST mirror `excali-shared/src/agent-bridge.ts` (`internal/contract/`).
 - **Exploration is read-only.** Don't run `bun install`, don't commit, don't write
   files beyond the change you were asked to make.
 - After page edits, run `bun run page:test` (and `page:build` if testing the extension).
@@ -37,7 +47,10 @@ detail, read the doc relevant to your task (links below).
 | `bun run page:test` | Vitest suite. |
 | `bun run local:build` | Build extension (Chrome + Firefox). |
 | `bun run local:tar` / `local:zip` | Pack release archives. |
-| `bun run sync:version` | Sync version across all packages. |
+| `bun run sync:version` | Sync version across all packages.
+| `bun run bridge:build` | `go build` the Go bridge daemon into `excali-bridge/bin/` (gitignored).
+| `bun run bridge:test` | `go test ./...` for the Go daemon (ws codec, pidfile, server).
+
 
 Full list + build/release/CSP detail: [docs/BUILD_AND_RELEASE.md](docs/BUILD_AND_RELEASE.md).
 
