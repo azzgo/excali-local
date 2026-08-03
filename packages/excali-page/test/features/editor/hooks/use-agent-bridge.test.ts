@@ -79,6 +79,7 @@ const harness = vi.hoisted(() => {
 	started = false;
 	stopped = false;
 	currentStatus = "idle";
+	sent: unknown[] = [];
 	constructor(opts: {
 	  onStatus?: (s: string, info?: unknown) => void;
 	  onInbound?: (msg: Record<string, unknown>) => void;
@@ -87,14 +88,17 @@ const harness = vi.hoisted(() => {
 	  MockSession.instances.push(this);
     }
     start() {
-      this.started = true;
+	  this.started = true;
     }
     stop() {
-      this.stopped = true;
-      this.currentStatus = "stopped";
+	  this.stopped = true;
+	  this.currentStatus = "stopped";
     }
     ping() {
-      return Promise.resolve(true);
+	  return Promise.resolve(true);
+    }
+    sendJSON(obj: unknown) {
+	  this.sent.push(obj);
     }
   }
 
@@ -102,7 +106,19 @@ const harness = vi.hoisted(() => {
 });
 
 vi.mock("@/lib/utils", () => ({
-  getBrowser: () => harness.browser,
+	getBrowser: () => harness.browser,
+}));
+
+// The canvas/v1 helpers import the patched-tgz module (its dev chunk has
+// extensionless imports vitest can't resolve) — the dispatcher's real
+// behavior is covered by canvas-v1 unit tests with injected fakes.
+vi.mock("@/features/editor/lib/canvas-v1-helpers", () => ({
+	buildCanvasV1Helpers: () => ({
+	  convertToExcalidrawElements: vi.fn(),
+	  getCommonBounds: vi.fn(),
+	  exportPng: vi.fn(),
+	  exportSvg: vi.fn(),
+	}),
 }));
 
 vi.mock("@/features/editor/lib/agent-bridge-client", () => ({
@@ -404,5 +420,71 @@ describe("useAgentBridge", () => {
 	act(() => result.current.toggleActivation());
 	act(() => result.current.confirmActivation());
 	await waitFor(() => expect(result.current.displaced).toBe(false));
+  });
+
+  test("inbound canvas/v1 RPC: dispatches to excalidrawAPI, sends the correlated response", async () => {
+	setConsent(true, true);
+	const api = {
+	  getSceneElements: () => [{ id: "a" }],
+	  getAppState: () => ({}),
+	  getFiles: () => ({}),
+	};
+	const { result } = renderLocal(api);
+	await waitFor(() => expect(result.current.canActivate).toBe(true));
+	act(() => result.current.toggleActivation());
+	act(() => result.current.confirmActivation());
+	await waitFor(() =>
+	  expect(harness.swState.sendMessages.some((m: any) => m.type === AB_ACTIVATE)).toBe(
+	    true,
+	  ),
+	);
+	broadcast({ swInstanceId: "sw-1", activeTabId: 1, isActive: true });
+	await waitFor(() => expect(result.current.isActive).toBe(true));
+
+	const session = harness.MockSession.instances[0];
+	await act(async () => {
+	  session.opts.onInbound?.({ jsonrpc: "2.0", id: 5, method: "scene.get", params: {} });
+	});
+	await waitFor(() => expect(session.sent.length).toBeGreaterThan(0));
+	expect(session.sent[0]).toMatchObject({
+	  jsonrpc: "2.0",
+	  id: 5,
+	  result: { elements: [{ id: "a" }], appState: {}, files: {} },
+	});
+	expect(session.sent[0].error).toBeUndefined();
+  });
+
+  test("inbound destructive RPC: fires the one-shot destructive flash", async () => {
+	setConsent(true, true);
+	const api = {
+	  updateScene: vi.fn(),
+	  resetScene: vi.fn(),
+	  history: { clear: vi.fn() },
+	  getSceneElements: () => [],
+	  getAppState: () => ({}),
+	  getFiles: () => ({}),
+	};
+	const { result } = renderLocal(api);
+	await waitFor(() => expect(result.current.canActivate).toBe(true));
+	act(() => result.current.toggleActivation());
+	act(() => result.current.confirmActivation());
+	await waitFor(() =>
+	  expect(harness.swState.sendMessages.some((m: any) => m.type === AB_ACTIVATE)).toBe(
+	    true,
+	  ),
+	);
+	broadcast({ swInstanceId: "sw-1", activeTabId: 1, isActive: true });
+	await waitFor(() => expect(result.current.isActive).toBe(true));
+
+	const session = harness.MockSession.instances[0];
+	await act(async () => {
+	  session.opts.onInbound?.({ jsonrpc: "2.0", id: 6, method: "elements.clear", params: {} });
+	});
+	await waitFor(() => expect(result.current.destructiveFlash).not.toBeNull());
+	expect(result.current.destructiveFlash?.method).toBe("elements.clear");
+	expect(api.updateScene).toHaveBeenCalledWith({ elements: [], captureUpdate: "IMMEDIATELY" });
+
+	// Flash auto-clears.
+	await waitFor(() => expect(result.current.destructiveFlash).toBeNull(), { timeout: 3000 });
   });
 });

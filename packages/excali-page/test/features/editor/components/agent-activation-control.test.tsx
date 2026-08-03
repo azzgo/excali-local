@@ -16,6 +16,7 @@ const bridgeMock = vi.hoisted(() => {
 	  connectedPort: null,
 	  swRestartOffer: false,
 	  displaced: false,
+	  destructiveFlash: null,
 	  showConfirm: false,
 	  canActivate: true,
 	  toggleActivation: vi.fn(),
@@ -93,5 +94,13 @@ describe("AgentActivationControl", () => {
 	setOverrides({ displaced: true });
 	renderControl();
 	expect(toastMock.info).toHaveBeenCalledWith("AgentDisplaced");
+  });
+
+  test("destructive canvas/v1 op: renders the non-blocking amber flash", () => {
+	setOverrides({ destructiveFlash: { method: "elements.clear", key: 1 } });
+	renderControl();
+	const flash = screen.getByTestId("agent-destructive-flash");
+	expect(flash).toBeTruthy();
+	expect(flash.textContent).toContain("AgentDestructiveOp");
   });
 });
