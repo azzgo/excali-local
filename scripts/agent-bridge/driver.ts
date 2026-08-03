@@ -19,6 +19,10 @@
  * Run:
  *   bun run bridge:build                          (once: builds the Go daemon)
  *   bun scripts/agent-bridge/driver.ts            (spawns the daemon lazily)
+ *
+ * NOTE: the driver's page sessions claim the active slot — running it while a
+ * real canvas is active will displace that canvas (the intended daemon
+ * behavior). Run it when no real activation is live.
  */
 
 import { join } from "node:path";
