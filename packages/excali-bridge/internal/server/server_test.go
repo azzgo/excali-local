@@ -21,11 +21,21 @@ const validToken = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789ab
 
 func startServer(t *testing.T) *Server {
 	t.Helper()
-	s := New(Config{
+	return startServerCfg(t, testConfig(t))
+}
+
+func testConfig(t *testing.T) Config {
+	t.Helper()
+	return Config{
 		Ports:   []int{0}, // ephemeral for tests
 		Pidfile: filepath.Join(t.TempDir(), "bridge.pid"),
 		Logger:  log.New(testWriter{t}, "test ", 0),
-	})
+	}
+}
+
+func startServerCfg(t *testing.T, cfg Config) *Server {
+	t.Helper()
+	s := New(cfg)
 	done := make(chan error, 1)
 	go func() { done <- s.ListenAndServe() }()
 	t.Cleanup(func() {

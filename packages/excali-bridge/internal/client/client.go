@@ -154,23 +154,85 @@ func spawnDaemon(opts Options) error {
 	return nil
 }
 
-// Ping performs a JSON-RPC `ping` round-trip against the daemon (subcommand ==
-// method). It returns the decoded result ("pong") or an error.
-func Ping(ctx context.Context, opts Options) (string, error) {
+// RPCError is a JSON-RPC error response surfaced to the CLI.
+type RPCError struct {
+	Code    int
+	Message string
+}
+
+func (e *RPCError) Error() string {
+	return fmt.Sprintf("rpc error %d: %s", e.Code, e.Message)
+}
+
+// Call performs a JSON-RPC request against the daemon (subcommand == method),
+// lazily ensuring the daemon is up. Returns the raw result bytes, or an
+// *RPCError for JSON-RPC-level failures.
+func Call(ctx context.Context, opts Options, method string, params any) (json.RawMessage, error) {
 	opts.fill()
-	port, err := EnsureDaemon(ctx, opts)
+	c, err := connect(ctx, opts)
 	if err != nil {
-		return "", err
-	}
-	c, err := ws.Dial(ctx, fmt.Sprintf("127.0.0.1:%d", port), Origin, opts.Timeout)
-	if err != nil {
-		return "", fmt.Errorf("connect: %w", err)
+		return nil, err
 	}
 	defer c.Close()
 
-	token, err := mintToken() // per-invocation, never logged
+	id := randomID()
+	req := map[string]any{"jsonrpc": "2.0", "id": id, "method": method}
+	if params != nil {
+		req["params"] = params
+	}
+	if err := writeJSON(c, req); err != nil {
+		return nil, err
+	}
+	for {
+		resp, err := readJSON(c)
+		if err != nil {
+			return nil, err
+		}
+		if rid, _ := resp["id"].(string); rid != id {
+			continue // not our response
+		}
+		if errObj, ok := resp["error"].(map[string]any); ok {
+			code, _ := errObj["code"].(float64)
+			return nil, &RPCError{Code: int(code), Message: fmt.Sprint(errObj["message"])}
+		}
+		result, err := json.Marshal(resp["result"])
+		if err != nil {
+			return nil, err
+		}
+		return result, nil
+	}
+}
+
+// Ping performs a JSON-RPC `ping` round-trip (returns "pong").
+func Ping(ctx context.Context, opts Options) (string, error) {
+	result, err := Call(ctx, opts, "ping", map[string]any{})
 	if err != nil {
 		return "", err
+	}
+	var s string
+	if err := json.Unmarshal(result, &s); err != nil {
+		return "", err
+	}
+	return s, nil
+}
+
+// connect ensures the daemon is up and returns an authenticated agent WS
+// connection (origin + ≥128-bit token handshake, role=agent — never claims
+// the active slot).
+func connect(ctx context.Context, opts Options) (*ws.Conn, error) {
+	port, err := EnsureDaemon(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	c, err := ws.Dial(ctx, fmt.Sprintf("127.0.0.1:%d", port), Origin, opts.Timeout)
+	if err != nil {
+		return nil, fmt.Errorf("connect: %w", err)
+	}
+
+	token, err := mintToken() // per-invocation, never logged
+	if err != nil {
+		c.Close()
+		return nil, err
 	}
 	handshake := map[string]any{
 		"type":    contract.WSHandshake,
@@ -180,29 +242,25 @@ func Ping(ctx context.Context, opts Options) (string, error) {
 		"version": contract.LegAProtocolVersion,
 	}
 	if err := writeJSON(c, handshake); err != nil {
-		return "", err
+		c.Close()
+		return nil, err
 	}
 	reply, err := readJSON(c)
 	if err != nil {
-		return "", err
+		c.Close()
+		return nil, err
 	}
 	if t, _ := reply["type"].(string); t != contract.WSHandshakeOK {
-		return "", fmt.Errorf("handshake rejected: %v", reply["reason"])
+		c.Close()
+		return nil, fmt.Errorf("handshake rejected: %v", reply["reason"])
 	}
+	return c, nil
+}
 
-	req := map[string]any{"jsonrpc": "2.0", "id": 1, "method": "ping", "params": map[string]any{}}
-	if err := writeJSON(c, req); err != nil {
-		return "", err
-	}
-	resp, err := readJSON(c)
-	if err != nil {
-		return "", err
-	}
-	if errObj, ok := resp["error"].(map[string]any); ok {
-		return "", fmt.Errorf("rpc error %v: %v", errObj["code"], errObj["message"])
-	}
-	result, _ := resp["result"].(string)
-	return result, nil
+func randomID() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return "cli-" + hex.EncodeToString(b)
 }
 
 func writeJSON(c *ws.Conn, v any) error {

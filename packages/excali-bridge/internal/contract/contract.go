@@ -70,7 +70,7 @@ var CanvasV1Methods = [...]string{
 
 // DaemonLocalMethods resolve locally (no page involved) — like ping.
 var DaemonLocalMethods = map[string]bool{
-	"ping":            true,
+	"ping":             true,
 	"commands.list":    true,
 	"protocol.version": true,
 }

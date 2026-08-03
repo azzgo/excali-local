@@ -14,7 +14,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -22,6 +24,7 @@ import (
 	"syscall"
 
 	"github.com/excali-local/excali-bridge/internal/client"
+	"github.com/excali-local/excali-bridge/internal/contract"
 	"github.com/excali-local/excali-bridge/internal/pidfile"
 	"github.com/excali-local/excali-bridge/internal/server"
 )
@@ -31,36 +34,48 @@ func main() {
 }
 
 func run(args []string) int {
-	cmd := "serve"
-	if len(args) > 0 {
-		cmd = args[0]
+	if len(args) == 0 {
+		return cmdServe()
 	}
+	cmd := args[0]
 	switch cmd {
 	case "serve":
 		return cmdServe()
-	case "ping":
-		return cmdPing()
 	case "status":
 		return cmdStatus()
 	case "help", "--help", "-h":
 		usage()
 		return 0
-	default:
-		fmt.Fprintf(os.Stderr, "excali-bridge: unknown command %q\n", cmd)
-		usage()
-		return 2
 	}
+	// CLI subcommand == JSON-RPC method (canvas/v1 + ping):
+	//   excali-bridge scene.get
+	//   excali-bridge scene.update '{"elements":[...]}'
+	if contract.IsCanvasV1Method(cmd) || cmd == "ping" {
+		var paramsJSON string
+		if len(args) > 1 {
+			paramsJSON = args[1]
+		}
+		return cmdCall(cmd, paramsJSON)
+	}
+	fmt.Fprintf(os.Stderr, "excali-bridge: unknown command %q\n", cmd)
+	usage()
+	return 2
 }
 
 func usage() {
 	fmt.Fprintf(os.Stderr, `excali-bridge — Agent Bridge daemon (Leg B: WS server for the editor page; Leg A: agent CLI)
 
 Usage:
-  excali-bridge serve     run the daemon on 127.0.0.1:[17331..17335] (first free);
-                          writes the pidfile; runs until SIGINT/SIGTERM
-  excali-bridge ping      JSON-RPC ping round-trip (spawns the daemon lazily)
-  excali-bridge status    report daemon status from pidfile + /health
-  excali-bridge help      this help
+  excali-bridge serve        run the daemon on 127.0.0.1:[17331..17335] (first free);
+                             writes the pidfile; runs until SIGINT/SIGTERM
+  excali-bridge <method>     JSON-RPC call (subcommand == method); spawns the daemon lazily:
+                             ping | scene.get | scene.elements | scene.state | scene.bounds |
+                             scene.exportPng | scene.exportSvg | scene.update | elements.add |
+                             elements.clear | scene.reset | files.add | tool.setActive |
+                             view.scrollTo | history.clear | commands.list | protocol.version
+                             args = optional params JSON (e.g. '{"elements":[...]}')
+  excali-bridge status       report daemon status from pidfile + /health
+  excali-bridge help         this help
 
 Env:
   EXCALI_BRIDGE_PIDFILE   override the pidfile path
@@ -102,14 +117,29 @@ func cmdServe() int {
 	return 0
 }
 
-func cmdPing() int {
-	opts := client.Options{}
-	result, err := client.Ping(context.Background(), opts)
+// cmdCall runs a JSON-RPC method as a CLI subcommand: `excali-bridge <method> [json]`.
+// Prints the result JSON on success (exit 0); the RPC error on failure (exit 1).
+func cmdCall(method, paramsJSON string) int {
+	var params any
+	if paramsJSON != "" {
+		if err := json.Unmarshal([]byte(paramsJSON), &params); err != nil {
+			fmt.Fprintf(os.Stderr, "excali-bridge %s: invalid params JSON: %v\n", method, err)
+			return 2
+		}
+	} else {
+		params = map[string]any{}
+	}
+	result, err := client.Call(context.Background(), client.Options{}, method, params)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "excali-bridge ping: %v\n", err)
+		fmt.Fprintf(os.Stderr, "excali-bridge %s: %v\n", method, err)
 		return 1
 	}
-	fmt.Printf("pong (result=%q)\n", result)
+	var pretty bytes.Buffer
+	if err := json.Indent(&pretty, result, "", "  "); err == nil {
+		fmt.Println(pretty.String())
+	} else {
+		fmt.Println(string(result))
+	}
 	return 0
 }
 

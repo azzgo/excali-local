@@ -60,7 +60,6 @@ type client struct {
 	authed bool
 }
 
-// Config configures the daemon server.
 type Config struct {
 	// Ports is the fixed range to bind (first free wins). Default: contract.BridgePorts.
 	Ports []int
@@ -70,6 +69,9 @@ type Config struct {
 	Pidfile string
 	// Logger receives non-token daemon logs.
 	Logger *log.Logger
+	// RPCTimeout bounds how long a routed agent request may wait for the active
+	// page to answer before the daemon fails it (default 60s; large exports are slow).
+	RPCTimeout time.Duration
 }
 
 // Server is the bridge daemon.
@@ -83,6 +85,10 @@ type Server struct {
 	clients   map[*ws.Conn]*client
 	srv       *http.Server
 	closeOnce sync.Once
+
+	rpcMu      sync.Mutex
+	pending    map[string]*pendingRPC // key: JSON-RPC id (raw bytes as string)
+	rpcTimeout time.Duration
 }
 
 // New returns a configured server.
@@ -93,7 +99,16 @@ func New(cfg Config) *Server {
 	if cfg.Logger == nil {
 		cfg.Logger = log.New(os.Stderr, "[bridge] ", log.LstdFlags)
 	}
-	return &Server{cfg: cfg, log: cfg.Logger, clients: map[*ws.Conn]*client{}}
+	if cfg.RPCTimeout <= 0 {
+		cfg.RPCTimeout = defaultRPCTimeout
+	}
+	return &Server{
+		cfg:        cfg,
+		log:        cfg.Logger,
+		clients:    map[*ws.Conn]*client{},
+		pending:    map[string]*pendingRPC{},
+		rpcTimeout: cfg.RPCTimeout,
+	}
 }
 
 // Port returns the bound port (valid after ListenAndServe has started).
@@ -144,6 +159,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		if s.srv != nil {
 			_ = s.srv.Close() // stops the listener + idle conns
 		}
+		s.failAllPending(contract.JSONRPCErrorPageDisconnected, "daemon shutting down")
 		s.mu.Lock()
 		conns := make([]*ws.Conn, 0, len(s.clients))
 		for c := range s.clients {
@@ -217,7 +233,7 @@ func (s *Server) serveConn(cl *client) {
 			s.sendJSON(c, map[string]any{typeKey: contract.WSHandshakeError, "reason": "not-authenticated"})
 			return
 		}
-		s.handleMessage(cl, m)
+		s.handleMessage(cl, m, msg)
 	}
 }
 
@@ -273,7 +289,7 @@ func (s *Server) claimActive(cl *client) {
 }
 
 // handleMessage dispatches Leg-B (type) and Leg-A (JSON-RPC) messages.
-func (s *Server) handleMessage(cl *client, m map[string]any) {
+func (s *Server) handleMessage(cl *client, m map[string]any, raw []byte) {
 	switch m[typeKey] {
 	case contract.WSPing:
 		_ = s.sendJSON(cl.conn, map[string]any{typeKey: contract.WSPong})
@@ -283,26 +299,65 @@ func (s *Server) handleMessage(cl *client, m map[string]any) {
 	}
 	// Leg A: JSON-RPC 2.0 requests carry a "method" field (never a "type").
 	if _, hasMethod := m["method"]; hasMethod {
-		s.handleRPC(cl, m)
+		s.handleRPC(cl, m, raw)
+		return
+	}
+	// Page JSON-RPC responses (jsonrpc + id + result/error, no "type") route
+	// back to the waiting agent request.
+	if isRPCResponse(m) {
+		s.routeResponse(cl, raw)
 		return
 	}
 	_ = s.sendJSON(cl.conn, map[string]any{typeKey: "error", "message": "unknown message type"})
 }
 
+func isRPCResponse(m map[string]any) bool {
+	if m["jsonrpc"] != "2.0" {
+		return false
+	}
+	if _, ok := m["id"]; !ok {
+		return false
+	}
+	if _, hasResult := m["result"]; hasResult {
+		return true
+	}
+	_, hasError := m["error"]
+	return hasError
+}
+
 // handleRPC serves the versioned minimal JSON-RPC (ADR 0001, Ticket 005).
-// Only `ping` is in scope for this goal (canvas/v1+ is a follow-up).
-func (s *Server) handleRPC(cl *client, m map[string]any) {
-	id, _ := m["id"].(json.RawMessage)
+// Local methods (ping/commands.list/protocol.version) resolve here; canvas/v1
+// methods are routed to the single active page.
+func (s *Server) handleRPC(cl *client, m map[string]any, raw []byte) {
 	if m["jsonrpc"] != "2.0" {
 		s.sendRPCError(cl, nil, -32600, "invalid request")
 		return
 	}
+	id := rpcID(raw)
 	method, _ := m["method"].(string)
+	switch {
+	case contract.DaemonLocalMethods[method]:
+		s.handleLocalMethod(cl, id, method)
+	case contract.IsCanvasV1Method(method):
+		s.routeToActive(cl, id, raw)
+	default:
+		s.sendRPCError(cl, id, -32601, "method not found")
+	}
+}
+
+// handleLocalMethod resolves daemon-local methods without involving the page.
+func (s *Server) handleLocalMethod(cl *client, id json.RawMessage, method string) {
 	switch method {
 	case "ping":
 		s.sendRPCResult(cl, id, "pong")
-	default:
-		s.sendRPCError(cl, id, -32601, "method not found")
+	case "commands.list":
+		methods := make([]string, 0, len(contract.CanvasV1Methods))
+		for _, m := range contract.CanvasV1Methods {
+			methods = append(methods, m)
+		}
+		s.sendRPCResult(cl, id, methods)
+	case "protocol.version":
+		s.sendRPCResult(cl, id, contract.CanvasV1Protocol)
 	}
 }
 
@@ -342,6 +397,9 @@ func (s *Server) cleanup(cl *client) {
 	}
 	s.mu.Unlock()
 	_ = cl.conn.Close()
+	// A disconnecting page must not leave agent requests hanging (displacement /
+	// tab close / daemon shutdown): fail any in-flight request routed to it.
+	s.failPendingFor(cl, contract.JSONRPCErrorPageDisconnected, "active canvas disconnected")
 }
 
 // keepalive sends protocol pings so idle-but-alive connections (and their
@@ -428,4 +486,142 @@ func pidfileAliveAndHealthy(override string) error {
 		return errors.New("health reports not ok")
 	}
 	return nil
+}
+
+// defaultRPCTimeout is how long the daemon waits for the active page to answer
+// a routed agent request before failing it (large PNG exports are slow).
+const defaultRPCTimeout = 60 * time.Second
+
+// pendingRPC tracks an agent request forwarded to the active page.
+type pendingRPC struct {
+	agent *client // requester to receive the response
+	page  *client // page the request was routed to
+	id    json.RawMessage
+	timer *time.Timer // timeout → fail the request
+}
+
+// rpcID extracts the exact raw JSON-RPC id bytes from a request/response.
+func rpcID(raw []byte) json.RawMessage {
+	var req struct {
+		ID json.RawMessage `json:"id"`
+	}
+	if err := json.Unmarshal(raw, &req); err != nil {
+		return nil
+	}
+	return req.ID
+}
+
+// rpcIDKey keys the pending map: the raw id bytes as a string. Both the
+// request (from the agent) and the response (echoed by the page) carry the
+// same id bytes, so the correlation is deterministic.
+func rpcIDKey(raw []byte) string {
+	return string(rpcID(raw))
+}
+
+// routeToActive forwards a canvas/v1 agent request to the single active page
+// (Ticket 010 topology: agent ↔ daemon ↔ page) and registers a pending
+// response correlation keyed by JSON-RPC id. Guards: no active page → error;
+// duplicate in-flight id → error; page never answers → timeout error.
+func (s *Server) routeToActive(cl *client, id json.RawMessage, raw []byte) {
+	s.mu.Lock()
+	active := s.active
+	s.mu.Unlock()
+	if active == nil || active == cl {
+		s.sendRPCError(cl, id, contract.JSONRPCErrorNoActiveCanvas, "no active canvas")
+		return
+	}
+	key := rpcIDKey(raw)
+
+	s.rpcMu.Lock()
+	if _, dup := s.pending[key]; dup {
+		s.rpcMu.Unlock()
+		s.sendRPCError(cl, id, -32600, "duplicate request id in flight")
+		return
+	}
+	p := &pendingRPC{agent: cl, page: active, id: id}
+	p.timer = time.AfterFunc(s.rpcTimeout, func() {
+		s.rpcMu.Lock()
+		if s.pending[key] == p {
+			delete(s.pending, key)
+			s.rpcMu.Unlock()
+			s.sendRPCError(cl, id, contract.JSONRPCErrorPageTimeout, "active canvas did not respond in time")
+			return
+		}
+		s.rpcMu.Unlock()
+	})
+	s.pending[key] = p
+	s.rpcMu.Unlock()
+
+	if err := active.conn.WriteText(raw); err != nil {
+		s.failPendingKey(key, contract.JSONRPCErrorPageDisconnected, "active canvas unavailable")
+	}
+}
+
+// routeResponse forwards a page JSON-RPC response back to the waiting agent.
+func (s *Server) routeResponse(cl *client, raw []byte) {
+	key := rpcIDKey(raw)
+	s.rpcMu.Lock()
+	p, ok := s.pending[key]
+	if ok {
+		p.timer.Stop()
+		delete(s.pending, key)
+	}
+	s.rpcMu.Unlock()
+	if !ok {
+		return // stale (timed out / already failed) — ignore
+	}
+	_ = p.agent.conn.WriteText(raw)
+}
+
+// failPendingKey fails a single pending request by id (used when the forward
+// write to the page fails immediately).
+func (s *Server) failPendingKey(key string, code int, message string) {
+	s.rpcMu.Lock()
+	p, ok := s.pending[key]
+	if ok {
+		delete(s.pending, key)
+	}
+	s.rpcMu.Unlock()
+	if !ok {
+		return
+	}
+	p.timer.Stop()
+	s.sendRPCError(p.agent, p.id, code, message)
+}
+
+// failPendingFor fails every in-flight request routed to a given page
+// (called from cleanup when a page disconnects).
+func (s *Server) failPendingFor(page *client, code int, message string) {
+	s.rpcMu.Lock()
+	var keys []string
+	var pendings []*pendingRPC
+	for key, p := range s.pending {
+		if p.page == page {
+			keys = append(keys, key)
+			pendings = append(pendings, p)
+		}
+	}
+	for _, key := range keys {
+		delete(s.pending, key)
+	}
+	s.rpcMu.Unlock()
+	for _, p := range pendings {
+		p.timer.Stop()
+		s.sendRPCError(p.agent, p.id, code, message)
+	}
+}
+
+// failAllPending fails every in-flight request (daemon shutdown).
+func (s *Server) failAllPending(code int, message string) {
+	s.rpcMu.Lock()
+	pendings := make([]*pendingRPC, 0, len(s.pending))
+	for _, p := range s.pending {
+		pendings = append(pendings, p)
+	}
+	s.pending = map[string]*pendingRPC{}
+	s.rpcMu.Unlock()
+	for _, p := range pendings {
+		p.timer.Stop()
+		s.sendRPCError(p.agent, p.id, code, message)
+	}
 }
