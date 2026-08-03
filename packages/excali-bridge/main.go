@@ -47,10 +47,13 @@ func run(args []string) int {
 		usage()
 		return 0
 	}
-	// CLI subcommand == JSON-RPC method (canvas/v1 + ping):
+	// CLI subcommand == JSON-RPC method (canvas/v1 + gallery/v1 + locals):
 	//   excali-bridge scene.get
 	//   excali-bridge scene.update '{"elements":[...]}'
-	if contract.IsCanvasV1Method(cmd) || cmd == "ping" {
+	//   excali-bridge gallery.list
+	//   excali-bridge bridge.status
+	if contract.IsCanvasV1Method(cmd) || contract.IsGalleryV1Method(cmd) ||
+		cmd == "ping" || cmd == contract.BridgeStatusMethod {
 		var paramsJSON string
 		if len(args) > 1 {
 			paramsJSON = args[1]
@@ -69,10 +72,15 @@ Usage:
   excali-bridge serve        run the daemon on 127.0.0.1:[17331..17335] (first free);
                              writes the pidfile; runs until SIGINT/SIGTERM
   excali-bridge <method>     JSON-RPC call (subcommand == method); spawns the daemon lazily:
-                             ping | scene.get | scene.elements | scene.state | scene.bounds |
+                             ping | bridge.status | commands.list | protocol.version |
+                             scene.get | scene.elements | scene.state | scene.bounds |
                              scene.exportPng | scene.exportSvg | scene.update | elements.add |
                              elements.clear | scene.reset | files.add | tool.setActive |
-                             view.scrollTo | history.clear | commands.list | protocol.version
+                             view.scrollTo | history.clear |
+                             gallery.list | gallery.get | gallery.load | gallery.save |
+                             gallery.rename | gallery.delete | gallery.collections.list |
+                             gallery.collections.create | gallery.collections.rename |
+                             gallery.collections.delete
                              args = optional params JSON (e.g. '{"elements":[...]}')
   excali-bridge status       report daemon status from pidfile + /health
   excali-bridge help         this help

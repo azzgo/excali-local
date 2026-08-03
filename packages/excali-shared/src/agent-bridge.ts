@@ -29,6 +29,18 @@
 
 export const AGENT_BRIDGE_STORAGE_KEY = "agentBridge";
 
+/**
+ * chrome.storage.local key for the per-profile identity uuid (Option A, goal 3):
+ * minted ONCE per profile (lazily, on first need) and persisted, so every page
+ * connection in this profile presents the same id. Store-install extension ids
+ * are identical across profiles, so `chrome-extension://<id>` origin alone
+ * cannot distinguish profiles — this uuid can.
+ */
+export const PROFILE_ID_STORAGE_KEY = "agentBridgeProfileId";
+
+/** Handshake field carrying the per-profile uuid (page + control-page roles). */
+export const WS_PROFILE_ID_FIELD = "profileId";
+
 export interface AgentBridgeStorage {
   /** Layer 0 — feature master switch (Options). Default OFF = kill-switch. */
   master: boolean;
@@ -76,12 +88,19 @@ export const WS_DISPLACED = "displaced";
  * The Go daemon's own agent CLI (Leg A) sends "agent" so it is authenticated but
  * never claims the single active-page slot — otherwise a CLI ping would displace
  * the active canvas (Tickets 016/017).
+ *
+ * Goal 3 (Option A): a paired-but-not-activated Local editor page dials a CONTROL
+ * connection with role "control-page" — it never claims the active slot, and unlike
+ * the active slot it is NOT a singleton (one control connection per paired profile).
  */
 export const WS_ROLE_PAGE = "page";
+export const WS_ROLE_CONTROL_PAGE = "control-page";
 export const WS_ROLE_AGENT = "agent";
+
 
 /** Leg A (agent CLI ↔ daemon) JSON-RPC protocol version, negotiated at handshake. */
 export const LEG_A_PROTOCOL_VERSION = "1";
+
 
 // ---------------------------------------------------------------------------
 // Control plane (chrome.runtime messages, SW ↔ editor page)
@@ -175,14 +194,80 @@ export const CANVAS_V1_METHODS = [
   "protocol.version",
 ] as const;
 
-/** Daemon-local JSON-RPC methods (no page involved). */
-export const DAEMON_LOCAL_METHODS = ["ping", "commands.list", "protocol.version"] as const;
+// ---------------------------------------------------------------------------
+// gallery/v1 command set (Wayfinder Ticket 014) + routing classes
+// ---------------------------------------------------------------------------
 
-/** The canvas/v1 contract version string returned by protocol.version. */
-export const CANVAS_V1_PROTOCOL = "canvas/v1";
+/**
+ * The gallery/v1 method set — EXACT names per Ticket 014. CLI subcommand == method.
+ * list/get/rename/delete/collections.* are PAIRED (Gate 1 — no canvas needed);
+ * load/save are ACTIVATED (canvas-bound — need the active canvas).
+ */
+export const GALLERY_V1_METHODS = [
+  "gallery.list",
+  "gallery.get",
+  "gallery.load",
+  "gallery.save",
+  "gallery.rename",
+  "gallery.delete",
+  "gallery.collections.list",
+  "gallery.collections.create",
+  "gallery.collections.rename",
+  "gallery.collections.delete",
+] as const;
+
+/** The gallery/v1 contract version string. */
+export const GALLERY_V1_PROTOCOL = "gallery/v1";
+
+/**
+ * Canvas-bound methods: routed to the ACTIVE slot only (goal 2 unchanged),
+ * including gallery.load/save (014 gates). No active canvas → -32001, never hang.
+ */
+export const CANVAS_BOUND_METHODS = [
+  ...CANVAS_V1_METHODS,
+  "gallery.load",
+  "gallery.save",
+] as const;
+
+/**
+ * Paired-only methods: need no activated canvas (014 gates). Routed to the active
+ * canvas's page when one is active, else to a control page (exactly one → route;
+ * multiple → -32004 disambiguation error — NEVER a silent guess).
+ */
+export const PAIRED_ONLY_METHODS = [
+  "gallery.list",
+  "gallery.get",
+  "gallery.rename",
+  "gallery.delete",
+  "gallery.collections.list",
+  "gallery.collections.create",
+  "gallery.collections.rename",
+  "gallery.collections.delete",
+] as const;
+
+/** Daemon-local JSON-RPC methods (no page involved). */
+export const DAEMON_LOCAL_METHODS = [
+  "ping",
+  "commands.list",
+  "protocol.version",
+  "bridge.status",
+] as const;
+
+/**
+ * bridge.status — daemon-local status query: the active canvas's extension
+ * identity (per-profile uuid) + the connected control-page identities, so the
+ * agent always knows its context (goal 3 status query).
+ */
+export const BRIDGE_STATUS_METHOD = "bridge.status";
 
 // JSON-RPC server error codes (custom range -32000..-32099 per spec).
 export const JSON_RPC_ERROR_NO_ACTIVE_CANVAS = -32001;
 export const JSON_RPC_ERROR_PAGE_TIMEOUT = -32002;
 export const JSON_RPC_ERROR_PAGE_DISCONNECTED = -32003;
+/** Paired-only op with N>1 control pages and no active canvas — disambiguate. */
+export const JSON_RPC_ERROR_AMBIGUOUS_TARGET = -32004;
+/** Blocking gallery op rejected by the user on the page's confirm modal. */
+export const JSON_RPC_ERROR_USER_CANCELLED = -32005;
+/** gallery.get / load referenced a drawing id that does not exist. */
+export const JSON_RPC_ERROR_NOT_FOUND = -32006;
 

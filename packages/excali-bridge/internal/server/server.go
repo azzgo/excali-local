@@ -55,9 +55,10 @@ var ErrAlreadyRunning = errors.New("bridge daemon already running")
 var defaultOriginRE = regexp.MustCompile(`^chrome-extension://[a-p]{32}$`)
 
 type client struct {
-	conn   *ws.Conn
-	role   string
-	authed bool
+	conn     *ws.Conn
+	role     string
+	authed   bool
+	identity string // per-profile uuid (page + control-page roles, goal 3)
 }
 
 type Config struct {
@@ -80,12 +81,16 @@ type Server struct {
 	port int
 	log  *log.Logger
 
-	mu        sync.Mutex
-	active    *client
-	clients   map[*ws.Conn]*client
-	srv       *http.Server
-	closeOnce sync.Once
-
+	mu      sync.Mutex
+	active  *client
+	clients map[*ws.Conn]*client
+	// controls holds one control-page connection per paired profile, keyed by the
+	// per-profile uuid (goal 3, Option A). NOT a singleton: N profiles may each
+	// hold a control connection simultaneously; a second dial from the SAME
+	// profile displaces the prior one (mirrors the active slot).
+	controls   map[string]*client
+	srv        *http.Server
+	closeOnce  sync.Once
 	rpcMu      sync.Mutex
 	pending    map[string]*pendingRPC // key: JSON-RPC id (raw bytes as string)
 	rpcTimeout time.Duration
@@ -106,6 +111,7 @@ func New(cfg Config) *Server {
 		cfg:        cfg,
 		log:        cfg.Logger,
 		clients:    map[*ws.Conn]*client{},
+		controls:   map[string]*client{},
 		pending:    map[string]*pendingRPC{},
 		rpcTimeout: cfg.RPCTimeout,
 	}
@@ -239,8 +245,10 @@ func (s *Server) serveConn(cl *client) {
 
 const typeKey = "type"
 
-// doHandshake validates token + role/version and, for pages, claims the
-// single active slot (displacing any prior holder). Returns false to close.
+// doHandshake validates token + role/version and, for pages, records the
+// per-profile identity and claims the single active slot (displacing any prior
+// holder) or registers a control connection (per-profile, non-singleton).
+// Returns false to close.
 func (s *Server) doHandshake(cl *client, m map[string]any) bool {
 	c := cl.conn
 	token, _ := m["token"].(string)
@@ -252,8 +260,18 @@ func (s *Server) doHandshake(cl *client, m map[string]any) bool {
 	}
 	role, _ := m["role"].(string)
 	switch role {
-	case "", contract.RolePage:
-		role = contract.RolePage
+	case "", contract.RolePage, contract.RoleControlPage:
+		// Page + control-page MUST present the per-profile identity uuid (goal 3):
+		// origin alone cannot distinguish profiles (store-install ids are shared).
+		identity, _ := m[contract.ProfileIDField].(string)
+		if !isValidProfileID(identity) {
+			s.sendJSON(c, map[string]any{typeKey: contract.WSHandshakeError, "reason": "missing-profile-id"})
+			return false
+		}
+		cl.identity = identity
+		if role == "" {
+			role = contract.RolePage
+		}
 	case contract.RoleAgent:
 		ver, _ := m["version"].(string)
 		if ver != contract.LegAProtocolVersion {
@@ -268,10 +286,46 @@ func (s *Server) doHandshake(cl *client, m map[string]any) bool {
 	cl.authed = true
 	s.sendJSON(c, map[string]any{typeKey: contract.WSHandshakeOK})
 	s.log.Printf("handshake ok (role=%s)", role)
-	if role == contract.RolePage {
+	switch role {
+	case contract.RolePage:
 		s.claimActive(cl)
+	case contract.RoleControlPage:
+		s.registerControl(cl)
 	}
 	return true
+}
+
+// isValidProfileID accepts a reasonably-formed per-profile uuid (lowercase hex
+// with dashes, 36 chars — crypto.randomUUID() shape).
+func isValidProfileID(id string) bool {
+	if len(id) != 36 {
+		return false
+	}
+	for i := 0; i < len(id); i++ {
+		c := id[i]
+		if c == '-' {
+			continue
+		}
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+// registerControl adds cl to the control-page set keyed by its per-profile
+// uuid. One control connection per profile (a second dial from the same profile
+// displaces the prior one); different profiles coexist — pairing is NOT a
+// singleton (goal 3, Option A).
+func (s *Server) registerControl(cl *client) {
+	s.mu.Lock()
+	prev := s.controls[cl.identity]
+	s.controls[cl.identity] = cl
+	s.mu.Unlock()
+	if prev != nil && prev != cl {
+		s.log.Printf("displacing prior control page (same profile)")
+		_ = prev.conn.Close()
+	}
 }
 
 // claimActive makes cl the single active page, displacing the prior holder
@@ -326,8 +380,10 @@ func isRPCResponse(m map[string]any) bool {
 }
 
 // handleRPC serves the versioned minimal JSON-RPC (ADR 0001, Ticket 005).
-// Local methods (ping/commands.list/protocol.version) resolve here; canvas/v1
-// methods are routed to the single active page.
+// Local methods (ping/commands.list/protocol.version/bridge.status) resolve
+// here; canvas-bound methods (canvas/v1 + gallery.load/save) route to the
+// single active page; paired-only gallery methods route per the unambiguous
+// rule (goal 3): active page when active, else exactly-one control page.
 func (s *Server) handleRPC(cl *client, m map[string]any, raw []byte) {
 	if m["jsonrpc"] != "2.0" {
 		s.sendRPCError(cl, nil, -32600, "invalid request")
@@ -338,8 +394,10 @@ func (s *Server) handleRPC(cl *client, m map[string]any, raw []byte) {
 	switch {
 	case contract.DaemonLocalMethods[method]:
 		s.handleLocalMethod(cl, id, method)
-	case contract.IsCanvasV1Method(method):
+	case contract.IsCanvasBoundMethod(method):
 		s.routeToActive(cl, id, raw)
+	case contract.IsPairedOnlyMethod(method):
+		s.routeToPaired(cl, id, raw)
 	default:
 		s.sendRPCError(cl, id, -32601, "method not found")
 	}
@@ -351,13 +409,34 @@ func (s *Server) handleLocalMethod(cl *client, id json.RawMessage, method string
 	case "ping":
 		s.sendRPCResult(cl, id, "pong")
 	case "commands.list":
-		methods := make([]string, 0, len(contract.CanvasV1Methods))
-		for _, m := range contract.CanvasV1Methods {
-			methods = append(methods, m)
-		}
-		s.sendRPCResult(cl, id, methods)
+		s.sendRPCResult(cl, id, contract.AllMethods())
 	case "protocol.version":
 		s.sendRPCResult(cl, id, contract.CanvasV1Protocol)
+	case contract.BridgeStatusMethod:
+		s.sendRPCResult(cl, id, s.bridgeStatus())
+	}
+}
+
+// bridgeStatus reports the agent's context (goal 3 status query): the active
+// canvas's extension identity (per-profile uuid) + the connected control-page
+// identities.
+func (s *Server) bridgeStatus() map[string]any {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	activeInfo := map[string]any(nil)
+	if s.active != nil {
+		activeInfo = map[string]any{"profileId": s.active.identity}
+	}
+	controls := make([]map[string]any, 0, len(s.controls))
+	for _, c := range s.controls {
+		controls = append(controls, map[string]any{"profileId": c.identity})
+	}
+	return map[string]any{
+		"activeCanvas":    activeInfo,
+		"controlPages":    controls,
+		"protocol":        contract.LegAProtocolVersion,
+		"canvasProtocol":  contract.CanvasV1Protocol,
+		"galleryProtocol": contract.GalleryV1Protocol,
 	}
 }
 
@@ -395,11 +474,14 @@ func (s *Server) cleanup(cl *client) {
 	if s.active == cl {
 		s.active = nil
 	}
+	if cl.identity != "" && s.controls[cl.identity] == cl {
+		delete(s.controls, cl.identity)
+	}
 	s.mu.Unlock()
 	_ = cl.conn.Close()
 	// A disconnecting page must not leave agent requests hanging (displacement /
 	// tab close / daemon shutdown): fail any in-flight request routed to it.
-	s.failPendingFor(cl, contract.JSONRPCErrorPageDisconnected, "active canvas disconnected")
+	s.failPendingFor(cl, contract.JSONRPCErrorPageDisconnected, "page disconnected")
 }
 
 // keepalive sends protocol pings so idle-but-alive connections (and their
@@ -418,6 +500,10 @@ func (s *Server) keepalive(cl *client) {
 func (s *Server) handleHealth(w http.ResponseWriter) {
 	s.mu.Lock()
 	active := s.active != nil
+	var activeIdentity any
+	if s.active != nil {
+		activeIdentity = s.active.identity
+	}
 	pages, agents := 0, 0
 	for _, cl := range s.clients {
 		if !cl.authed {
@@ -429,16 +515,19 @@ func (s *Server) handleHealth(w http.ResponseWriter) {
 			agents++
 		}
 	}
+	controlPages := len(s.controls)
 	s.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"ok":               true,
-		"pid":              os.Getpid(),
-		"port":             s.port,
-		"version":          contract.LegAProtocolVersion,
-		"active":           active,
-		"pageConnections":  pages,
-		"agentConnections": agents,
+		"ok":                     true,
+		"pid":                    os.Getpid(),
+		"port":                   s.port,
+		"version":                contract.LegAProtocolVersion,
+		"active":                 active,
+		"activeProfileId":        activeIdentity,
+		"pageConnections":        pages,
+		"controlPageConnections": controlPages,
+		"agentConnections":       agents,
 	})
 }
 
@@ -460,7 +549,6 @@ func HealthOK(port int) bool {
 }
 
 // pidfileAliveAndHealthy reports nil when a live bridge daemon owns the
-// pidfile (pid alive AND /health answers) — i.e. reuse, don't respawn.
 // pidfile (pid alive AND /health answers) — i.e. reuse, don't respawn.
 func pidfileAliveAndHealthy(override string) error {
 	info, err := pidfile.ReadAt(override)
@@ -518,10 +606,11 @@ func rpcIDKey(raw []byte) string {
 	return string(rpcID(raw))
 }
 
-// routeToActive forwards a canvas/v1 agent request to the single active page
-// (Ticket 010 topology: agent ↔ daemon ↔ page) and registers a pending
-// response correlation keyed by JSON-RPC id. Guards: no active page → error;
-// duplicate in-flight id → error; page never answers → timeout error.
+// routeToActive forwards a canvas-bound agent request (canvas/v1 +
+// gallery.load/save) to the single active page (Ticket 010 topology:
+// agent ↔ daemon ↔ page) and registers a pending response correlation keyed
+// by JSON-RPC id. Guards: no active page → -32001; duplicate in-flight id →
+// -32600; page never answers → -32002 timeout.
 func (s *Server) routeToActive(cl *client, id json.RawMessage, raw []byte) {
 	s.mu.Lock()
 	active := s.active
@@ -530,6 +619,43 @@ func (s *Server) routeToActive(cl *client, id json.RawMessage, raw []byte) {
 		s.sendRPCError(cl, id, contract.JSONRPCErrorNoActiveCanvas, "no active canvas")
 		return
 	}
+	s.routeToPage(active, cl, id, raw)
+}
+
+// routeToPaired forwards a paired-only gallery request (goal 3, Option A). The
+// routing is UNAMBIGUOUS by design — never a silent guess:
+//  1. a canvas IS active → route to ITS page (the agent's active context);
+//  2. else exactly ONE control page → route there;
+//  3. else N>1 control pages → -32004 (agent must disambiguate);
+//  4. else no page at all → -32001 (never hangs).
+func (s *Server) routeToPaired(cl *client, id json.RawMessage, raw []byte) {
+	s.mu.Lock()
+	target := s.active
+	controls := make([]*client, 0, len(s.controls))
+	if target == nil {
+		for _, c := range s.controls {
+			controls = append(controls, c)
+		}
+		if len(controls) == 1 {
+			target = controls[0]
+		} else if len(controls) > 1 {
+			s.mu.Unlock()
+			s.sendRPCError(cl, id, contract.JSONRPCErrorAmbiguousTarget,
+				fmt.Sprintf("ambiguous target: %d control pages connected (no active canvas)", len(controls)))
+			return
+		}
+	}
+	s.mu.Unlock()
+	if target == nil || target == cl {
+		s.sendRPCError(cl, id, contract.JSONRPCErrorNoActiveCanvas, "no active canvas or control page available")
+		return
+	}
+	s.routeToPage(target, cl, id, raw)
+}
+
+// routeToPage forwards raw to target with a pending response correlation keyed
+// by JSON-RPC id (shared by routeToActive + routeToPaired).
+func (s *Server) routeToPage(target, cl *client, id json.RawMessage, raw []byte) {
 	key := rpcIDKey(raw)
 
 	s.rpcMu.Lock()
@@ -538,13 +664,13 @@ func (s *Server) routeToActive(cl *client, id json.RawMessage, raw []byte) {
 		s.sendRPCError(cl, id, -32600, "duplicate request id in flight")
 		return
 	}
-	p := &pendingRPC{agent: cl, page: active, id: id}
+	p := &pendingRPC{agent: cl, page: target, id: id}
 	p.timer = time.AfterFunc(s.rpcTimeout, func() {
 		s.rpcMu.Lock()
 		if s.pending[key] == p {
 			delete(s.pending, key)
 			s.rpcMu.Unlock()
-			s.sendRPCError(cl, id, contract.JSONRPCErrorPageTimeout, "active canvas did not respond in time")
+			s.sendRPCError(cl, id, contract.JSONRPCErrorPageTimeout, "page did not respond in time")
 			return
 		}
 		s.rpcMu.Unlock()
@@ -552,8 +678,8 @@ func (s *Server) routeToActive(cl *client, id json.RawMessage, raw []byte) {
 	s.pending[key] = p
 	s.rpcMu.Unlock()
 
-	if err := active.conn.WriteText(raw); err != nil {
-		s.failPendingKey(key, contract.JSONRPCErrorPageDisconnected, "active canvas unavailable")
+	if err := target.conn.WriteText(raw); err != nil {
+		s.failPendingKey(key, contract.JSONRPCErrorPageDisconnected, "page unavailable")
 	}
 }
 

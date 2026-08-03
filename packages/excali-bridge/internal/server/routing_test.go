@@ -1,7 +1,10 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"slices"
 	"testing"
 	"time"
 
@@ -185,8 +188,11 @@ func TestLocalMetaMethods(t *testing.T) {
 	sendRPC(t, agent, 10, "commands.list", nil)
 	reply := rpcReply(t, agent, 10)
 	list, ok := reply["result"].([]any)
-	if !ok || len(list) != len(contract.CanvasV1Methods) {
+	if !ok || len(list) != len(contract.AllMethods()) {
 		t.Fatalf("commands.list result = %v", reply)
+	}
+	if !slices.Contains(contract.AllMethods(), "gallery.list") {
+		t.Fatal("commands.list missing gallery/v1 methods")
 	}
 
 	sendRPC(t, agent, 11, "protocol.version", nil)
@@ -246,4 +252,215 @@ func mustReadJSON(t *testing.T, c *ws.Conn) map[string]any {
 		t.Fatalf("read: %v", err)
 	}
 	return m
+}
+
+// ---------------------------------------------------------------------------
+// Goal 3 — paired-control-connection model (Option A)
+// ---------------------------------------------------------------------------
+
+func TestControlPageHandshakeRequiresProfileID(t *testing.T) {
+	s := startServer(t)
+	// A control-page without the per-profile uuid is rejected.
+	c, err := ws.Dial(context.Background(), fmt.Sprintf("127.0.0.1:%d", s.Port()), testOrigin, 2*time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	if err := writeJSON(c, map[string]any{
+		"type": contract.WSHandshake, "token": validToken, "origin": testOrigin,
+		"role": contract.RoleControlPage,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	reply := mustReadJSON(t, c)
+	if reply["type"] != contract.WSHandshakeError || reply["reason"] != "missing-profile-id" {
+		t.Fatalf("control-page without profileId reply = %v", reply)
+	}
+}
+
+func TestControlPagesAreNotSingleton(t *testing.T) {
+	s := startServer(t)
+	// Two DIFFERENT profiles each hold a control connection simultaneously —
+	// pairing is provably NOT a singleton (goal 3, Option A).
+	if _, err := dialControlPage(t, s, "11111111-2222-4333-8444-555555555555", validToken); err != nil {
+		t.Fatalf("control A: %v", err)
+	}
+	if _, err := dialControlPage(t, s, "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", validToken); err != nil {
+		t.Fatalf("control B: %v", err)
+	}
+	h := health(t, s)
+	if h["controlPageConnections"] != float64(2) {
+		t.Fatalf("controlPageConnections = %v, want 2 (multi-profile non-singleton)", h["controlPageConnections"])
+	}
+	if h["active"] != false {
+		t.Fatalf("control pages must not claim the active slot: %v", h)
+	}
+}
+
+func TestSameProfileControlDisplaces(t *testing.T) {
+	s := startServer(t)
+	a, err := dialControlPage(t, s, "11111111-2222-4333-8444-555555555555", validToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dialControlPage(t, s, "11111111-2222-4333-8444-555555555555", validToken); err != nil {
+		t.Fatal(err)
+	}
+	// The prior same-profile control connection is closed by the daemon.
+	_ = a.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if _, err := a.ReadMessage(); err == nil {
+		t.Fatal("prior same-profile control should have been closed")
+	}
+	h := health(t, s)
+	if h["controlPageConnections"] != float64(1) {
+		t.Fatalf("controlPageConnections = %v, want 1 after same-profile displacement", h["controlPageConnections"])
+	}
+}
+
+func TestPairedRoutingPrefersActivePage(t *testing.T) {
+	s := startServer(t)
+	// A control page AND an active page are connected. A paired-only op must
+	// route to the ACTIVE page (the agent's active context — zero ambiguity),
+	// NOT to the control page.
+	control, err := dialControlPage(t, s, "11111111-2222-4333-8444-555555555555", validToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer control.Close()
+	page, err := dialPage(t, s, validToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent, err := dialAgent(t, s, contract.LegAProtocolVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sendRPC(t, agent, 21, "gallery.list", nil)
+	req := mustReadJSON(t, page) // the ACTIVE page receives it
+	if req["method"] != "gallery.list" {
+		t.Fatalf("active page got %v, want gallery.list", req)
+	}
+
+	// The control page receives nothing.
+	_ = control.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
+	if _, err := control.ReadMessage(); err == nil {
+		t.Fatal("control page should NOT receive a paired-only op while active")
+	}
+}
+
+func TestPairedRoutingSingleControlFallback(t *testing.T) {
+	s := startServer(t)
+	// NO canvas active — exactly ONE control page → paired-only op routes there.
+	control, err := dialControlPage(t, s, "11111111-2222-4333-8444-555555555555", validToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	agent, err := dialAgent(t, s, contract.LegAProtocolVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sendRPC(t, agent, 22, "gallery.list", nil)
+	req := mustReadJSON(t, control)
+	if req["method"] != "gallery.list" {
+		t.Fatalf("control page got %v, want gallery.list", req)
+	}
+	// Control page answers → the agent receives the correlated result.
+	if err := writeJSON(control, map[string]any{"jsonrpc": "2.0", "id": float64(22), "result": []any{}}); err != nil {
+		t.Fatal(err)
+	}
+	reply := rpcReply(t, agent, 22)
+	if reply["error"] != nil {
+		t.Fatalf("agent got error: %v", reply)
+	}
+	if _, ok := reply["result"].([]any); !ok {
+		t.Fatalf("agent result = %v, want []", reply)
+	}
+}
+
+func TestPairedRoutingAmbiguousControlPages(t *testing.T) {
+	s := startServer(t)
+	// NO canvas, TWO control pages → -32004 disambiguation error, never a guess.
+	if _, err := dialControlPage(t, s, "11111111-2222-4333-8444-555555555555", validToken); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dialControlPage(t, s, "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee", validToken); err != nil {
+		t.Fatal(err)
+	}
+	agent, err := dialAgent(t, s, contract.LegAProtocolVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sendRPC(t, agent, 23, "gallery.list", nil)
+	reply := rpcReply(t, agent, 23)
+	errObj, ok := reply["error"].(map[string]any)
+	if !ok || errObj["code"] != float64(contract.JSONRPCErrorAmbiguousTarget) {
+		t.Fatalf("expected -32004 ambiguous, got %v", reply)
+	}
+}
+
+func TestPairedRoutingNoPageAtAll(t *testing.T) {
+	s := startServer(t)
+	agent, err := dialAgent(t, s, contract.LegAProtocolVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sendRPC(t, agent, 24, "gallery.list", nil)
+	reply := rpcReply(t, agent, 24)
+	errObj, ok := reply["error"].(map[string]any)
+	if !ok || errObj["code"] != float64(contract.JSONRPCErrorNoActiveCanvas) {
+		t.Fatalf("expected -32001 no page, got %v", reply)
+	}
+}
+
+func TestCanvasBoundIgnoresControlPages(t *testing.T) {
+	s := startServer(t)
+	// gallery.load/save are ACTIVATED — control pages must NOT satisfy them.
+	if _, err := dialControlPage(t, s, "11111111-2222-4333-8444-555555555555", validToken); err != nil {
+		t.Fatal(err)
+	}
+	agent, err := dialAgent(t, s, contract.LegAProtocolVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sendRPC(t, agent, 25, "gallery.load", map[string]any{"id": "d1"})
+	reply := rpcReply(t, agent, 25)
+	errObj, ok := reply["error"].(map[string]any)
+	if !ok || errObj["code"] != float64(contract.JSONRPCErrorNoActiveCanvas) {
+		t.Fatalf("gallery.load with only controls = %v, want -32001", reply)
+	}
+}
+
+func TestBridgeStatusReportsIdentities(t *testing.T) {
+	s := startServer(t)
+	if _, err := dialControlPage(t, s, "11111111-2222-4333-8444-555555555555", validToken); err != nil {
+		t.Fatal(err)
+	}
+	page, err := dialPage(t, s, validToken) // active, identity testProfileID
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer page.Close()
+	agent, err := dialAgent(t, s, contract.LegAProtocolVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sendRPC(t, agent, 26, "bridge.status", nil)
+	reply := rpcReply(t, agent, 26)
+	st, ok := reply["result"].(map[string]any)
+	if !ok {
+		t.Fatalf("bridge.status result = %v", reply)
+	}
+	active, _ := st["activeCanvas"].(map[string]any)
+	if active == nil || active["profileId"] != testProfileID {
+		t.Fatalf("activeCanvas identity = %v, want profileId %q", active, testProfileID)
+	}
+	controls, _ := st["controlPages"].([]any)
+	if len(controls) != 1 {
+		t.Fatalf("controlPages = %v, want 1", controls)
+	}
 }

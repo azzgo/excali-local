@@ -19,6 +19,9 @@ const testOrigin = "chrome-extension://abcdefghijklmnopabcdefghijklmnop"
 
 const validToken = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
+// testProfileID is a well-formed per-profile uuid (goal 3 identity handshake).
+const testProfileID = "11111111-2222-4333-8444-555555555555"
+
 func startServer(t *testing.T) *Server {
 	t.Helper()
 	return startServerCfg(t, testConfig(t))
@@ -69,21 +72,31 @@ func (w testWriter) Write(p []byte) (int, error) {
 
 func dialPage(t *testing.T, s *Server, token string) (*ws.Conn, error) {
 	t.Helper()
-	return dial(t, s, token, "", "")
+	return dialProfile(t, s, token, testProfileID, "", "")
+}
+
+// dialControlPage dials a control-page connection with a specific per-profile
+// uuid (goal 3: multiple profiles may each hold a control connection).
+func dialControlPage(t *testing.T, s *Server, profileID, token string) (*ws.Conn, error) {
+	t.Helper()
+	return dialProfile(t, s, token, profileID, contract.RoleControlPage, "")
 }
 
 func dialAgent(t *testing.T, s *Server, version string) (*ws.Conn, error) {
 	t.Helper()
-	return dial(t, s, validToken, contract.RoleAgent, version)
+	return dialProfile(t, s, validToken, "", contract.RoleAgent, version)
 }
 
-func dial(t *testing.T, s *Server, token, role, version string) (*ws.Conn, error) {
+func dialProfile(t *testing.T, s *Server, token, profileID, role, version string) (*ws.Conn, error) {
 	t.Helper()
 	c, err := ws.Dial(context.Background(), fmt.Sprintf("127.0.0.1:%d", s.Port()), testOrigin, 5*time.Second)
 	if err != nil {
 		return nil, err
 	}
 	hs := map[string]any{"type": contract.WSHandshake, "token": token, "origin": testOrigin}
+	if profileID != "" {
+		hs[contract.ProfileIDField] = profileID
+	}
 	if role != "" {
 		hs["role"] = role
 	}
