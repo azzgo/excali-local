@@ -80,10 +80,11 @@ var CanvasV1Methods = [...]string{
 
 // DaemonLocalMethods resolve locally (no page involved) — like ping.
 var DaemonLocalMethods = map[string]bool{
-	"ping":             true,
-	"commands.list":    true,
-	"protocol.version": true,
-	"bridge.status":    true,
+	"ping":              true,
+	"commands.list":     true,
+	"protocol.version":  true,
+	"bridge.status":     true,
+	"fonts.system.list": true, // daemon-local (goal 4 refinement)
 }
 
 // CanvasV1Protocol is the contract version string returned by protocol.version.
@@ -111,6 +112,21 @@ var GalleryV1Methods = [...]string{
 
 // GalleryV1Protocol is the gallery/v1 contract version string.
 const GalleryV1Protocol = "gallery/v1"
+
+// FontsV1Methods is the fonts/v1 method set (Wayfinder Ticket 015, refined) —
+// EXACT names. CLI subcommand == method. fonts.system.list is DAEMON-LOCAL
+// (OS enumeration; needs no canvas/control page/consent beyond connection
+// auth); get/assign/install/clear are PAIRED (route to the page).
+var FontsV1Methods = [...]string{
+	"fonts.get",
+	"fonts.system.list",
+	"fonts.assign",
+	"fonts.install",
+	"fonts.clear",
+}
+
+// FontsV1Protocol is the fonts/v1 contract version string.
+const FontsV1Protocol = "fonts/v1"
 
 // JSON-RPC server error codes (custom range -32000..-32099 per spec).
 const (
@@ -146,6 +162,22 @@ func IsGalleryV1Method(m string) bool {
 	return false
 }
 
+// IsFontsV1Method reports whether m is a fonts/v1 method.
+func IsFontsV1Method(m string) bool {
+	for _, method := range FontsV1Methods {
+		if method == m {
+			return true
+		}
+	}
+	return false
+}
+
+// IsFontsPageMethod reports whether m is a fonts/v1 method that routes to the
+// page (everything except the daemon-local fonts.system.list).
+func IsFontsPageMethod(m string) bool {
+	return IsFontsV1Method(m) && m != "fonts.system.list"
+}
+
 // IsCanvasBoundMethod reports whether m routes to the ACTIVE slot only: the
 // canvas/v1 set plus gallery.load/save (014 gates). No active canvas → -32001.
 func IsCanvasBoundMethod(m string) bool {
@@ -155,11 +187,11 @@ func IsCanvasBoundMethod(m string) bool {
 	return m == "gallery.load" || m == "gallery.save"
 }
 
-// IsPairedOnlyMethod reports whether m needs no activated canvas (014 gates):
-// routed to the active canvas's page when active, else to a control page
-// (exactly one → route; multiple → -32004; none → -32001).
+// IsPairedOnlyMethod reports whether m needs no activated canvas (014/015
+// gates): routed to the active canvas's page when active, else to a control
+// page (exactly one → route; multiple → -32004; none → -32001).
 func IsPairedOnlyMethod(m string) bool {
-	return IsGalleryV1Method(m) && !IsCanvasBoundMethod(m)
+	return (IsGalleryV1Method(m) && !IsCanvasBoundMethod(m)) || IsFontsPageMethod(m)
 }
 
 // AllMethods is the full callable set reported by commands.list (deduped).
@@ -176,6 +208,9 @@ func AllMethods() []string {
 		add(m)
 	}
 	for _, m := range GalleryV1Methods {
+		add(m)
+	}
+	for _, m := range FontsV1Methods {
 		add(m)
 	}
 	for m := range DaemonLocalMethods {

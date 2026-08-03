@@ -519,3 +519,56 @@ func TestBridgeStatusReportsIdentities(t *testing.T) {
 		t.Fatalf("controlPages = %v, want 1", controls)
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Goal 4 — fonts/v1 (Ticket 015, refined)
+// ---------------------------------------------------------------------------
+
+func TestFontsSystemListDaemonLocal(t *testing.T) {
+	s := startServer(t)
+	// fonts.system.list resolves in the daemon — no page, no canvas, no
+	// control connection needed (just an authenticated agent).
+	agent, err := dialAgent(t, s, contract.LegAProtocolVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sendRPC(t, agent, 30, "fonts.system.list", nil)
+	reply := rpcReply(t, agent, 30)
+	if reply["error"] != nil {
+		t.Fatalf("fonts.system.list error: %v", reply["error"])
+	}
+	list, ok := reply["result"].([]any)
+	if !ok {
+		t.Fatalf("fonts.system.list result not an array: %v", reply)
+	}
+	// On a machine with fonts installed the list is non-empty; every entry
+	// must be {family, postscriptName} strings (shape contract).
+	for i, e := range list {
+		obj, ok := e.(map[string]any)
+		if !ok {
+			t.Fatalf("entry %d not an object: %v", i, e)
+		}
+		fam, _ := obj["family"].(string)
+		ps, _ := obj["postscriptName"].(string)
+		if fam == "" || ps == "" {
+			t.Fatalf("entry %d missing family/postscriptName: %v", i, e)
+		}
+	}
+	t.Logf("fonts.system.list returned %d OS fonts", len(list))
+}
+
+func TestFontsSystemListNeedsNoPage(t *testing.T) {
+	// Regression: fonts.system.list is daemon-local — it must NOT be routed to
+	// a page and must NOT require an active canvas (even with zero pages).
+	s := startServer(t)
+	agent, err := dialAgent(t, s, contract.LegAProtocolVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sendRPC(t, agent, 31, "fonts.system.list", nil)
+	reply := rpcReply(t, agent, 31)
+	if reply["error"] != nil {
+		t.Fatalf("fonts.system.list with no pages should resolve locally: %v", reply["error"])
+	}
+}

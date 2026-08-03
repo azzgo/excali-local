@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/excali-local/excali-bridge/internal/contract"
+	"github.com/excali-local/excali-bridge/internal/fonts"
 	"github.com/excali-local/excali-bridge/internal/pidfile"
 	"github.com/excali-local/excali-bridge/internal/ws"
 )
@@ -417,6 +418,15 @@ func (s *Server) handleLocalMethod(cl *client, id json.RawMessage, method string
 		s.sendRPCResult(cl, id, contract.CanvasV1Protocol)
 	case contract.BridgeStatusMethod:
 		s.sendRPCResult(cl, id, s.bridgeStatus())
+	case "fonts.system.list":
+		// Goal 4 refinement: OS font enumeration, daemon-local (needs no
+		// canvas/control page — the daemon reads the OS, not IndexedDB).
+		fonts, err := fonts.EnumerateOSFonts()
+		if err != nil {
+			s.sendRPCError(cl, id, contract.JSONRPCErrorNotFound, "font enumeration failed")
+			return
+		}
+		s.sendRPCResult(cl, id, fonts)
 	}
 }
 

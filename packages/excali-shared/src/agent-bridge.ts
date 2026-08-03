@@ -260,6 +260,40 @@ export const DAEMON_LOCAL_METHODS = [
  */
 export const BRIDGE_STATUS_METHOD = "bridge.status";
 
+// ---------------------------------------------------------------------------
+// fonts/v1 command set (Wayfinder Ticket 015, refined — goal 4)
+// ---------------------------------------------------------------------------
+
+/**
+ * The fonts/v1 method set — EXACT names per Ticket 015 (refined). CLI
+ * subcommand == method. fonts.system.list is DAEMON-LOCAL (the Go daemon
+ * enumerates OS-installed fonts — cross-browser, no permission prompt; it
+ * supersedes Ticket 015's queryLocalFonts). get/assign/install/clear are
+ * PAIRED (Gate 1 — they touch the excali-fonts FontConfig IndexedDB record
+ * the daemon can't read, so they route to the page).
+ */
+export const FONTS_V1_METHODS = [
+  "fonts.get",
+  "fonts.system.list",
+  "fonts.assign",
+  "fonts.install",
+  "fonts.clear",
+] as const;
+
+/** The fonts/v1 contract version string. */
+export const FONTS_V1_PROTOCOL = "fonts/v1";
+
+/**
+ * fonts/v1 methods that ROUTE TO THE PAGE (everything except the daemon-local
+ * fonts.system.list).
+ */
+export const FONTS_PAGE_METHODS = [
+  "fonts.get",
+  "fonts.assign",
+  "fonts.install",
+  "fonts.clear",
+] as const;
+
 // JSON-RPC server error codes (custom range -32000..-32099 per spec).
 export const JSON_RPC_ERROR_NO_ACTIVE_CANVAS = -32001;
 export const JSON_RPC_ERROR_PAGE_TIMEOUT = -32002;

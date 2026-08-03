@@ -47,12 +47,15 @@ func run(args []string) int {
 		usage()
 		return 0
 	}
-	// CLI subcommand == JSON-RPC method (canvas/v1 + gallery/v1 + locals):
+	// CLI subcommand == JSON-RPC method (canvas/v1 + gallery/v1 + fonts/v1 +
+// locals):
 	//   excali-bridge scene.get
 	//   excali-bridge scene.update '{"elements":[...]}'
 	//   excali-bridge gallery.list
+	//   excali-bridge fonts.system.list
 	//   excali-bridge bridge.status
 	if contract.IsCanvasV1Method(cmd) || contract.IsGalleryV1Method(cmd) ||
+		contract.IsFontsV1Method(cmd) ||
 		cmd == "ping" || cmd == contract.BridgeStatusMethod {
 		var paramsJSON string
 		if len(args) > 1 {
@@ -80,7 +83,9 @@ Usage:
                              gallery.list | gallery.get | gallery.load | gallery.save |
                              gallery.rename | gallery.delete | gallery.collections.list |
                              gallery.collections.create | gallery.collections.rename |
-                             gallery.collections.delete
+                             gallery.collections.delete |
+                             fonts.get | fonts.system.list | fonts.assign | fonts.install |
+                             fonts.clear
                              args = optional params JSON (e.g. '{"elements":[...]}')
   excali-bridge status       report daemon status from pidfile + /health
   excali-bridge help         this help
