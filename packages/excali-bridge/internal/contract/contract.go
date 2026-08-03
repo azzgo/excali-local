@@ -46,3 +46,51 @@ func IsValidBridgeToken(token string) bool {
 	}
 	return true
 }
+
+// canvas/v1 command set (Wayfinder Ticket 007) — EXACT names. The agent CLI
+// subcommand == method; the daemon routes these to the active page.
+var CanvasV1Methods = [...]string{
+	"scene.get",
+	"scene.elements",
+	"scene.state",
+	"scene.bounds",
+	"scene.exportPng",
+	"scene.exportSvg",
+	"scene.update",
+	"elements.add",
+	"elements.clear",
+	"scene.reset",
+	"files.add",
+	"tool.setActive",
+	"view.scrollTo",
+	"history.clear",
+	"commands.list",
+	"protocol.version",
+}
+
+// DaemonLocalMethods resolve locally (no page involved) — like ping.
+var DaemonLocalMethods = map[string]bool{
+	"ping":            true,
+	"commands.list":    true,
+	"protocol.version": true,
+}
+
+// CanvasV1Protocol is the contract version string returned by protocol.version.
+const CanvasV1Protocol = "canvas/v1"
+
+// JSON-RPC server error codes (custom range -32000..-32099 per spec).
+const (
+	JSONRPCErrorNoActiveCanvas   = -32001
+	JSONRPCErrorPageTimeout      = -32002
+	JSONRPCErrorPageDisconnected = -32003
+)
+
+// IsCanvasV1Method reports whether m is a routed or local canvas/v1 method.
+func IsCanvasV1Method(m string) bool {
+	for _, method := range CanvasV1Methods {
+		if method == m {
+			return true
+		}
+	}
+	return false
+}

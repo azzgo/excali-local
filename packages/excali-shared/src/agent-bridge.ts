@@ -143,3 +143,46 @@ export function isValidBridgeToken(token: unknown): token is string {
     HEX.test(token)
   );
 }
+
+// ---------------------------------------------------------------------------
+// canvas/v1 command set (Wayfinder Ticket 007) + Leg-A JSON-RPC errors
+// ---------------------------------------------------------------------------
+
+/**
+ * The canvas/v1 method set — EXACT names per Ticket 007. CLI subcommand == method.
+ * READ: scene.get / scene.elements / scene.state / scene.bounds /
+ *       scene.exportPng / scene.exportSvg
+ * WRITE: scene.update / elements.add / elements.clear / scene.reset / files.add /
+ *        tool.setActive / view.scrollTo / history.clear
+ * META: commands.list / protocol.version (resolved by the daemon locally)
+ */
+export const CANVAS_V1_METHODS = [
+  "scene.get",
+  "scene.elements",
+  "scene.state",
+  "scene.bounds",
+  "scene.exportPng",
+  "scene.exportSvg",
+  "scene.update",
+  "elements.add",
+  "elements.clear",
+  "scene.reset",
+  "files.add",
+  "tool.setActive",
+  "view.scrollTo",
+  "history.clear",
+  "commands.list",
+  "protocol.version",
+] as const;
+
+/** Daemon-local JSON-RPC methods (no page involved). */
+export const DAEMON_LOCAL_METHODS = ["ping", "commands.list", "protocol.version"] as const;
+
+/** The canvas/v1 contract version string returned by protocol.version. */
+export const CANVAS_V1_PROTOCOL = "canvas/v1";
+
+// JSON-RPC server error codes (custom range -32000..-32099 per spec).
+export const JSON_RPC_ERROR_NO_ACTIVE_CANVAS = -32001;
+export const JSON_RPC_ERROR_PAGE_TIMEOUT = -32002;
+export const JSON_RPC_ERROR_PAGE_DISCONNECTED = -32003;
+
