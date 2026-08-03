@@ -2,7 +2,9 @@
  * Agent Bridge — shared protocol constants + token helpers.
  *
  * Consumed by all three packages (shell background/popup/options via chrome.i18n
- * pages, editor page app, and the throwaway stub harness under scripts/).
+ * pages, editor page app) and by the Go bridge daemon (mirrored in
+ * `packages/excali-bridge/internal/contract/contract.go` — keep both in sync;
+ * single source of truth TBD: code-gen vs documented duplication).
  *
  * Three-layer consent (Wayfinder Ticket 003 + click-through):
  *   Layer 0  master   Options, GLOBAL, PERSISTED via chrome.storage, default OFF
@@ -14,6 +16,11 @@
  * handshake token (Ticket 011 layer 3+4), completes the handshake, and exposes
  * window.excaliAPI. The background SW is the control plane ONLY (activation
  * registry, single-active-canvas invariant) — it never sees the token.
+ *
+ * Leg B wire framing is the WS message `type` field below. The Go daemon is the
+ * cross-profile single-active-canvas arbiter (Tickets 016/017): it holds ≤1 active
+ * page and sends the `displaced` control message (WS_DISPLACED) to a page whose
+ * slot is taken over by a newer activation.
  */
 
 // ---------------------------------------------------------------------------
@@ -61,6 +68,20 @@ export const WS_HANDSHAKE_OK = "handshake_ok";
 export const WS_HANDSHAKE_ERROR = "handshake_error";
 export const WS_PING = "ping";
 export const WS_PONG = "pong";
+/** Server → page: this page's active slot was taken by a newer activation (016/017). */
+export const WS_DISPLACED = "displaced";
+
+/**
+ * Handshake connection role. The page client does NOT send this (absent = "page").
+ * The Go daemon's own agent CLI (Leg A) sends "agent" so it is authenticated but
+ * never claims the single active-page slot — otherwise a CLI ping would displace
+ * the active canvas (Tickets 016/017).
+ */
+export const WS_ROLE_PAGE = "page";
+export const WS_ROLE_AGENT = "agent";
+
+/** Leg A (agent CLI ↔ daemon) JSON-RPC protocol version, negotiated at handshake. */
+export const LEG_A_PROTOCOL_VERSION = "1";
 
 // ---------------------------------------------------------------------------
 // Control plane (chrome.runtime messages, SW ↔ editor page)
@@ -77,6 +98,14 @@ export const AB_ACTIVATE = "AGENT_BRIDGE_ACTIVATE";
 
 /** Page → SW: tear down this tab's activation. */
 export const AB_DEACTIVATE = "AGENT_BRIDGE_DEACTIVATE";
+
+/**
+ * Page → SW: this tab was displaced by the daemon — a newer activation (from any
+ * profile) took the cross-profile single-active slot (Tickets 016/017). SW clears
+ * activeTabId and broadcasts, exactly like AB_DEACTIVATE; the page distinguishes
+ * the cause because displacement is not the user deactivating.
+ */
+export const AB_DISPLACED = "AGENT_BRIDGE_DISPLACED";
 
 /** Page → SW: keepalive + epoch probe while active; SW replies with current state. */
 export const AB_HEARTBEAT = "AGENT_BRIDGE_HEARTBEAT";
