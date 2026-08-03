@@ -47,7 +47,17 @@ import {
 	type GalleryV1Deps,
 	type GalleryV1Request,
 } from "../lib/gallery-v1";
-// Gallery data access + scene helpers (REUSED — Ticket 014 mandates reuse of
+import {
+	handleFontsV1Request,
+	type FontsV1Deps,
+	type FontsV1Request,
+} from "@/lib/fonts-v1";
+// excali-fonts FontConfig record access (goal 4 — fonts/v1 page methods).
+import {
+	clearFontSlot,
+	getFontConfig as getFontConfigFromDB,
+	updateFontSlot,
+} from "excali-shared";
 // the existing gallery hooks/paths, not a rewrite).
 import {
 	createCollection,
@@ -506,6 +516,17 @@ export function useAgentBridge({
     onConfirm,
   };
 
+  // fonts/v1 deps — same confirm queue (goal-4 reuses goal-3 modal infra).
+  const fontsDepsRef = useRef<FontsV1Deps | null>(null);
+  fontsDepsRef.current = {
+    db: {
+      getFontConfig: () => getFontConfigFromDB(),
+      updateFontSlot,
+      clearFontSlot,
+    },
+    onConfirm,
+  };
+
   // --- WS data path (goal 3, Option A): control + active sessions -----------
   const origin = typeof location !== "undefined" ? location.origin : "";
 
@@ -536,12 +557,18 @@ export function useAgentBridge({
         session.stop();
         return;
       }
-      // Inbound JSON-RPC (agent → daemon → this page): gallery/v1 or canvas/v1.
+      // Inbound JSON-RPC (agent → daemon → this page): fonts/v1, gallery/v1
+      // or canvas/v1. (fonts.system.list is daemon-local — never routed here.)
       const m = msg as { jsonrpc?: string; method?: string } &
         Partial<CanvasV1Request> &
-        Partial<GalleryV1Request>;
+        Partial<GalleryV1Request> &
+        Partial<FontsV1Request>;
       if (m?.jsonrpc === "2.0" && typeof m.method === "string") {
-        if (m.method.startsWith("gallery.")) {
+        if (m.method.startsWith("fonts.")) {
+          void handleFontsV1Request(m as FontsV1Request, fontsDepsRef.current!).then(
+            (resp) => session.sendJSON(resp),
+          );
+        } else if (m.method.startsWith("gallery.")) {
           void handleGalleryV1Request(m as GalleryV1Request, galleryDepsRef.current!).then(
             (resp) => session.sendJSON(resp),
           );

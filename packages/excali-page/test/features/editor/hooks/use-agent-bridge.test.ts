@@ -155,6 +155,22 @@ vi.mock("@/features/gallery/hooks/use-gallery", () => ({
   useGallery: () => ({ setCurrentLoadedDrawingId: vi.fn() }),
 }));
 
+// The fonts/v1 page dispatcher touches excali-fonts IndexedDB — mock the db
+// exports (the dispatcher itself stays REAL and pure, like gallery/v1).
+vi.mock("excali-shared", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("excali-shared")>();
+  return {
+    ...actual,
+    getFontConfig: vi.fn(async () => ({
+      handwriting: null,
+      normal: null,
+      code: { type: "custom", family: "Code Font", data: new Uint8Array([1, 2, 3]) },
+    })),
+    updateFontSlot: vi.fn(async () => {}),
+    clearFontSlot: vi.fn(async () => {}),
+  };
+});
+
 const renderLocal = (excalidrawAPI: unknown = {}) =>
   renderHook(() =>
     useAgentBridge({ excalidrawAPI: excalidrawAPI as never, editorType: "local" }),
@@ -574,6 +590,47 @@ describe("useAgentBridge", () => {
     await waitFor(() => expect(session.sent.length).toBeGreaterThan(0));
     expect(session.sent[0]).toMatchObject({ jsonrpc: "2.0", id: 7, result: [] });
     expect(session.sent[0].error).toBeUndefined();
+  });
+
+  test("control connection dispatches fonts/v1 (real dispatcher, mocked excali-fonts db)", async () => {
+    setConsent(true, true);
+    const { result } = renderLocal({});
+    await waitFor(() => expect(controlSession()).toBeDefined());
+    const session = controlSession()!;
+
+    // fonts.get → trimmed config: the custom code slot keeps family, drops data.
+    await act(async () => {
+      session.opts.onInbound?.({ jsonrpc: "2.0", id: 11, method: "fonts.get", params: {} });
+    });
+    await waitFor(() => expect(session.sent.length).toBeGreaterThan(0));
+    const resp = session.sent[0] as {
+      jsonrpc: string;
+      id: number;
+      result: { code: { type: string; family: string; data?: unknown } };
+    };
+    expect(resp.id).toBe(11);
+    expect(resp.error).toBeUndefined();
+    expect(resp.result.code).toMatchObject({ type: "custom", family: "Code Font" });
+    expect(resp.result.code.data).toBeUndefined(); // trimmed — no bytes on the wire
+  });
+
+  test("fonts.clear on the control connection shows the blocking confirm modal", async () => {
+    setConsent(true, true);
+    const { result } = renderLocal({});
+    await waitFor(() => expect(controlSession()).toBeDefined());
+    const session = controlSession()!;
+
+    await act(async () => {
+      session.opts.onInbound?.({ jsonrpc: "2.0", id: 12, method: "fonts.clear", params: { slot: "code" } });
+    });
+    await waitFor(() => expect(result.current.galleryConfirm).not.toBeNull());
+    expect(result.current.galleryConfirm?.method).toBe("fonts.clear");
+
+    act(() => result.current.confirmGallery()); // same goal-3 confirm infra
+    await waitFor(() => expect(session.sent.length).toBe(1));
+    const resp = session.sent[0] as { result: { requiresReload?: boolean } };
+    expect(resp.result).toMatchObject({ requiresReload: true });
+    expect(session.sent[0]).toMatchObject({ jsonrpc: "2.0", id: 12 });
   });
 
   test("blocking gallery op shows the confirm modal; confirm executes, cancel returns -32005", async () => {

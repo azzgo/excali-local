@@ -123,7 +123,7 @@ export function initI18n() {
           "AgentDisplaced": "Agent control was moved to another canvas on this device — this canvas is no longer active.",
           "AgentDestructiveOp": "Destructive operation applied: {{method}}",
           "AgentGalleryConfirmTitle": "Approve agent action?",
-          "AgentGalleryConfirmContent": "The agent requested a destructive gallery action ({{method}}). This cannot be undone.",
+          "AgentGalleryConfirmContent": "The agent requested a destructive action ({{method}}). This cannot be undone.",
         },
       },
       "zh-CN": {
@@ -244,7 +244,7 @@ export function initI18n() {
           "AgentDisplaced": "Agent 控制已转移到此设备上的另一个画布——此画布已不再受控。",
           "AgentDestructiveOp": "已执行破坏性操作：{{method}}",
           "AgentGalleryConfirmTitle": "批准 Agent 操作？",
-          "AgentGalleryConfirmContent": "Agent 请求了破坏性的画廊操作（{{method}}）。此操作无法撤销。",
+          "AgentGalleryConfirmContent": "Agent 请求了破坏性操作（{{method}}）。此操作无法撤销。",
         },
       },
     },
