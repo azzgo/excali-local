@@ -35,6 +35,8 @@ import {
 } from "../../packages/excali-page/src/features/editor/lib/canvas-v1";
 
 const origin = process.env.ORIGIN ?? "chrome-extension://abcdabcdabcdabcdabcdabcdabcdabcd";
+// Per-profile identity uuid (goal 3) — REQUIRED by the daemon for page roles.
+const profileId = "11111111-2222-4333-8444-555555555555";
 const bin =
   process.env.EXCALI_BRIDGE_BIN ??
   join(import.meta.dir, "../../packages/excali-bridge/bin/excali-bridge");
@@ -142,8 +144,8 @@ let pageSession: AgentBridgeSession | null = null;
 const page = new AgentBridgeSession({
   origin,
   token: mintBridgeToken(),
+  profileId,
   wsFactory,
-  onStatus: (status) => console.log(`[driver-canvas] page-sim status → ${status}`),
   onInbound: (msg) => {
     const m = msg as { jsonrpc?: string; method?: string; id?: unknown };
     if (m?.jsonrpc === "2.0" && typeof m.method === "string") {

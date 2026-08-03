@@ -256,6 +256,13 @@ describe("gallery/v1 dispatcher", () => {
       expect(db.updateDrawing).not.toHaveBeenCalled();
     });
 
+    test("overwrite applies collectionIds from params (ticket save shape)", async () => {
+      const { deps, db, store } = makeDeps();
+      addDrawing(store, { id: "a", collectionIds: ["old-coll"] });
+      await okResult(await call(deps, "gallery.save", { id: "a", collectionIds: ["c1"] }));
+      expect(db.updateDrawing).toHaveBeenCalledWith("a", expect.objectContaining({ collectionIds: ["c1"] }));
+    });
+
     test("no scene → -32001", async () => {
       const { deps } = makeDeps({ scene: undefined });
       const resp = await call(deps, "gallery.save", {});

@@ -34,6 +34,9 @@ import {
 } from "../../packages/excali-page/src/features/editor/lib/agent-bridge-client";
 
 const origin = process.env.ORIGIN ?? "chrome-extension://abcdabcdabcdabcdabcdabcdabcdabcd";
+// Per-profile identity uuids (goal 3) — REQUIRED by the daemon for page roles.
+const profileA = "11111111-2222-4333-8444-555555555555";
+const profileB = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 const bin =
   process.env.EXCALI_BRIDGE_BIN ??
   join(import.meta.dir, "../../packages/excali-bridge/bin/excali-bridge");
@@ -114,6 +117,7 @@ const phase1 = new Promise<boolean>((resolve) => {
   const session = new AgentBridgeSession({
     origin,
     token: token1,
+    profileId: profileA,
     wsFactory,
     onStatus: (status: BridgeConnectionStatus, info) => {
       console.log(
@@ -148,6 +152,7 @@ let portA: number | null = null;
 const a = new AgentBridgeSession({
   origin,
   token: tokenA,
+  profileId: profileA,
   wsFactory,
   onStatus: (status, info) => {
     console.log(`[driver] page A status → ${status}`);
@@ -166,8 +171,8 @@ sessionA = a;
 const b = new AgentBridgeSession({
   origin,
   token: tokenB,
+  profileId: profileB,
   wsFactory,
-  onStatus: (status) => console.log(`[driver] page B status → ${status}`),
 });
 
 a.start();

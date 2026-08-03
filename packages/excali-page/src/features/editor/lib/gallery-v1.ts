@@ -348,12 +348,16 @@ async function dispatch(
         if (existing) {
           // Overwrite-existing → BLOCKING (destroys the stored version, 014).
           await confirmGate(deps, method, p);
+          const collectionIds = Array.isArray(p.collectionIds)
+            ? (p.collectionIds as unknown[]).filter((c): c is string => typeof c === "string")
+            : existing.collectionIds;
           await deps.db.updateDrawing(paramId, {
             name: typeof p.name === "string" && p.name !== "" ? p.name : existing.name,
             elements: JSON.stringify(elements),
             appState: JSON.stringify(appState),
             files: JSON.stringify(files),
             thumbnail,
+            collectionIds,
           });
           return { id: paramId, isNew: false };
         }
