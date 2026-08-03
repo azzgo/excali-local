@@ -176,9 +176,14 @@ export class AgentBridgeClient {
       this.ws!.send(JSON.stringify({ type: WS_PING }));
     });
   }
+  /** Send a JSON message over the live connection (canvas/v1 responses). */
+  sendJSON(obj: unknown): void {
+	if (!this.isOpen || this.closed) return;
+	this.ws!.send(JSON.stringify(obj));
+  }
 
   close(): void {
-    this.closed = true;
+	this.closed = true;
     if (this.pongWait) {
       clearTimeout(this.pongWait.timer);
       const w = this.pongWait;
@@ -296,7 +301,12 @@ export class AgentBridgeSession {
   }
 
   ping(): Promise<boolean> {
-    return this.client?.ping() ?? Promise.resolve(false);
+	return this.client?.ping() ?? Promise.resolve(false);
+  }
+
+  /** Send a JSON message over the live connection (canvas/v1 responses). */
+  sendJSON(obj: unknown): void {
+	this.client?.sendJSON(obj);
   }
 
   private setStatus(

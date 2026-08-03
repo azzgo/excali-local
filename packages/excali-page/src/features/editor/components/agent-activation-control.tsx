@@ -68,6 +68,11 @@ const AgentActivationControl = ({
   // Kill-switch (Layer 0 OFF) / Gate 1 closed → nothing renders.
   if (!bridge.canActivate) return null;
 
+  // Non-blocking destructive-op flash (003/011): canvas/v1 destructive
+  // subset (elements.clear / scene.reset / history.clear / files.add-overwrite)
+  // surfaces a one-shot amber pill — never a blocking modal.
+  const destructiveMethod = bridge.destructiveFlash?.method ?? null;
+
   const connectionLabel =
     bridge.connection === "connected"
       ? t("AgentControlConnected")
@@ -80,14 +85,23 @@ const AgentActivationControl = ({
   return (
     <>
       {bridge.isActive && (
-        <div
-          data-testid="agent-controlling-pill"
-          className="flex items-center gap-1.5 rounded-full bg-blue-600 text-white text-xs font-medium px-3 py-1.5 shadow-sm"
-          title={connectionLabel}
-        >
-          <IconRobot className="size-4" />
-          <span>{t("AgentControllingCanvas")}</span>
-        </div>
+	<div
+	  data-testid="agent-controlling-pill"
+	  className="flex items-center gap-1.5 rounded-full bg-blue-600 text-white text-xs font-medium px-3 py-1.5 shadow-sm"
+	  title={connectionLabel}
+	>
+	  <IconRobot className="size-4" />
+	  <span>{t("AgentControllingCanvas")}</span>
+	</div>
+      )}
+      {destructiveMethod && (
+	<div
+	  data-testid="agent-destructive-flash"
+	  className="flex items-center gap-1.5 rounded-full bg-amber-500 text-white text-xs font-medium px-3 py-1.5 shadow-sm"
+	  key={bridge.destructiveFlash?.key}
+	>
+	  <span>⚠ {t("AgentDestructiveOp", { method: destructiveMethod })}</span>
+	</div>
       )}
       <Hint
         label={

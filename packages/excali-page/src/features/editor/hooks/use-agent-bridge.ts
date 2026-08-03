@@ -30,9 +30,15 @@ import {
 } from "excali-shared";
 import { getBrowser } from "@/lib/utils";
 import {
-  AgentBridgeSession,
-  type BridgeConnectionStatus,
+	AgentBridgeSession,
+	type BridgeConnectionStatus,
 } from "../lib/agent-bridge-client";
+import {
+	handleCanvasV1Request,
+	type CanvasV1Helpers,
+	type CanvasV1Request,
+} from "../lib/canvas-v1";
+import { buildCanvasV1Helpers } from "../lib/canvas-v1-helpers";
 
 export interface ExcaliAPI {
   /** The live Excalidraw imperative API — reachable from the page console. */
@@ -46,6 +52,11 @@ declare global {
   interface Window {
     excaliAPI?: ExcaliAPI;
   }
+}
+/** One-shot destructive-op flash data (003/011 non-blocking indicator). */
+export interface DestructiveFlashInfo {
+  method: string;
+  key: number;
 }
 
 export type AgentBridgeConnection =
@@ -71,7 +82,12 @@ export interface UseAgentBridgeResult {
    * (Tickets 016/017). Cleared on the next activation request.
    */
   displaced: boolean;
-  /** first-time-per-connection confirm modal. */
+  /**
+   * Non-blocking visible indicator data for the destructive canvas/v1 subset
+   * (elements.clear / scene.reset / history.clear / files.add-overwrite) per
+   * 003/011 — a one-shot flash, NOT a blocking modal. key bumps per op.
+   */
+  destructiveFlash: DestructiveFlashInfo | null;
   showConfirm: boolean;
   /** The activation toggle may be shown (master ON + paired + Local editor). */
   canActivate: boolean;
@@ -117,16 +133,23 @@ export function useAgentBridge({
   const [swRestartOffer, setSwRestartOffer] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [displacedNotice, setDisplacedNotice] = useState(false);
+  const [destructiveFlash, setDestructiveFlash] = useState<DestructiveFlashInfo | null>(null);
 
   // refs (avoid stale closures in listeners/timers)
   const sessionActiveRef = useRef(false);
   const lastSwIdRef = useRef<string | null>(null);
   const wasActiveRef = useRef(false);
   const confirmShownRef = useRef(false);
+  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onActivateErrorRef = useRef(onActivateError);
   onActivateErrorRef.current = onActivateError;
   const excalidrawAPIRef = useRef(excalidrawAPI);
   excalidrawAPIRef.current = excalidrawAPI;
+  // canvas/v1 real helpers — built once per page session (tgz exports).
+  const canvasV1HelpersRef = useRef<CanvasV1Helpers | null>(null);
+  if (canvasV1HelpersRef.current === null) {
+	canvasV1HelpersRef.current = buildCanvasV1Helpers();
+  }
 
   const browser = getBrowser();
 
@@ -325,19 +348,43 @@ export function useAgentBridge({
         }
       },
       onInbound: (msg) => {
-        if ((msg as { type?: string })?.type === WS_DISPLACED) {
-          // Daemon displaced us: a newer activation (any profile) took the
-          // cross-profile single-active slot (Tickets 016/017). Stop the
-          // session BEFORE the reconnect backoff re-dials (mirroring 003's
-          // "B deactivates A" at PC scope), tell the SW to clear our
-          // activeTabId, and flip the UI.
-          sessionActiveRef.current = false;
-          wasActiveRef.current = false;
-          setIsActive(false);
-          setDisplacedNotice(true);
-          session.stop();
-          void sendToSW({ type: AB_DISPLACED });
-        }
+	if ((msg as { type?: string })?.type === WS_DISPLACED) {
+	  // Daemon displaced us: a newer activation (any profile) took the
+	  // cross-profile single-active slot (Tickets 016/017). Stop the
+	  // session BEFORE the reconnect backoff re-dials (mirroring 003's
+	  // "B deactivates A" at PC scope), tell the SW to clear our
+	  // activeTabId, and flip the UI.
+	  sessionActiveRef.current = false;
+	  wasActiveRef.current = false;
+	  setIsActive(false);
+	  setDisplacedNotice(true);
+	  session.stop();
+	  void sendToSW({ type: AB_DISPLACED });
+	  return;
+	}
+	// canvas/v1: inbound JSON-RPC request (Leg A agent → daemon → this page).
+	// Dispatch to window.excaliAPI and send the correlated response back.
+	const m = msg as { jsonrpc?: string; method?: string } & Partial<CanvasV1Request>;
+	if (m?.jsonrpc === "2.0" && typeof m.method === "string") {
+	  const api = excalidrawAPIRef.current;
+	  if (!api) {
+		    session.sendJSON({
+		      jsonrpc: "2.0",
+		      id: m.id,
+		      error: { code: -32001, message: "canvas not ready" },
+		    });
+		    return;
+	  }
+	  void handleCanvasV1Request(m as CanvasV1Request, {
+		    api: api as never,
+		    helpers: canvasV1HelpersRef.current!,
+		    onDestructive: (method) => {
+		      if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
+		      setDestructiveFlash({ method, key: Date.now() });
+		      flashTimerRef.current = setTimeout(() => setDestructiveFlash(null), 2500);
+		    },
+	  }).then((resp) => session.sendJSON(resp));
+	}
       },
     });
     session.start();
@@ -352,11 +399,15 @@ export function useAgentBridge({
     };
 
     return () => {
-      session.stop();
-      if (window.excaliAPI?.excalidrawAPI === api) {
-        delete window.excaliAPI;
-      }
-    };
+	session.stop();
+	if (flashTimerRef.current) {
+	  clearTimeout(flashTimerRef.current);
+	  flashTimerRef.current = null;
+	}
+	if (window.excaliAPI?.excalidrawAPI === api) {
+	  delete window.excaliAPI;
+	}
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLocal, masterOn, paired, isActive, excalidrawAPI]);
 
@@ -376,6 +427,7 @@ export function useAgentBridge({
     connectedPort,
     swRestartOffer,
     displaced: displacedNotice,
+    destructiveFlash,
     showConfirm,
     canActivate: isLocal && masterOn && paired,
     toggleActivation,
