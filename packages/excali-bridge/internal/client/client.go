@@ -17,7 +17,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/excali-local/excali-bridge/internal/contract"
@@ -146,7 +145,7 @@ func spawnDaemon(opts Options) error {
 	cmd := exec.Command(bin, "serve")
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true} // detach from the CLI's session
+	cmd.SysProcAttr = detachedSysProcAttr() // detach from the CLI's session
 	if err := cmd.Start(); err != nil {
 		logFile.Close()
 		return err

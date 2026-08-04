@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"syscall"
 )
 
 // Info is the pidfile payload. Deliberately minimal: {pid, port}.
@@ -119,11 +118,9 @@ func RemoveAt(path string) {
 // Alive reports whether a process with the given PID exists (same OS user).
 // A reused PID passes here — callers must additionally verify the daemon
 // actually answers (health / handshake) before trusting a pidfile.
+//
+// The probe is platform-specific: kill(pid, 0) on Unix (alive_unix.go),
+// an os.FindProcess lookup on Windows (alive_windows.go).
 func Alive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	// kill(pid, 0) probes existence without signalling (macOS/Linux).
-	err := syscall.Kill(pid, 0)
-	return err == nil || errors.Is(err, syscall.EPERM)
+	return alive(pid)
 }
