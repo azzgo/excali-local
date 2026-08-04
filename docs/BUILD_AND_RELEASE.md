@@ -20,10 +20,11 @@
 | `bun run sync:version` | Propagate root version to all `package.json`s.
 | `bun run bridge:build` | `go build` the Go bridge daemon into `excali-bridge/bin/` (gitignored).
 | `bun run bridge:test` | `go test ./...` for the Go daemon. |
+| `bun scripts/skill-pack.ts` | Cross-compile the daemon (4 static targets: darwin-arm64/amd64, linux-amd64, windows-amd64; CGO off, symbols stripped) + assemble the `excali-draw` skill into `.skill-dist/` + archive. |
+| `bun scripts/check-skill-commands.ts` | Zero-drift gate: the skill's documented commands == the wire contract. |
 
-> `README.md` mentions `bun run local:dev`, but **no such script exists**. To develop
-> the extension UI use `page:dev`; for the full extension, build and load
-> `.output/chrome-mv3` as an unpacked extension.
+> There is no `local:dev` script. For the editor UI use `page:dev`; for the full
+> extension, run `local:build` then load `.output/chrome-mv3` as an unpacked extension.
 
 ## Build pipeline
 
@@ -36,9 +37,12 @@
 **Go bridge daemon** (`packages/excali-bridge`): NOT a bun workspace. Build/test with
 `bun run bridge:build` / `bridge:test` (plain `go build` / `go test`; stdlib-only, no
 module downloads, so it builds offline). The daemon is NOT packaged into the extension —
-it is the agent-side binary (skill packaging/distribution is a follow-up goal).
-Verify against the extension with `bun scripts/agent-bridge/driver.ts` (spawns the daemon
-lazily via the CLI).
+it is the agent-side binary, distributed as the **excali-draw skill** (`skills/excali-draw/`):
+`scripts/skill-pack.ts` cross-compiles 4 static targets (darwin-arm64/amd64, linux-amd64,
+windows-amd64; CGO disabled, symbols stripped) and assembles the distributable skill
+folder + archive. Verify against the extension with the e2e drivers in
+`scripts/agent-bridge/` (`driver` / `driver-canvas` / `driver-gallery` / `driver-fonts` /
+`driver-skill` — each spawns the daemon lazily via the CLI).
 
 `public/editor/`, `.output/`, `.wxt/`, `dist/`, and `*.tgz` (except the committed
 Excalidraw dep) are gitignored build artifacts — skip them when exploring.
@@ -68,3 +72,10 @@ Tag-driven, automated via `.github/workflows/release.yml`:
 
 Version bumps: set the root `package.json` `version`, then `bun run sync:version` to
 propagate to all three packages. Keep all three versions in sync.
+
+The **excali-draw skill** (`skills/excali-draw/`) is a separate release artifact from the
+extension: pack it with `bun scripts/skill-pack.ts` →
+`.skill-dist/excali-draw-<version>.tar.gz` (versioned from the root `package.json`, so it
+stays in sync). It is **not** wired into the tag-driven CI above yet — remote distribution
+(e.g. `skills.sh` → `.agents/skills/`) is a tracked follow-up. The skill bundles its own
+static multi-platform daemon binaries, so it has no runtime dependency on the extension build.

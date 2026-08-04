@@ -59,7 +59,12 @@ Check which package you're in before importing.
   (per-profile control plane) stays the consent/UI authority; the daemon is the
   cross-profile arbiter.
 - **Leg A (agent CLI)**: versioned minimal JSON-RPC (ADR 0001); CLI subcommand ==
-  method. Only `ping` framing exists today (`canvas/v1+` is a follow-up).
+  method. Three command sets are implemented (`excali-bridge <method> [json]`):
+  **canvas/v1** (16 — the activated canvas), **gallery/v1** (10 — gallery + collections),
+  **fonts/v1** (5 — font config + daemon-local OS-font list); plus daemon-local meta
+  (`ping`/`commands.list`/`protocol.version`/`bridge.status`). 33 methods total. The
+  agent-facing surface is taught by the `excali-draw` skill (`skills/excali-draw/`); the CLI
+  is the stable contract.
 
 ## Testing
 

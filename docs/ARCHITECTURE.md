@@ -1,6 +1,6 @@
 # Architecture
 
-> Detail doc linked from [AGENTS.md](../AGENTS.md). Verified against `main` @ `6461b01` (v1.6.4).
+> Detail doc linked from [AGENTS.md](../AGENTS.md). Verified against `main` @ `00a9674` (v1.6.4).
 
 ## Three-layer monorepo
 
@@ -15,7 +15,7 @@ Bun workspaces, three packages (plus a Go package that is NOT a workspace member
 | --- | --- |
 | `packages/excali-local` | **Extension shell** (WXT). Generates the MV3 manifest; hosts the background service worker, content script, crop script, popup, and options page. Embeds the built editor from `excali-page`. |
 | `packages/excali-page` | **Editor app** (React 19 + Vite 5). The Excalidraw UI — editor, gallery, presentation, marker. Ships as a standalone web app and as the extension's editor. |
-| `packages/excali-shared` | **Shared layer**. Font-config IndexedDB (`excali-fonts`) + pure utils/types (`cn`, `getBrowser`, `getLang`). Imported via the `excali-shared` workspace alias. |
+| `packages/excali-shared` | **Shared layer**. Font-config IndexedDB (`excali-fonts`) + the **agent-bridge wire contract** (`agent-bridge.ts` — method sets, ports, WS types, token rules; the source of truth the Go daemon mirrors) + pure utils/types (`cn`, `getBrowser`, `getLang`). Imported via the `excali-shared` workspace alias. |
 | `packages/excali-bridge` | **Go daemon** (Go, not Bun). The Agent Bridge: a 127.0.0.1-only WS server + agent CLI. Cross-profile single-active-canvas arbiter. See the bridge section below. |
 
 ## Repository layout
@@ -42,11 +42,16 @@ packages/
       components/ui/       # shadcn-style primitives (Radix + Tailwind)
       lib/ locales/        # utils + i18n
     test/                  # mirrors src/features/...; setup.ts + provider.helper.tsx
-  excali-shared/src/       # db.ts (fonts) + index.ts (shared utils/types)
+  excali-shared/src/       # db.ts (fonts) + agent-bridge.ts (wire contract) + index.ts (utils/types)
   excali-bridge/           # Go daemon (NOT a bun workspace): go.mod + main.go +
-    internal/              #   contract (wire mirror), pidfile, ws (RFC 6455),
+    internal/              #   contract (wire mirror), pidfile, ws (RFC 6455), fonts,
     bin/                   #   server (daemon), client (Leg-A CLI); bin/ gitignored
-scripts/                   # build.ts clean.ts tar.ts zip.ts sync-version.sh
+skills/excali-draw/        # agent-agnostic drawing skill (SKILL.md + references/) —
+                           #   bundled daemon built at pack time; NOT a bun workspace
+scripts/                   # build/clean/tar/zip, sync-version.sh, skill-pack.ts,
+                           #   check-skill-commands.ts
+  agent-bridge/            # e2e drivers: driver / driver-canvas / driver-gallery /
+                           #   driver-fonts / driver-skill (spawn the daemon lazily)
 .github/workflows/release.yml
 ```
 
@@ -66,14 +71,15 @@ Message `type` values are string literals (no enum). Defined in
 
 Adding a message type: update both the background router and the editor hook.
 
-## Agent bridge daemon (cross-profile single-active-canvas)
+## Agent bridge daemon (agent-driven drawing)
 
-The **Agent Bridge** lets an external local agent drive the activated canvas. It is a
-**three-layer opt-in consent** (Wayfinder 003): Options master switch (Layer 0, default
-OFF = kill-switch) → popup pairing (Gate 1) → per-canvas activation on the Local editor
-page (Gate 2; Quick never activates). The background SW is the per-profile control plane
-(ephemeral activation registry `{activeTabId, swInstanceId}`); the page owns the WS data
-path and exposes `window.excaliAPI` only while active.
+The **Agent Bridge** lets an external local agent drive the activated canvas and the
+canvas-related subsystems (gallery, fonts) over a loopback-only connection. It is a
+**two-gate consent** model (Wayfinder 003/011/013): a **paired connection** (the user has
+allowed *this* agent via first-use pairing) gates **all** agent control; an **activated
+canvas** (the user has exposed a specific canvas on the editor page) is an **additional**
+gate for canvas-bound operations + the single-active-canvas invariant. Global operations
+(gallery, fonts) work over a paired connection **without** an activated canvas.
 
 The **Go daemon** (`packages/excali-bridge`, Tickets 009/016/017) is the **cross-profile
 arbiter** — the only entity shared across browsers/profiles (loopback). One self-contained
@@ -86,19 +92,63 @@ binary, two faces:
   **displaces** the prior page: it receives `{type:"displaced"}`, then its socket closes.
   The page hook stops its session on `displaced`, tells its SW (`AGENT_BRIDGE_DISPLACED`),
   and flips the UI. Agent CLI connections handshake with `role:"agent"` — authenticated but
-  never claiming the slot (a CLI ping must not kick the active canvas).
-- **ping / status** — Leg-A agent CLI: versioned minimal JSON-RPC over the same WS server
-  (ADR 0001; only `ping` framing in scope; `canvas/v1+` is a follow-up). CLI subcommand ==
-  JSON-RPC method. Lazy daemon: the first CLI command spawns `serve` detached if needed.
+  never claiming the slot.
+- **Leg-A agent CLI** — versioned minimal JSON-RPC (ADR 0001); **CLI subcommand ==
+  JSON-RPC method** (`excali-bridge <method> [params-json]`). Lazy daemon: the first CLI
+  command spawns `serve` detached if needed.
 - **Single-instance** = fixed-path pidfile `~/.excali-local/bridge.pid` holding
   `{pid, port}` **only** (never the token, per 011/017); stale pid cleaned up; a later
   invocation finds a live pid + answering daemon → reuses, no respawn.
 
-Wire contract: `packages/excali-shared/src/agent-bridge.ts` is the source of truth for
-the Leg-B message types/ports/token rules; `packages/excali-bridge/internal/contract/`
-mirrors it (single source of truth TBD: code-gen vs documented duplication). The
-e2e harness `scripts/agent-bridge/driver.ts` exercises the page's real client code against
-the daemon (ping round-trip + two-page displacement proof).
+**Connection model (goal-3, Option A):** every page connection carries a **per-profile
+uuid** (store-install extension ids are identical across profiles, so origin alone can't
+distinguish them). A Local editor page may dial a **control connection** (`role:"control-page"`)
+**without** being activated — this is how gallery/fonts (global) ops reach a page with no
+active canvas. Routing is unambiguous:
+
+- **Daemon-local** methods (`ping`, `commands.list`, `protocol.version`, `bridge.status`,
+  `fonts.system.list`) resolve in the daemon — no page involved.
+- **Canvas-bound** methods (all `canvas/v1`; `gallery.load`/`gallery.save`) route to the
+  **active slot only** — no active canvas → `-32001`, never a silent guess.
+- **Paired-only** methods (gallery list/get/rename/delete/collections; fonts
+  get/assign/install/clear) route to the **active canvas's page if one is active, else to
+  exactly one control page** — zero or >1 control pages with no active canvas → `-32004`
+  (ambiguous target), never a silent guess.
+
+**Command surface** (33 methods; the `excali-bridge` CLI is the stable contract — the
+drawing skill teaches this surface, never the JSON-RPC/WS internals):
+
+- **canvas/v1** (16) — the activated Excalidraw canvas: read (`scene.get`/`elements`/
+  `state`/`bounds`/`exportPng`/`exportSvg`), write (`scene.update`/`elements.add`/`clear`/
+  `scene.reset`/`files.add`/`tool.setActive`/`view.scrollTo`/`history.clear`), +
+  `commands.list`/`protocol.version`. Destructive subset fires a non-blocking indicator.
+- **gallery/v1** (10) — `gallery.{list,get,rename,delete,collections.*}` paired;
+  `gallery.{load,save}` canvas-bound. delete/rename = blocking confirm.
+- **fonts/v1** (5) — `fonts.system.list` **daemon-local** (Go enumerates OS-installed
+  fonts by scanning standard font dirs + parsing sfnt name tables; pure stdlib,
+  cross-browser, no `queryLocalFonts` permission); `fonts.{get,assign,install,clear}`
+  paired (touch the `excali-fonts` IndexedDB record). install/clear = blocking confirm;
+  `requiresReload:true` on every write (fonts inject once at boot).
+
+JSON-RPC error codes: `-32001` no active canvas · `-32002` page timeout · `-32003` page
+disconnected mid-flight · `-32004` ambiguous target (>1 control page, no active canvas) ·
+`-32005` user cancelled a blocking op · plus std `-32600..-32603`.
+
+Wire contract: `packages/excali-shared/src/agent-bridge.ts` is the **source of truth** for
+the method set + ports + WS types + token rules; `packages/excali-bridge/internal/contract/`
+**mirrors it by hand** (change both together — code-gen to eliminate the manual mirror is a
+tracked follow-up). The e2e harness in `scripts/agent-bridge/` exercises the full surface
+against the real daemon: `driver.ts` (ping + displacement), `driver-canvas.ts` (canvas/v1),
+`driver-gallery.ts` (gallery/v1), `driver-fonts.ts` (fonts/v1), `driver-skill.ts` (the
+assembled skill binary end-to-end).
+
+The agent-facing surface is packaged as the **excali-draw skill** (`skills/excali-draw/`,
+Ticket 009) — an agent-agnostic `SKILL.md` + `references/` that bundles static
+multi-platform daemon binaries and teaches an agent to draw via the CLI.
+`scripts/skill-pack.ts` cross-compiles (CGO disabled, symbols stripped) + static-verifies +
+assembles the distributable; `scripts/check-skill-commands.ts` is a zero-drift gate
+asserting the skill's documented command set matches the contract.
+
 
 ## Editor boot & forms
 
@@ -139,8 +189,9 @@ Three editor components under `features/editor/components/`:
 | `packages/excali-page/src/features/editor/components/local-editor.tsx` | Main editor UI + save pipeline. |
 | `packages/excali-page/src/features/gallery/store/gallery-atoms.ts` | Gallery Jotai state. |
 | `packages/excali-shared/src/db.ts` + `index.ts` | Font-config storage + shared utils/types.
-| `packages/excali-shared/src/agent-bridge.ts` | Agent-bridge wire contract (ports, WS types, token rules, consent keys).
-| `packages/excali-bridge/` (`main.go` + `internal/`) | Go daemon: WS server + agent CLI, pidfile single-instance, displacement. |
-| `scripts/agent-bridge/driver.ts` | e2e driver: page client vs the Go daemon (ping + displacement). |
-| `scripts/{build,clean,tar,zip}.ts` + `sync-version.sh` | Build/pack/version tooling. |
+| `packages/excali-shared/src/agent-bridge.ts` | Agent-bridge wire contract — **source of truth**: method sets (canvas/gallery/fonts), ports, WS types, token rules, consent keys, error codes. The Go daemon mirrors it. |
+| `packages/excali-bridge/` (`main.go` + `internal/`) | Go daemon: WS server + agent CLI, pidfile single-instance, displacement, daemon-local OS-font enumeration, cross-profile routing. |
+| `scripts/agent-bridge/` (5 drivers) | e2e vs the real daemon: `driver` (ping+displacement), `driver-canvas` (canvas/v1), `driver-gallery` (gallery/v1), `driver-fonts` (fonts/v1), `driver-skill` (assembled skill binary). |
+| `skills/excali-draw/` | Agent-agnostic drawing skill (`SKILL.md` + `references/`); bundles the static multi-platform daemon binaries. Pack with `scripts/skill-pack.ts`. |
+| `scripts/{build,clean,tar,zip}.ts` + `sync-version.sh` + `skill-pack.ts` + `check-skill-commands.ts` | Build/pack/version tooling + skill assembly + zero-drift command gate. |
 | `.github/workflows/release.yml` | Tag → test → build → pack → draft release. |

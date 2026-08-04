@@ -3,7 +3,7 @@
 A local-first browser extension that runs Excalidraw fully offline: screenshot annotation, an
 offline editor, a local gallery, presentation mode, custom fonts. No backend; all data in
 IndexedDB. This glossary captures the terms that are specific to this project — in particular
-the in-progress **Agent Bridge** feature (an external local agent driving the editor).
+the **Agent Bridge** feature (agent-driven drawing — an external local agent driving the
 
 ## Agent Bridge
 

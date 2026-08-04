@@ -4,7 +4,8 @@
  * Consumed by all three packages (shell background/popup/options via chrome.i18n
  * pages, editor page app) and by the Go bridge daemon (mirrored in
  * `packages/excali-bridge/internal/contract/contract.go` — keep both in sync;
- * single source of truth TBD: code-gen vs documented duplication).
+ * this module is the source of truth; the Go side mirrors it by hand; code-gen to
+ * drop the manual mirror is a tracked follow-up).
  *
  * Three-layer consent (Wayfinder Ticket 003 + click-through):
  *   Layer 0  master   Options, GLOBAL, PERSISTED via chrome.storage, default OFF

@@ -82,7 +82,8 @@ bun install
 
 # Development
 bun run page:dev      # Start editor webapp
-bun run local:dev     # Start extension development
+# (no `local:dev` script — use page:dev for the editor; for the full extension, run
+#  local:build then load .output/chrome-mv3 as an unpacked extension)
 
 # Build
 bun run page:build    # Build editor webapp

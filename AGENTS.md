@@ -9,13 +9,16 @@ member — it builds with `go build`, not Bun):
 
 - `packages/excali-local` — WXT **extension shell** (manifest, background, content, crop, popup, options).
 - `packages/excali-page` — React 19 + Vite **editor app** (the Excalidraw UI).
-- `packages/excali-shared` — font-config DB + shared utils/types.
+- `packages/excali-shared` — font-config DB + the **agent-bridge wire contract** (`agent-bridge.ts` — the source of truth the Go daemon mirrors) + shared utils/types.
 - `packages/excali-bridge` — **Go daemon** (NOT a bun workspace): the Agent Bridge
   (Tickets 009/016/017) — a 127.0.0.1-only WS server (Leg B: the activated editor
   page dials out) + agent CLI (Leg A: versioned minimal JSON-RPC). Cross-profile
   single-active-canvas arbiter: pidfile single-instance, ≤1 active page, new
   activation displaces. Wire contract mirrored from `excali-shared/src/agent-bridge.ts`
-  (single source of truth TBD). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+  (the source of truth the Go side mirrors by hand). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+- `skills/excali-draw/` — the **agent-agnostic drawing skill** (NOT a workspace member):
+  `SKILL.md` + `references/` that bundle the static Go daemon and teach an agent to draw
+  via the CLI. Pack with `scripts/skill-pack.ts`; verify with `scripts/check-skill-commands.ts`.
 
 This file is **agent guidance + routing**, not a repo manual. For the why and the
 detail, read the doc relevant to your task (links below).
