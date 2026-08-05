@@ -37,9 +37,10 @@ runtime, no libgcc, no libwinpthread); macOS links only Apple system
 libraries. Actual sizes and archive size are recorded below at pack time.
 
 <!-- PACK-SIZES-BEGIN -->
-| Target | Size | Static-verify |
-| --- | --- | --- |
-| _(populated by `scripts/skill-pack.ts` at pack time)_ |
+| `excali-bridge-darwin-arm64` | 6.36 MiB | Apple system libs only: /usr/lib/libSystem.B.dylib, /usr/lib/libresolv.9.dylib, /System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation, /System/Library/Frameworks/Security.framework/Versions/A/Security |
+| `excali-bridge-darwin-amd64` | 6.86 MiB | Apple system libs only: /usr/lib/libSystem.B.dylib, /usr/lib/libresolv.9.dylib, /System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation, /System/Library/Frameworks/Security.framework/Versions/A/Security |
+| `excali-bridge-linux-amd64` | 6.73 MiB | statically linked (file) |
+| `excali-bridge-windows-amd64.exe` | 6.93 MiB | imports only: kernel32.dll |
 <!-- PACK-SIZES-END -->
 
 ### macOS caveat (read before distributing to Macs)
@@ -67,13 +68,15 @@ more libraries than these in a fresh build, that is a packaging regression.
 ```bash
 # from the excali-local repo
 bun run bridge:build                 # host build (dev)
-bun scripts/skill-pack.ts            # cross-compile 4 targets + static-verify + assemble + archive
-bun scripts/agent-bridge/driver-skill.ts   # smoke test against the assembled skill
+bun scripts/skill-pack.ts            # cross-compile 4 targets into bin/ + static-verify + refresh README sizes + tarball
+bun scripts/agent-bridge/driver-skill.ts   # smoke test the source skill's binary
 bun scripts/check-skill-commands.ts  # command-reference.md <-> contract drift check
 ```
 
-The pack script fails loudly if any target does not build, does not pass
-`go vet`, or fails static verification.
+`skill-pack` builds the binaries **in place** into `bin/` (the committed source
+skill IS the artifact), refreshes the size table below, and emits only the
+versioned release tarball. It fails loudly if any target does not build, does
+not pass `go vet`, or fails static verification.
 
 ## Version
 

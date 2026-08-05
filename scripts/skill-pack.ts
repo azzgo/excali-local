@@ -1,6 +1,10 @@
 #!/usr/bin/env bun
 /**
- * skill-pack — build the distributable excali-draw skill folder.
+ * skill-pack — build the distributable excali-draw skill.
+ *
+ * Source-is-the-artifact model: `skills/excali-draw/` IS the usable skill —
+ * the platform binaries are COMMITTED under `skills/excali-draw/bin/` and this
+ * script refreshes them in place (no `.skill-dist/` folder assembly).
  *
  * 1. Cross-compiles the Go daemon (packages/excali-bridge) for the target
  *    matrix with CGO_ENABLED=0 -trimpath -ldflags="-s -w" (pure Go, cgo
@@ -12,10 +16,12 @@
  * 3. Mandatory static-verify per target (file/objdump/otool) proving the
  *    dep-free story: linux fully static; windows imports only kernel32;
  *    darwin links only Apple system libraries. FAILS otherwise.
- * 4. Assembles .skill-dist/excali-draw/ (SKILL.md + README.md + references/
- *    + bin/excali-bridge-<os>-<arch>[.exe]) and records the actual
- *    per-binary + archive sizes in the skill README.
- * 5. Produces a versioned archive: .skill-dist/excali-draw-<version>.tar.gz.
+ * 4. Copies the verified binaries into `skills/excali-draw/bin/` (overwriting)
+ *    and records the actual per-binary + archive sizes in the skill README
+ *    (the PACK-SIZES table is updated IN PLACE in the source README).
+ * 5. Produces ONLY the versioned release archive:
+ *    `.skill-dist/excali-draw-<version>.tar.gz` (a plain tarball of the
+ *    skill dir). No `.skill-dist/excali-draw/` folder copy is assembled.
  *
  * Run: bun scripts/skill-pack.ts
  */
@@ -26,6 +32,7 @@ import { join } from "node:path";
 const ROOT = join(import.meta.dir, "..");
 const BRIDGE_DIR = join(ROOT, "packages/excali-bridge");
 const SKILL_DIR = join(ROOT, "skills/excali-draw");
+const SKILL_BIN_DIR = join(SKILL_DIR, "bin");
 const DIST = join(ROOT, ".skill-dist");
 const SKILL_NAME = "excali-draw";
 
@@ -65,10 +72,12 @@ interface BuiltTarget {
 
 const built: BuiltTarget[] = [];
 
-// Scratch area for the built binaries lives under .skill-dist/bin during the
-// build phase and is renamed into the assembled folder afterwards.
+// Binaries are staged in .skill-dist/bin during build+verify so a gate failure
+// NEVER leaves a partial binary (or a patched README) in the committed source.
+// Only after ALL gates pass are they copied into skills/excali-draw/bin/.
 rmSync(DIST, { recursive: true, force: true });
 mkdirSync(join(DIST, "bin"), { recursive: true });
+mkdirSync(SKILL_BIN_DIR, { recursive: true });
 
 console.log(`[skill-pack] excali-draw v${VERSION} — building ${TARGETS.length} targets`);
 for (const t of TARGETS) {
@@ -159,7 +168,7 @@ for (const t of TARGETS) {
 }
 
 if (failures > 0) {
-  console.error(`[skill-pack] FAIL — ${failures} gate(s) failed; no distributable assembled.`);
+  console.error(`[skill-pack] FAIL — ${failures} gate(s) failed; skill bin/ NOT updated.`);
   process.exit(1);
 }
 
@@ -169,30 +178,19 @@ for (const b of built) {
 }
 
 // ---------------------------------------------------------------------------
-// 4. assemble .skill-dist/excali-draw/
+// 4. copy verified binaries into the SOURCE skill + patch its README in place
 // ---------------------------------------------------------------------------
-const DIST_SKILL = join(DIST, SKILL_NAME);
-mkdirSync(join(DIST_SKILL, "bin"), { recursive: true });
-mkdirSync(join(DIST_SKILL, "references/workflows"), { recursive: true });
-
-for (const f of ["SKILL.md", "README.md"]) {
-  writeFileSync(join(DIST_SKILL, f), readFileSync(join(SKILL_DIR, f)));
-}
-for (const f of ["command-reference.md", "element-templates.md", "json-schema.md", "color-palette.md"]) {
-  writeFileSync(join(DIST_SKILL, "references", f), readFileSync(join(SKILL_DIR, "references", f)));
-}
-for (const f of ["draw-a-diagram.md", "save-to-gallery.md", "install-and-use-a-font.md"]) {
-  writeFileSync(join(DIST_SKILL, "references/workflows", f), readFileSync(join(SKILL_DIR, "references/workflows", f)));
-}
 for (const b of built) {
-  // Move the scratch-built binary into the assembled folder (keeps modes).
-  const dest = join(DIST_SKILL, "bin", binName(b.target));
+  const dest = join(SKILL_BIN_DIR, binName(b.target));
   writeFileSync(dest, readFileSync(b.path), { mode: 0o755 });
+  ok(`installed bin/${binName(b.target)} → skills/excali-draw/bin/`);
 }
 rmSync(join(DIST, "bin"), { recursive: true, force: true }); // scratch area no longer needed
 
-// Patch the README size table with the real measurements.
-const readme = readFileSync(join(DIST_SKILL, "README.md"), "utf8");
+// Patch the README size table with the real measurements (in place — the
+// source README is part of the artifact and ships inside the tarball).
+const readmePath = join(SKILL_DIR, "README.md");
+const readme = readFileSync(readmePath, "utf8");
 const rows = built
   .map((b) => `| \`${binName(b.target)}\` | ${(b.sizeBytes / (1024 * 1024)).toFixed(2)} MiB | ${b.verify} |`)
   .join("\n");
@@ -200,22 +198,23 @@ const patched = readme.replace(
   /<!-- PACK-SIZES-BEGIN -->[\s\S]*?<!-- PACK-SIZES-END -->/,
   `<!-- PACK-SIZES-BEGIN -->\n${rows}\n<!-- PACK-SIZES-END -->`,
 );
-writeFileSync(join(DIST_SKILL, "README.md"), patched);
+writeFileSync(readmePath, patched);
+ok("README.md PACK-SIZES table updated in place");
 
 // ---------------------------------------------------------------------------
-// 5. versioned archive + report
+// 5. versioned archive + report (ONLY artifact: no .skill-dist folder copy)
 // ---------------------------------------------------------------------------
 const archive = join(DIST, `${SKILL_NAME}-${VERSION}.tar.gz`);
-const tar = run(["tar", "-czf", archive, "-C", DIST, SKILL_NAME], ROOT, {});
+const tar = run(["tar", "-czf", archive, "-C", SKILL_DIR, "."], ROOT, {});
 if (tar.code !== 0) {
   fail(`archive:\n${tar.out}`);
   process.exit(1);
 }
 const archiveBytes = Number((Bun.spawnSync(["stat", "-f", "%z", archive], { cwd: ROOT }).stdout?.toString() ?? "0").trim());
 
-console.log(`\n[skill-pack] assembled ${DIST_SKILL}`);
+console.log(`\n[skill-pack] source skill ready: ${SKILL_DIR}`);
 for (const b of built) {
   console.log(`  bin/${binName(b.target)}  ${(b.sizeBytes / (1024 * 1024)).toFixed(2)} MiB  ${b.verify}`);
 }
 console.log(`  archive ${archive}  ${(archiveBytes / (1024 * 1024)).toFixed(2)} MiB (${archiveBytes} bytes)`);
-console.log(`[skill-pack] PASS — excali-draw v${VERSION} distributable ready ✔`);
+console.log(`[skill-pack] PASS — excali-draw v${VERSION} binaries refreshed + tarball emitted ✔`);

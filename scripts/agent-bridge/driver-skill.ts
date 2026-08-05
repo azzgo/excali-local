@@ -1,11 +1,11 @@
 #!/usr/bin/env bun
 /**
  * AGENT BRIDGE — goal-5 smoke test: run the HOST platform's daemon binary
- * from the ASSEMBLED skill (.skill-dist/excali-draw/bin/) end-to-end,
- * exactly as the skill's consumers will.
+ * from the SOURCE skill (skills/excali-draw/bin/) end-to-end, exactly as the
+ * skill's consumers will.
  *
- *   - binary = bin/excali-bridge-<os>-<arch>[.exe] inside the packed skill
- *     folder (the naming convention SKILL.md teaches agents to pick);
+ *   - binary = bin/excali-bridge-<os>-<arch>[.exe] inside the skill dir
+ *     (the naming convention SKILL.md teaches agents to pick);
  *   - lazy daemon: first CLI call spawns `serve` automatically;
  *   - daemon-local round-trip: ping → pong;
  *   - canvas/v1 round-trip against a page-sim running the REAL page
@@ -18,7 +18,7 @@
  * been run first: `bun scripts/skill-pack.ts`.
  *
  * Run:
- *   bun scripts/skill-pack.ts
+ *   bun scripts/skill-pack.ts   # refresh skills/excali-draw/bin/
  *   bun scripts/agent-bridge/driver-skill.ts
  */
 
@@ -45,7 +45,7 @@ if (!hostName) {
   console.error(`[driver-skill] no bundled binary for host ${process.platform}/${process.arch} — expected one of the 4 targets`);
   process.exit(2);
 }
-const bin = process.env.EXCALI_BRIDGE_BIN ?? join(import.meta.dir, "../../.skill-dist/excali-draw/bin", hostName);
+const bin = process.env.EXCALI_BRIDGE_BIN ?? join(import.meta.dir, "../../skills/excali-draw/bin", hostName);
 if (!existsSync(bin)) {
   console.error(`[driver-skill] bundled binary not found: ${bin} — run \`bun scripts/skill-pack.ts\` first`);
   process.exit(1);
