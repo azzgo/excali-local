@@ -22,6 +22,7 @@ import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
   currentLoadedDrawingIdAtom,
   galleryIsOpenAtom,
+  galleryRevisionAtom,
   selectedCollectionIdAtom,
   searchQueryAtom,
 } from "../store/gallery-atoms";
@@ -173,6 +174,9 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
   const [currentPage, setCurrentPage] = useState(1);
   const selectedCollectionId = useAtomValue(selectedCollectionIdAtom);
   const searchQuery = useAtomValue(searchQueryAtom);
+  // Bumped by the agent gallery dispatcher (and any external writer) after each
+  // gallery WRITE — reloads drawings+collections so the open sidebar refreshes live.
+  const galleryRevision = useAtomValue(galleryRevisionAtom);
 
   // 计算所有 collection 的 drawing 数量（基于全量数据）
   const drawingCounts = useMemo(() => {
@@ -230,7 +234,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
       setCollections(data);
     };
     loadCollections();
-  }, [getCollections]);
+  }, [getCollections, galleryRevision]);
 
   useEffect(() => {
     let cancelled = false;
@@ -250,7 +254,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
     return () => {
       cancelled = true;
     };
-  }, [getAll]);
+  }, [getAll, galleryRevision]);
 
   const handleStateChange = useCallback(
     (state: { name: string; tab?: string } | null) => {

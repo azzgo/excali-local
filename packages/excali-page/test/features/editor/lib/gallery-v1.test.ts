@@ -27,8 +27,10 @@ function makeDeps(overrides: Partial<GalleryV1Deps> = {}): {
   db: Record<string, ReturnType<typeof vi.fn>>;
   scene: Record<string, ReturnType<typeof vi.fn>>;
   store: FakeDrawing[];
+  mutated: ReturnType<typeof vi.fn>;
 } {
   const store: FakeDrawing[] = [];
+  const mutated = vi.fn();
   const dbFns = {
     getDrawings: vi.fn(async (collectionId?: string) =>
       store
@@ -70,9 +72,10 @@ function makeDeps(overrides: Partial<GalleryV1Deps> = {}): {
     db: dbFns,
     scene: sceneFns,
     onConfirm: vi.fn(async () => true),
+    onGalleryMutated: mutated,
     ...overrides,
   };
-  return { deps, db: dbFns, scene: sceneFns, store };
+  return { deps, db: dbFns, scene: sceneFns, store, mutated };
 }
 
 const addDrawing = (
@@ -361,6 +364,75 @@ describe("gallery/v1 dispatcher", () => {
       });
       expect(db.deleteCollectionAndReport).toHaveBeenCalledWith("c1");
       expect(result).toEqual({ id: "c1", affectedDrawings: 3 });
+    });
+  });
+
+  describe("onGalleryMutated (live-refresh signal)", () => {
+    test("save-create fires exactly once", async () => {
+      const { deps } = makeDeps();
+      await okResult(await call(deps, "gallery.save", { name: "New" }));
+      expect(deps.onGalleryMutated).toHaveBeenCalledTimes(1);
+    });
+
+    test("save-overwrite fires exactly once (after the confirm gate)", async () => {
+      const { deps, store } = makeDeps();
+      addDrawing(store, { id: "a" });
+      await okResult(await call(deps, "gallery.save", { id: "a" }));
+      expect(deps.onGalleryMutated).toHaveBeenCalledTimes(1);
+    });
+
+    test("rename / delete / collections.create / collections.rename / collections.delete each fire exactly once", async () => {
+      const { deps, db, store } = makeDeps();
+      addDrawing(store, { id: "a" });
+
+      await okResult(await call(deps, "gallery.rename", { id: "a", name: "R" }));
+      expect(deps.onGalleryMutated).toHaveBeenCalledTimes(1);
+
+      await okResult(await call(deps, "gallery.delete", { id: "a" }));
+      expect(deps.onGalleryMutated).toHaveBeenCalledTimes(2);
+
+      await okResult(await call(deps, "gallery.collections.create", { name: "W" }));
+      expect(deps.onGalleryMutated).toHaveBeenCalledTimes(3);
+
+      db.getCollections.mockResolvedValueOnce([{ id: "c1", name: "Old", createdAt: 5 }]);
+      await okResult(await call(deps, "gallery.collections.rename", { id: "c1", name: "New" }));
+      expect(deps.onGalleryMutated).toHaveBeenCalledTimes(4);
+
+      await okResult(await call(deps, "gallery.collections.delete", { id: "c1" }));
+      expect(deps.onGalleryMutated).toHaveBeenCalledTimes(5);
+    });
+
+    test("never fires on reads (list / get / load / collections.list)", async () => {
+      const { deps, store } = makeDeps();
+      addDrawing(store, { id: "a", elements: "[{\"id\":\"el-1\"}]", appState: "{}", files: "{}" });
+      await okResult(await call(deps, "gallery.list", {}));
+      await okResult(await call(deps, "gallery.get", { id: "a" }));
+      await okResult(await call(deps, "gallery.load", { id: "a" }));
+      await okResult(await call(deps, "gallery.collections.list", {}));
+      expect(deps.onGalleryMutated).not.toHaveBeenCalled();
+    });
+
+    test("never fires when a blocking confirm is cancelled (-32005)", async () => {
+      const { deps, store } = makeDeps({ onConfirm: vi.fn(async () => false) });
+      addDrawing(store, { id: "a" });
+      const cases: Array<[string, unknown]> = [
+        ["gallery.rename", { id: "a", name: "X" }],
+        ["gallery.delete", { id: "a" }],
+        ["gallery.save", { id: "a" }],
+        ["gallery.collections.delete", { id: "c1" }],
+        ["gallery.collections.rename", { id: "c1", name: "X" }],
+      ];
+      for (const [method, params] of cases) {
+        const resp = await call(deps, method, params);
+        expect(resp.error?.code).toBe(-32005);
+      }
+      expect(deps.onGalleryMutated).not.toHaveBeenCalled();
+    });
+
+    test("a throwing onGalleryMutated must not fail the RPC (best-effort)", async () => {
+      const { deps } = makeDeps({ onGalleryMutated: () => { throw new Error("boom"); } });
+      const result = await okResult(await call(deps, "gallery.collections.create", { name: "W" }));
+      expect(result).toMatchObject({ name: "W" });
     });
   });
 

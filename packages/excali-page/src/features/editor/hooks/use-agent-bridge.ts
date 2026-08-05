@@ -12,6 +12,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSetAtom } from "jotai";
+import { galleryRevisionAtom } from "@/features/gallery/store/gallery-atoms";
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
 import { nanoid } from "nanoid";
 import {
@@ -484,6 +486,7 @@ export function useAgentBridge({
 
   // gallery/v1 deps — refreshed every render so the dispatcher always reads
   // the live excalidrawAPI + thumbnail/currentLoaded hooks via the ref.
+  const setGalleryRevision = useSetAtom(galleryRevisionAtom);
   const galleryDepsRef = useRef<GalleryV1Deps | null>(null);
   galleryDepsRef.current = {
     db: {
@@ -523,6 +526,7 @@ export function useAgentBridge({
         }
       : undefined,
     onConfirm,
+    onGalleryMutated: () => setGalleryRevision((n) => n + 1),
   };
 
   // fonts/v1 deps — same confirm queue (goal-4 reuses goal-3 modal infra).

@@ -140,6 +140,14 @@ export interface GalleryV1Deps {
    * respond -32005 "cancelled by user". Absent gate = auto-reject (safe).
    */
   onConfirm?: (info: { method: string; params: Record<string, unknown> }) => Promise<boolean>;
+  /**
+   * Fired once after EVERY successful gallery write (save-create, save-overwrite,
+   * rename, delete, collections.create/rename/delete) so the UI can refresh live.
+   * NEVER called on reads (list/get/load/collections.list) and never on a
+   * cancelled blocking confirm (-32005) — those throw before any write. Best-effort:
+   * a throwing callback must not fail the RPC.
+   */
+  onGalleryMutated?: () => void;
 }
 
 class GalleryV1Error extends Error {
@@ -184,6 +192,15 @@ async function confirmGate(
   }
   const ok = await deps.onConfirm({ method, params });
   if (!ok) throw new GalleryV1Error(JSON_RPC_ERROR_USER_CANCELLED, "cancelled by user");
+}
+
+/** Best-effort write signal — a throwing callback must never fail the RPC. */
+function notifyMutated(deps: GalleryV1Deps): void {
+  try {
+    deps.onGalleryMutated?.();
+  } catch {
+    // ignore — the write already succeeded; the UI refresh is best-effort.
+  }
 }
 
 /** Dispatch one gallery/v1 request; never throws (errors → error response). */
@@ -262,6 +279,7 @@ async function dispatch(
         throw new GalleryV1Error(JSON_RPC_ERROR_NOT_FOUND, "drawing not found");
       }
       await deps.db.updateDrawing(p.id, { name: p.name });
+      notifyMutated(deps);
       return { id: p.id, name: p.name };
     }
 
@@ -270,6 +288,7 @@ async function dispatch(
       if (typeof p.id !== "string" || !p.id) invalidParams("gallery.delete: id is required");
       await confirmGate(deps, method, p);
       await deps.db.deleteDrawing(p.id);
+      notifyMutated(deps);
       return { id: p.id, deleted: true };
     }
 
@@ -285,6 +304,7 @@ async function dispatch(
         createdAt: Date.now(),
       };
       await deps.db.createCollection(collection);
+      notifyMutated(deps);
       return collection;
     }
 
@@ -301,6 +321,7 @@ async function dispatch(
       const found = collections.find((c) => c.id === p.id);
       if (!found) throw new GalleryV1Error(JSON_RPC_ERROR_NOT_FOUND, "collection not found");
       await deps.db.updateCollection(p.id, { name: p.name });
+      notifyMutated(deps);
       return { id: found.id, name: p.name, createdAt: found.createdAt };
     }
 
@@ -312,6 +333,7 @@ async function dispatch(
       await confirmGate(deps, method, p);
       // Rewrites every member drawing to strip the id; reports the count.
       const affectedDrawings = await deps.db.deleteCollectionAndReport(p.id);
+      notifyMutated(deps);
       return { id: p.id, affectedDrawings };
     }
 
@@ -359,6 +381,7 @@ async function dispatch(
             thumbnail,
             collectionIds,
           });
+          notifyMutated(deps);
           return { id: paramId, isNew: false };
         }
       }
@@ -384,6 +407,7 @@ async function dispatch(
         createdAt: now,
         updatedAt: now,
       });
+      notifyMutated(deps);
       return { id, isNew: true };
     }
 
