@@ -20,7 +20,7 @@
 | `bun run sync:version` | Propagate root version to all `package.json`s.
 | `bun run bridge:build` | `go build` the Go bridge daemon into `excali-bridge/bin/` (gitignored).
 | `bun run bridge:test` | `go test ./...` for the Go daemon. |
-| `bun scripts/skill-pack.ts` | Cross-compile the daemon (4 static targets: darwin-arm64/amd64, linux-amd64, windows-amd64; CGO off, symbols stripped) + assemble the `excali-draw` skill into `.skill-dist/` + archive. |
+| `bun scripts/skill-pack.ts` | Cross-compile the daemon (4 static targets: darwin-arm64/amd64, linux-amd64, windows-amd64; CGO off, symbols stripped, reproducible via `-buildvcs=false`) + static-verify + refresh the committed `skills/excali-draw/bin/` + README sizes in place. |
 | `bun scripts/check-skill-commands.ts` | Zero-drift gate: the skill's documented commands == the wire contract. |
 
 > There is no `local:dev` script. For the editor UI use `page:dev`; for the full
@@ -76,9 +76,8 @@ propagate to all three packages. Keep all three versions in sync.
 
 The **excali-draw skill** (`skills/excali-draw/`) is a separate release artifact from the
 extension: pack it with `bun scripts/skill-pack.ts` — binaries land in the committed
-`skills/excali-draw/bin/`, README sizes refresh in place, and the versioned archive is
-emitted as `.skill-dist/excali-draw-<version>.tar.gz` (versioned from the root
-`package.json`, so it stays in sync). It is **not** wired into the tag-driven CI above
-yet — remote distribution
+`skills/excali-draw/bin/` and README sizes refresh in place (the committed skill dir IS
+the artifact; scratch lives in the OS temp dir, no `.skill-dist/`). It is **not** wired
+into the tag-driven CI above yet — remote distribution
 (e.g. `skills.sh` → `.agents/skills/`) is a tracked follow-up. The skill bundles its own
 static multi-platform daemon binaries, so it has no runtime dependency on the extension build.

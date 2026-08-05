@@ -30,11 +30,11 @@ Verify: `bin/excali-bridge-<your-platform> ping` → prints `"pong"`.
 
 ## Built binaries (static, dependency-free)
 
-Built with `CGO_ENABLED=0 -trimpath -ldflags="-s -w"` (pure Go, cgo disabled,
+Built with `CGO_ENABLED=0 -trimpath -buildvcs=false -ldflags="-s -w"` (pure Go, cgo disabled,
 symbols stripped) and **verified dep-free** per target: Linux is fully
 statically linked (no glibc); Windows imports only `kernel32.dll` (no MSVC
 runtime, no libgcc, no libwinpthread); macOS links only Apple system
-libraries. Actual sizes and archive size are recorded below at pack time.
+libraries. Actual sizes are recorded below at pack time.
 
 <!-- PACK-SIZES-BEGIN -->
 | `excali-bridge-darwin-arm64` | 6.36 MiB | Apple system libs only: /usr/lib/libSystem.B.dylib, /usr/lib/libresolv.9.dylib, /System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation, /System/Library/Frameworks/Security.framework/Versions/A/Security |
@@ -68,18 +68,24 @@ more libraries than these in a fresh build, that is a packaging regression.
 ```bash
 # from the excali-local repo
 bun run bridge:build                 # host build (dev)
-bun scripts/skill-pack.ts            # cross-compile 4 targets into bin/ + static-verify + refresh README sizes + tarball
+bun scripts/skill-pack.ts            # cross-compile 4 targets into bin/ + static-verify + refresh README sizes
 bun scripts/agent-bridge/driver-skill.ts   # smoke test the source skill's binary
 bun scripts/check-skill-commands.ts  # command-reference.md <-> contract drift check
 ```
 
 `skill-pack` builds the binaries **in place** into `bin/` (the committed source
-skill IS the artifact), refreshes the size table below, and emits only the
-versioned release tarball. It fails loudly if any target does not build, does
-not pass `go vet`, or fails static verification.
+skill IS the artifact) and refreshes the size table below. It fails loudly if any
+target does not build, does not pass `go vet`, or fails static verification.
+
+**Why `-buildvcs=false` (don't remove it).** Go 1.18+ stamps binaries with the
+surrounding git repo's `vcs.revision`/`vcs.time`/`vcs.modified` by default, which
+makes two builds of identical source byte-different across commits or dirty
+state. `-buildvcs=false` disables that so the 4 binaries are **byte-reproducible**:
+re-running `skill-pack` leaves them unchanged unless the Go source actually
+changes (`git status` stays clean). Consequence: `go version -m <bin>` shows no
+`vcs.*` lines — that is intentional, not a bug. Do **not** drop the flag to "add
+version info"; it would re-introduce non-idempotent binaries that dirty every commit.
 
 ## Version
 
 `excali-draw` tracks the excali-local release version (currently `1.6.4`).
-The archive produced by the pack script is named
-`excali-draw-<version>.tar.gz`.

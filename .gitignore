@@ -13,8 +13,6 @@ dist-ssr
 packages/excali-local/dist
 packages/excali-page/dist
 packages/excali-bridge/bin/
-.skill-dist/
-
 
 # Editor directories and files
 .vscode/*

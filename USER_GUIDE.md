@@ -65,7 +65,6 @@ bundles static, dependency-free daemon binaries.
 ```bash
 bun scripts/skill-pack.ts
 # → skills/excali-draw/bin/            (4 platform binaries built in place, committed)
-# → .skill-dist/excali-draw-1.6.4.tar.gz  (versioned release archive)
 ```
 `skill-pack` cross-compiles 4 targets (`darwin-arm64`, `darwin-amd64`, `linux-amd64`,
 `windows-amd64`; CGO disabled, symbols stripped) and **static-verifies** each is dep-free
@@ -86,7 +85,7 @@ folder into wherever your agent reads skills:
 ```bash
 # example: cross-agent home
 mkdir -p ~/.agents/skills
-cp -r .skill-dist/excali-draw ~/.agents/skills/
+cp -r skills/excali-draw ~/.agents/skills/
 chmod +x ~/.agents/skills/excali-draw/bin/excali-bridge-*
 ```
 
@@ -170,9 +169,9 @@ bun run page:test                 # vitest (251 tests)
 bun run local:build               # build extension → .output/{chrome,firefox}-mv3
 bun run bridge:build              # build Go daemon → excali-bridge/bin/
 bun run bridge:test               # go test ./...
-bun scripts/skill-pack.ts         # pack the distributable skill → .skill-dist/
+bun scripts/skill-pack.ts         # refresh skills/excali-draw/bin/ (4 static targets) + README sizes
 bun scripts/check-skill-commands.ts   # zero-drift: skill docs == contract
-bun scripts/agent-bridge/driver-skill.ts  # smoke-test the assembled skill binary
+bun scripts/agent-bridge/driver-skill.ts  # smoke-test the source skill binary
 # cleanup after any driver:
 pkill -f 'excali-bridge serve'; pkill -f 'bin/excali-bridge'; rm -f ~/.excali-local/bridge.pid
 ```
