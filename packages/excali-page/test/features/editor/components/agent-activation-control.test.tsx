@@ -74,11 +74,15 @@ describe("AgentActivationControl", () => {
     expect(screen.queryByTestId("agent-controlling-pill")).toBeNull();
   });
 
-  test("active: renders the persistent 🤖 indicator", () => {
+  test("active: renders the persistent indicator pill (status text, NO duplicate robot icon)", () => {
     setOverrides({ isActive: true, connection: "connected" });
     renderControl();
-    expect(screen.getByTestId("agent-controlling-pill")).toBeTruthy();
+    const pill = screen.getByTestId("agent-controlling-pill");
+    expect(pill).toBeTruthy();
     expect(screen.getByText("AgentControllingCanvas")).toBeTruthy();
+    // One robot affordance total: the toggle shows IconRobotOff while active;
+    // the pill itself must not render an svg (de-duped — goal feedback #3).
+    expect(pill.querySelector("svg")).toBeNull();
   });
 
   test("first-time confirm modal renders Confirm/Cancel", async () => {
