@@ -131,6 +131,30 @@ Because the canvas is the renderer, everything is offline-safe: no CDN, no
 Playwright, no Python, no network — the same reason this skill carries its
 own binaries instead of fetching anything at runtime.
 
+## Incremental delivery is mandatory (never one-shot)
+
+**This is a hard rule, not a suggestion.** The protocol supports incremental
+building — `elements.add` appends and the canvas re-renders immediately on
+every call; `scene.update` replaces — and you MUST use it. Emitting the whole
+diagram in a single `elements.add` / `scene.update` blob is a failure mode.
+
+- **Never emit the whole diagram in one call.** One section/layer per
+  `elements.add`, in reading order, a few → ~a dozen elements per batch.
+- **After every batch: render → view → fix.** `scene.exportPng` (view the
+  returned dataURL with your image tool) + check `scene.bounds` / `scene.get`,
+  fix, repeat. 2–4 iterations is normal — plan for it.
+- **Multiple adjustment rounds are expected and welcome.** Revising earlier
+  sections via `scene.update` (re-emitting only the changed elements read
+  back from `scene.get`) is the normal path, not a mistake.
+- **Skeleton first.** Default build order: (1) structure lines / region
+  dividers, (2) container boxes + labels, (3) detail text inside sections,
+  (4) arrows/bindings, (5) coordinate/overlap/bleed fixes via `scene.bounds`.
+
+The full methodology — including the render→view→fix loop and the
+skeleton-first scaffold — is in
+[`references/workflows/draw-a-diagram.md`](references/workflows/draw-a-diagram.md).
+Read it before drawing anything.
+
 ## Quick start
 
 ```bash

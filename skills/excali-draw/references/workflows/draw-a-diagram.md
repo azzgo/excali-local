@@ -62,6 +62,25 @@ call, in reading order:
 - Keep each `elements.add` batch self-contained (a few elements to a dozen),
   so failures are cheap to fix.
 
+### Default build order — skeleton first
+
+Unless the diagram is tiny (a handful of elements), build in this order —
+one `elements.add` + one `scene.exportPng` view per step:
+
+1. **Structure lines / region dividers** — the L1/L2 skeleton: the flow lines,
+   section boundaries, and region rectangles that give the diagram its
+   architecture.
+2. **Container boxes + their labels** — the L2/L3 containers that hold detail.
+3. **Text / detail inside sections** — the L3 content, bound into the boxes.
+4. **Arrows / bindings** — the connections between sections and elements.
+5. **Coordinate / overlap / bleed fixes** — via `scene.bounds` (and
+   `scene.get` for binding checks), adjusted with `scene.update`.
+
+Each step is a separate visible iteration on the canvas; **revisiting and
+revising earlier steps is expected** — re-emit only the changed elements read
+back from `scene.get` via `scene.update` (never a serialized `scene.get`
+scene through `elements.add` — it regenerates ids and drops bindings).
+
 > **Hand-craft the JSON. No generator script. No JSON sub-agent.** You write
 > the element payloads yourself, directly in the `elements.add` argument.
 > Indirection (a script that builds JSON, or a sub-agent that drafts it)
@@ -70,7 +89,9 @@ call, in reading order:
 ## 3. The mandatory render → view → fix loop (2–4 iterations)
 
 This is non-negotiable. Emitting once and declaring success is not a
-workflow.
+workflow. **One batch in = one picture out**: after every `elements.add`,
+view the result before the next batch — never stack several sections without
+looking between them.
 
 1. **Render** — apply the current section (or the whole scene):
    ```bash
@@ -99,7 +120,9 @@ workflow.
    existing elements read from `scene.get`). Re-render and re-view.
 
 Repeat until the picture matches the plan. 2–4 iterations is normal; quality
-here is the product.
+here is the product. If you catch yourself about to emit the whole remaining
+diagram in one call — stop, split it into sections, and loop again (SKILL.md:
+incremental delivery is mandatory).
 
 ## 4. Aesthetics (the standing rules)
 
