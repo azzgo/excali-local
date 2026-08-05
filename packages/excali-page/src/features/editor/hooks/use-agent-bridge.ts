@@ -348,23 +348,32 @@ export function useAgentBridge({
   const requestActivation = useCallback(() => {
 	if (!isLocal) return;
 	setDisplacedNotice(false);
+	// Claim the session BEFORE the SW's STATE broadcast can arrive. The SW
+	// broadcasts isActive:true (broadcastState) BEFORE it replies granted to
+	// ACTIVATE, so the broadcast can land while this request is still in
+	// flight. Without the early claim, reconcile()'s self-heal ("SW registry
+	// points at us but we have no session") fires on the broadcast and sends
+	// DEACTIVATE — killing the activation we just requested (observed live:
+	// ACTIVATE → STATE(active) → DEACTIVATE in the same millisecond).
+	sessionActiveRef.current = true;
 	void sendToSW({ type: AB_ACTIVATE }).then((reply) => {
-      const r = reply as { granted?: boolean; reason?: string } | undefined;
-      if (r?.granted) {
-        sessionActiveRef.current = true;
-        // isActive flips true when the SW broadcast STATE arrives
-        return;
-      }
-      // Grant denied or the SW was unreachable — surface it instead of
-      // failing silently (review P2: silent activation failure).
-      const reason: AgentBridgeActivateError =
-        r?.reason === "consent-off"
-          ? "consent-off"
-          : r?.reason === "not-activatable"
-            ? "not-activatable"
-            : "transport";
-      onActivateErrorRef.current?.(reason);
-    });
+	  const r = reply as { granted?: boolean; reason?: string } | undefined;
+	  if (r?.granted) {
+	    // Session confirmed — isActive flips true when the SW broadcast STATE
+	    // arrives (already claimed above, so reconcile recognizes the session).
+	    return;
+	  }
+	  // Grant denied or the SW was unreachable — revert the optimistic claim
+	  // and surface it instead of failing silently (review P2).
+	  sessionActiveRef.current = false;
+	  const reason: AgentBridgeActivateError =
+	    r?.reason === "consent-off"
+	      ? "consent-off"
+	      : r?.reason === "not-activatable"
+	        ? "not-activatable"
+	        : "transport";
+	  onActivateErrorRef.current?.(reason);
+	});
   }, [isLocal, sendToSW]);
 
   const toggleActivation = useCallback(() => {

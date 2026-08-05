@@ -279,6 +279,60 @@ describe("useAgentBridge", () => {
     expect(window.excaliAPI?.excalidrawAPI).toBe(api);
   });
 
+	test("activation race (regression): SW broadcasts STATE(active) while ACTIVATE is in flight → no self-DEACTIVATE, session sticks", async () => {
+		setConsent(true, true);
+		const api = { updateScene: vi.fn() };
+		const { result } = renderLocal(api);
+		await waitFor(() => expect(result.current.canActivate).toBe(true));
+
+		// Model the REAL SW ordering: in the SW's ACTIVATE handler,
+		// broadcastState() runs BEFORE sendResponse({granted:true}), so the
+		// STATE(active) broadcast can arrive while the granted reply is still
+		// pending. Defer the ACTIVATE reply to reproduce that window.
+		const origImpl = harness.browser.runtime.sendMessage.getMockImplementation();
+		let resolveActivate: ((v: unknown) => void) | null = null;
+		harness.browser.runtime.sendMessage.mockImplementation((msg: { type: string }) => {
+			harness.swState.sendMessages.push(msg);
+			if (msg.type === AB_ACTIVATE) {
+				return new Promise((res) => {
+					resolveActivate = () => res({ granted: true });
+				});
+			}
+			if (msg.type === AB_READY || msg.type === "AGENT_BRIDGE_HEARTBEAT") {
+				return Promise.resolve({
+					type: AB_STATE,
+					swInstanceId: harness.swState.swInstanceId,
+					activeTabId: harness.swState.activeTabId,
+					isActive: harness.swState.activeTabId === harness.swState.myTabId,
+				});
+			}
+			if (msg.type === AB_DEACTIVATE) return Promise.resolve(true);
+			return Promise.resolve(undefined);
+		});
+		try {
+			act(() => result.current.toggleActivation());
+			act(() => result.current.confirmActivation()); // ACTIVATE sent, reply pending
+			await waitFor(() =>
+				expect(harness.swState.sendMessages.some((m: any) => m.type === AB_ACTIVATE)).toBe(true),
+			);
+
+			// The broadcast lands BEFORE the granted reply resolves.
+			broadcast({ swInstanceId: harness.swState.swInstanceId, activeTabId: 1, isActive: true });
+			await act(async () => {
+				await Promise.resolve(); // flush microtasks — the bug fired DEACTIVATE here
+			});
+			expect(harness.swState.sendMessages.some((m: any) => m.type === AB_DEACTIVATE)).toBe(false);
+
+			// The granted reply finally lands; the session must stick.
+			act(() => resolveActivate?.({ granted: true }));
+			await waitFor(() => expect(result.current.isActive).toBe(true));
+			expect(window.excaliAPI?.excalidrawAPI).toBe(api);
+			expect(harness.swState.sendMessages.some((m: any) => m.type === AB_DEACTIVATE)).toBe(false);
+		} finally {
+			harness.browser.runtime.sendMessage.mockImplementation(origImpl as never);
+		}
+	});
+
   test("deactivate: toggle when active sends DEACTIVATE and drops WS + API", async () => {
     setConsent(true, true);
     const { result } = renderLocal({});
