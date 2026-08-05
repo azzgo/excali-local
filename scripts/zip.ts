@@ -1,10 +1,14 @@
-import { $ } from "bun";
+import { spawn } from "node:child_process";
 
-const run = async () => {
-  await Promise.all([
-    $`bun --filter ./packages/excali-local zip:chrome`,
-    $`bun --filter ./packages/excali-local zip:firefox`,
-  ])
-}
+const run = (script: string) =>
+  new Promise<void>((resolve, reject) => {
+    const p = spawn("pnpm", ["--filter", "./packages/excali-local", script], {
+      stdio: "inherit",
+      shell: true,
+    });
+    p.on("close", (code) =>
+      code ? reject(new Error(`${script} failed (exit ${code})`)) : resolve(),
+    );
+  });
 
-run()
+await Promise.all([run("zip:chrome"), run("zip:firefox")]);

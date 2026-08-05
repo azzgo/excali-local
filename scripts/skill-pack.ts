@@ -1,4 +1,3 @@
-#!/usr/bin/env bun
 /**
  * skill-pack — build the excali-draw skill (source-is-the-artifact).
  *
@@ -35,14 +34,15 @@
  * artifact. A release archive (when one is needed) is just
  * `tar -czf excali-draw-<version>.tar.gz -C skills/excali-draw .`.
  *
- * Run: bun scripts/skill-pack.ts
+ * Run: pnpm skill:pack
  */
 
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import os from "node:os";
+import { run as runCmd, hereDir } from "./_run";
 
-const ROOT = join(import.meta.dir, "..");
+const ROOT = join(hereDir(import.meta.url), "..");
 const BRIDGE_DIR = join(ROOT, "packages/excali-bridge");
 const SKILL_DIR = join(ROOT, "skills/excali-draw");
 const SKILL_BIN_DIR = join(SKILL_DIR, "bin");
@@ -66,10 +66,8 @@ const ok = (msg: string) => console.log(`[skill-pack] ✓ ${msg}`);
 const binName = (t: (typeof TARGETS)[number]) =>
   `excali-bridge-${t.os}-${t.arch}${t.exe}`;
 
-const run = (cmd: string[], cwd: string, env: Record<string, string>): { code: number; out: string } => {
-  const res = Bun.spawnSync(cmd, { cwd, env: { ...process.env as Record<string, string>, ...env } });
-  return { code: res.exitCode ?? -1, out: `${res.stdout?.toString() ?? ""}${res.stderr?.toString() ?? ""}` };
-};
+const run = (cmd: string[], cwd: string, env: Record<string, string>) =>
+  runCmd(cmd, { cwd, env: { ...(process.env as Record<string, string>), ...env } });
 
 // ---------------------------------------------------------------------------
 // 1-3. build + vet + static-verify per target (scratch in the OS temp dir)
@@ -184,7 +182,7 @@ try {
   } else {
     // Re-stat sizes properly (portable enough across the macOS/*BSD `stat -f %z`).
     for (const b of built) {
-      b.sizeBytes = Number((Bun.spawnSync(["stat", "-f", "%z", b.path], { cwd: ROOT }).stdout?.toString() ?? "0").trim());
+      b.sizeBytes = Number((runCmd(["stat", "-f", "%z", b.path], { cwd: ROOT }).stdout || "0").trim());
     }
 
     // ---------------------------------------------------------------------------

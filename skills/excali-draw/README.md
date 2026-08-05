@@ -67,10 +67,10 @@ more libraries than these in a fresh build, that is a packaging regression.
 
 ```bash
 # from the excali-local repo
-bun run bridge:build                 # host build (dev)
-bun scripts/skill-pack.ts            # cross-compile 4 targets into bin/ + static-verify + refresh README sizes
-bun scripts/agent-bridge/driver-skill.ts   # smoke test the source skill's binary
-bun scripts/check-skill-commands.ts  # command-reference.md <-> contract drift check
+pnpm bridge:build                 # host build (dev)
+pnpm skill:pack                   # cross-compile 4 targets into bin/ + static-verify + refresh README sizes
+tsx scripts/agent-bridge/driver-skill.ts   # smoke test the source skill's binary
+pnpm skill:check                  # command-reference.md <-> contract drift check
 ```
 
 `skill-pack` builds the binaries **in place** into `bin/` (the committed source

@@ -4,13 +4,13 @@
 runs Excalidraw **fully offline**: screenshot annotation, an offline editor, a local
 gallery, presentation mode, custom fonts. No backend; all data in IndexedDB.
 
-Bun-workspaces monorepo, three packages (plus one Go package that is NOT a workspace
-member — it builds with `go build`, not Bun):
+pnpm-workspaces monorepo, three packages (plus one Go package that is NOT a workspace
+member — it builds with `go build`):
 
 - `packages/excali-local` — WXT **extension shell** (manifest, background, content, crop, popup, options).
 - `packages/excali-page` — React 19 + Vite **editor app** (the Excalidraw UI).
 - `packages/excali-shared` — font-config DB + the **agent-bridge wire contract** (`agent-bridge.ts` — the source of truth the Go daemon mirrors) + shared utils/types.
-- `packages/excali-bridge` — **Go daemon** (NOT a bun workspace): the Agent Bridge
+- `packages/excali-bridge` — **Go daemon** (NOT a pnpm workspace): the Agent Bridge
   (Tickets 009/016/017) — a 127.0.0.1-only WS server (Leg B: the activated editor
   page dials out) + agent CLI (Leg A: versioned minimal JSON-RPC). Cross-profile
   single-active-canvas arbiter: pidfile single-instance, ≤1 active page, new
@@ -25,40 +25,41 @@ detail, read the doc relevant to your task (links below).
 
 ## Hard constraints (do not break these)
 
-- **Bun**, not npm/pnpm/yarn.
+- **pnpm** (package manager) + **tsx** (TS script runtime), not bun/npm/yarn.
 - **Excalidraw is a local patched tgz** (`excalidraw-excalidraw-0.18.0-csp.12.tgz`).
   Never swap for the npm version — CSP/offline will break. See [docs/BUILD_AND_RELEASE.md](docs/BUILD_AND_RELEASE.md).
 - **`packages/excali-local/public/editor/` is a gitignored build artifact**, not
-  committed. Run `bun run page:build` after changing page code; never commit it.
+  committed. Run `pnpm page:build` after changing page code; never commit it.
 - **`skills/excali-draw/bin/` is COMMITTED** (source-is-the-artifact): the 4
   platform daemon binaries ship inside the skill dir. Refresh them in place with
-  `bun scripts/skill-pack.ts` (cross-compile + static-verify; writes only to
+  `pnpm skill:pack` (cross-compile + static-verify; writes only to
   `skills/excali-draw/bin/` + the README size table — scratch is in the OS temp
   dir, no `.skill-dist/`).
 - **IndexedDB schema changes** require a `DB_VERSION` bump + `upgrade()` migration
   (users have existing data). Two DBs: `excali` (gallery) and `excali-fonts`. See
   [docs/CONVENTIONS.md](docs/CONVENTIONS.md).
 - **Two i18n systems** — chrome.i18n (shell) vs i18next (page). Don't mix.
-- **`packages/excali-bridge` is Go, not a Bun workspace** — `bun install`/workspace
-  tooling ignores it. Build with `bun run bridge:build` (`go build`); its Leg-B wire
+- **`packages/excali-bridge` is Go, not a pnpm workspace** — `pnpm install`/workspace
+  tooling ignores it. Build with `pnpm bridge:build` (`go build`); its Leg-B wire
   contract MUST mirror `excali-shared/src/agent-bridge.ts` (`internal/contract/`).
-- **Exploration is read-only.** Don't run `bun install`, don't commit, don't write
+- **Exploration is read-only.** Don't run `pnpm install`, don't commit, don't write
   files beyond the change you were asked to make.
-- After page edits, run `bun run page:test` (and `page:build` if testing the extension).
+- After page edits, run `pnpm page:test` (and `page:build` if testing the extension).
 
 ## Daily commands
 
 | Command | Purpose |
 | --- | --- |
-| `bun run page:dev` | Editor webapp dev server (port 3000). |
-| `bun run page:build` | Build editor into `excali-local/public/editor/`. |
-| `bun run page:test` | Vitest suite. |
-| `bun run local:build` | Build extension (Chrome + Firefox). |
-| `bun run local:tar` / `local:zip` | Pack release archives. |
-| `bun run sync:version` | Sync version across all packages.
-| `bun run bridge:build` | `go build` the Go bridge daemon into `excali-bridge/bin/` (gitignored).
-| `bun run bridge:test` | `go test ./...` for the Go daemon (ws codec, pidfile, server).
-
+| `pnpm page:dev` | Editor webapp dev server (port 3000). |
+| `pnpm page:build` | Build editor into `excali-local/public/editor/`. |
+| `pnpm page:test` | Vitest suite. |
+| `pnpm local:build` | Build extension (Chrome + Firefox). |
+| `pnpm local:tar` / `local:zip` | Pack release archives. |
+| `pnpm sync:version` | Sync version across all packages.
+| `pnpm bridge:build` | `go build` the Go bridge daemon into `excali-bridge/bin/` (gitignored).
+| `pnpm bridge:test` | `go test ./...` for the Go daemon (ws codec, pidfile, server).
+| `pnpm skill:pack` | Cross-compile + refresh `skills/excali-draw/bin/` (needs Go). |
+| `pnpm skill:check` | Zero-drift gate: skill docs == wire contract. |
 
 Full list + build/release/CSP detail: [docs/BUILD_AND_RELEASE.md](docs/BUILD_AND_RELEASE.md).
 

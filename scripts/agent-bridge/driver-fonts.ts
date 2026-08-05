@@ -1,4 +1,3 @@
-#!/usr/bin/env bun
 /**
  * AGENT BRIDGE — fonts/v1 e2e driver (Wayfinder Ticket 015, refined — goal 4).
  *
@@ -23,12 +22,13 @@
  *   - wire trimming: custom slot has NO data bytes
  *
  * Run:
- *   bun run bridge:build
- *   bun scripts/agent-bridge/driver-fonts.ts
+ *   pnpm bridge:build
+ *   tsx scripts/agent-bridge/driver-fonts.ts
  */
 
 import { join } from "node:path";
 import { mintBridgeToken, WS_ROLE_CONTROL_PAGE } from "excali-shared";
+import { run, runAsync, hereDir } from "../_run";
 import {
   AgentBridgeSession,
   type BridgeWs,
@@ -43,7 +43,7 @@ const origin = process.env.ORIGIN ?? "chrome-extension://abcdabcdabcdabcdabcdabc
 const profileId = "11111111-2222-4333-8444-555555555555";
 const bin =
   process.env.EXCALI_BRIDGE_BIN ??
-  join(import.meta.dir, "../../packages/excali-bridge/bin/excali-bridge");
+  join(hereDir(import.meta.url), "../../packages/excali-bridge/bin/excali-bridge");
 
 const wsFactory = (url: string): BridgeWs =>
   new WebSocket(url, { headers: { Origin: origin } }) as unknown as BridgeWs;
@@ -56,15 +56,17 @@ const fail = (msg: string) => {
 const ok = (msg: string) => console.log(`[driver-fonts] ✓ ${msg}`);
 
 // --- CLI helper: subcommand == method ---------------------------------------
-const cli = (method: string, params?: unknown): { code: number; stdout: string; stderr: string } => {
+const cli = async (method: string, params?: unknown): Promise<{ code: number; stdout: string; stderr: string }> => {
   const args = [bin, method];
   if (params !== undefined) args.push(JSON.stringify(params));
-  const res = Bun.spawnSync(args, { env: process.env });
-  return { code: res.exitCode ?? -1, stdout: res.stdout.toString(), stderr: res.stderr.toString() };
+  // async spawn: node's spawnSync would freeze the event loop and starve the
+  // page-sim's WebSocket delivery (bun's spawnSync did not)
+  const r = await runAsync(args, { env: process.env });
+  return { code: r.code, stdout: r.stdout, stderr: r.stderr };
 };
 
-const cliResult = (method: string, params?: unknown): unknown => {
-  const r = cli(method, params);
+const cliResult = async (method: string, params?: unknown): Promise<unknown> => {
+  const r = await cli(method, params);
   if (r.code !== 0) {
     fail(`${method} exited ${r.code}: ${r.stderr.trim() || r.stdout.trim()}`);
     return undefined;
@@ -77,8 +79,8 @@ const cliResult = (method: string, params?: unknown): unknown => {
   }
 };
 
-const cliError = (method: string, params?: unknown): number | null => {
-  const r = cli(method, params);
+const cliError = async (method: string, params?: unknown): Promise<number | null> => {
+  const r = await cli(method, params);
   const m = r.stderr.match(/rpc error (-?\d+)/);
   return m ? Number(m[1]) : null;
 };
@@ -145,19 +147,19 @@ const waitForConnected = (s: AgentBridgeSession) =>
 
 // --- bootstrap ---------------------------------------------------------------
 console.log(`[driver-fonts] binary: ${bin}`);
-if (!Bun.spawnSync(["test", "-x", bin]).success) {
-  console.error(`[driver-fonts] bridge binary not found — run \`bun run bridge:build\` first`);
+if (!run(["test", "-x", bin]).ok) {
+  console.error(`[driver-fonts] bridge binary not found — run \`pnpm bridge:build\` first`);
   process.exit(1);
 }
-const boot = Bun.spawnSync([bin, "ping"], { env: process.env });
-if (boot.exitCode !== 0) {
+const boot = run([bin, "ping"], { env: process.env });
+if (boot.code !== 0) {
   console.error(`[driver-fonts] daemon bootstrap failed:\n${boot.stdout}\n${boot.stderr}`);
   process.exit(1);
 }
-ok(`daemon up (${boot.stdout.toString().trim()})`);
+ok(`daemon up (${boot.stdout.trim()})`);
 
 // --- fonts.system.list is DAEMON-LOCAL: works with NOTHING connected ---------
-const sysList = cliResult("fonts.system.list") as Array<{ family: string; postscriptName: string }>;
+const sysList = await cliResult("fonts.system.list") as Array<{ family: string; postscriptName: string }>;
 if (!Array.isArray(sysList) || sysList.length === 0) {
   fail(`fonts.system.list = ${JSON.stringify(sysList)?.slice(0, 200)} — expected OS fonts`);
 } else {
@@ -181,7 +183,7 @@ if (!(await waitForConnected(controlSession))) {
 }
 ok("control page-sim connected (paired, NOT activated)");
 
-const empty = cliResult("fonts.get") as { handwriting: unknown; normal: unknown; code: unknown };
+const empty = await cliResult("fonts.get") as { handwriting: unknown; normal: unknown; code: unknown };
 if (!empty || empty.handwriting !== null || empty.normal !== null || empty.code !== null) {
   fail(`fonts.get initial = ${JSON.stringify(empty)}`);
 } else {
@@ -189,7 +191,7 @@ if (!empty || empty.handwriting !== null || empty.normal !== null || empty.code 
 }
 
 // --- fonts.assign (non-blocking) ----------------------------------------------
-const assigned = cliResult("fonts.assign", { slot: "normal", postscriptName: "SFNS-Regular" }) as {
+const assigned = await cliResult("fonts.assign", { slot: "normal", postscriptName: "SFNS-Regular" }) as {
   config: { normal: unknown };
   requiresReload: boolean;
 };
@@ -200,7 +202,7 @@ if (assigned?.requiresReload !== true || (assigned.config?.normal as { postscrip
 }
 
 // --- fonts.install (BLOCKING confirm, auto-approve) ---------------------------
-const installed = cliResult("fonts.install", { slot: "code", family: "My Code Font", data: TTF_B64 }) as {
+const installed = await cliResult("fonts.install", { slot: "code", family: "My Code Font", data: TTF_B64 }) as {
   config: { code: unknown };
   requiresReload: boolean;
 };
@@ -216,7 +218,7 @@ if (installed?.requiresReload !== true || (installed.config?.code as { family?: 
 }
 
 // --- fonts.get confirms the install persisted (trimmed) -----------------------
-const after = cliResult("fonts.get") as { code: { type: string; family: string; data?: unknown } };
+const after = await cliResult("fonts.get") as { code: { type: string; family: string; data?: unknown } };
 if (after?.code?.family !== "My Code Font" || after.code.data !== undefined) {
   fail(`fonts.get after install = ${JSON.stringify(after)}`);
 } else {
@@ -224,7 +226,7 @@ if (after?.code?.family !== "My Code Font" || after.code.data !== undefined) {
 }
 
 // --- install validation: bad magic → -32602 BEFORE the confirm gate -----------
-const badMagic = cliError("fonts.install", { slot: "code", family: "X", data: btoa("notafont") });
+const badMagic = await cliError("fonts.install", { slot: "code", family: "X", data: btoa("notafont") });
 if (badMagic !== -32602) {
   fail(`install bad-magic = ${badMagic}, want -32602`);
 } else {
@@ -233,13 +235,13 @@ if (badMagic !== -32602) {
 
 // --- fonts.clear cancel path → -32005 ------------------------------------------
 confirmMode = "reject";
-const cancelled = cli("fonts.clear", { slot: "code" });
+const cancelled = await cli("fonts.clear", { slot: "code" });
 if (cancelled.code === 0 || !cancelled.stderr.includes("-32005")) {
   fail(`fonts.clear with user reject = code=${cancelled.code} ${cancelled.stderr.trim()}`);
 } else {
   ok("fonts.clear rejected on the confirm modal → -32005 'cancelled by user'");
 }
-const stillThere = cliResult("fonts.get") as { code: { family?: string } };
+const stillThere = await cliResult("fonts.get") as { code: { family?: string } };
 if (stillThere?.code?.family !== "My Code Font") {
   fail(`cancelled clear should not touch the slot: ${JSON.stringify(stillThere)}`);
 } else {
@@ -248,7 +250,7 @@ if (stillThere?.code?.family !== "My Code Font") {
 
 // --- fonts.clear (BLOCKING, auto-approve) --------------------------------------
 confirmMode = "approve";
-const cleared = cliResult("fonts.clear", { slot: "code" }) as {
+const cleared = await cliResult("fonts.clear", { slot: "code" }) as {
   config: { code: unknown };
   requiresReload: boolean;
 };

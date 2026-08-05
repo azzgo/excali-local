@@ -1,4 +1,3 @@
-#!/usr/bin/env bun
 /**
  * AGENT BRIDGE — gallery/v1 e2e driver (Wayfinder Ticket 014, goal 3).
  *
@@ -25,12 +24,13 @@
  *   - metadata-only wire (no raw scene strings) + bridge.status identities
  *
  * Run:
- *   bun run bridge:build
- *   bun scripts/agent-bridge/driver-gallery.ts
+ *   pnpm bridge:build
+ *   tsx scripts/agent-bridge/driver-gallery.ts
  */
 
 import { join } from "node:path";
 import { mintBridgeToken, WS_ROLE_CONTROL_PAGE } from "excali-shared";
+import { run, runAsync, hereDir } from "../_run";
 import {
   AgentBridgeSession,
   type BridgeWs,
@@ -47,7 +47,7 @@ const controlProfileId = "11111111-2222-4333-8444-555555555555";
 const activeProfileId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 const bin =
   process.env.EXCALI_BRIDGE_BIN ??
-  join(import.meta.dir, "../../packages/excali-bridge/bin/excali-bridge");
+  join(hereDir(import.meta.url), "../../packages/excali-bridge/bin/excali-bridge");
 
 const wsFactory = (url: string): BridgeWs =>
   new WebSocket(url, { headers: { Origin: origin } }) as unknown as BridgeWs;
@@ -60,15 +60,17 @@ const fail = (msg: string) => {
 const ok = (msg: string) => console.log(`[driver-gallery] ✓ ${msg}`);
 
 // --- CLI helper: subcommand == method ---------------------------------------
-const cli = (method: string, params?: unknown): { code: number; stdout: string; stderr: string } => {
+const cli = async (method: string, params?: unknown): Promise<{ code: number; stdout: string; stderr: string }> => {
   const args = [bin, method];
   if (params !== undefined) args.push(JSON.stringify(params));
-  const res = Bun.spawnSync(args, { env: process.env });
-  return { code: res.exitCode ?? -1, stdout: res.stdout.toString(), stderr: res.stderr.toString() };
+  // async spawn: node's spawnSync would freeze the event loop and starve the
+  // page-sim's WebSocket delivery (bun's spawnSync did not)
+  const r = await runAsync(args, { env: process.env });
+  return { code: r.code, stdout: r.stdout, stderr: r.stderr };
 };
 
-const cliResult = (method: string, params?: unknown): unknown => {
-  const r = cli(method, params);
+const cliResult = async (method: string, params?: unknown): Promise<unknown> => {
+  const r = await cli(method, params);
   if (r.code !== 0) {
     fail(`${method} exited ${r.code}: ${r.stderr.trim() || r.stdout.trim()}`);
     return undefined;
@@ -81,8 +83,8 @@ const cliResult = (method: string, params?: unknown): unknown => {
   }
 };
 
-const cliError = (method: string, params?: unknown): number | null => {
-  const r = cli(method, params);
+const cliError = async (method: string, params?: unknown): Promise<number | null> => {
+  const r = await cli(method, params);
   const m = r.stderr.match(/rpc error (-?\d+)/);
   return m ? Number(m[1]) : null;
 };
@@ -228,19 +230,19 @@ const waitForConnected = (s: AgentBridgeSession) =>
 
 // --- bootstrap ---------------------------------------------------------------
 console.log(`[driver-gallery] binary: ${bin}`);
-if (!Bun.spawnSync(["test", "-x", bin]).success) {
-  console.error(`[driver-gallery] bridge binary not found — run \`bun run bridge:build\` first`);
+if (!run(["test", "-x", bin]).ok) {
+  console.error(`[driver-gallery] bridge binary not found — run \`pnpm bridge:build\` first`);
   process.exit(1);
 }
-const boot = Bun.spawnSync([bin, "ping"], { env: process.env });
-if (boot.exitCode !== 0) {
+const boot = run([bin, "ping"], { env: process.env });
+if (boot.code !== 0) {
   console.error(`[driver-gallery] daemon bootstrap failed:\n${boot.stdout}\n${boot.stderr}`);
   process.exit(1);
 }
-ok(`daemon up (${boot.stdout.toString().trim()})`);
+ok(`daemon up (${boot.stdout.trim()})`);
 
 // --- bridge.status with nothing connected ------------------------------------
-const emptyStatus = cliResult("bridge.status") as {
+const emptyStatus = await cliResult("bridge.status") as {
   activeCanvas: { profileId: string } | null;
   controlPages: Array<{ profileId: string }>;
 };
@@ -266,7 +268,7 @@ if (!(await waitForConnected(controlSession))) {
 }
 ok("control page-sim connected (paired, NOT activated)");
 
-const st = cliResult("bridge.status") as {
+const st = await cliResult("bridge.status") as {
   activeCanvas: { profileId: string } | null;
   controlPages: Array<{ profileId: string }>;
 };
@@ -276,7 +278,7 @@ if (st?.activeCanvas !== null || st?.controlPages?.[0]?.profileId !== controlPro
   ok("bridge.status: control identity tracked, still no active canvas");
 }
 
-const emptyList = cliResult("gallery.list");
+const emptyList = await cliResult("gallery.list");
 if (!Array.isArray(emptyList) || emptyList.length !== 0) {
   fail(`gallery.list (no canvas, empty store) = ${JSON.stringify(emptyList)}`);
 } else {
@@ -284,7 +286,7 @@ if (!Array.isArray(emptyList) || emptyList.length !== 0) {
 }
 
 // --- gate proof: gallery.save is ACTIVATED — no canvas → -32001 ---------------
-const saveGate = cliError("gallery.save", { name: "Nope" });
+const saveGate = await cliError("gallery.save", { name: "Nope" });
 if (saveGate !== -32001) {
   fail(`gallery.save with no canvas = ${saveGate}, want -32001 (never hangs)`);
 } else {
@@ -292,7 +294,7 @@ if (saveGate !== -32001) {
 }
 
 // --- collections.* via control ------------------------------------------------
-const coll = cliResult("gallery.collections.create", { name: "Work" }) as {
+const coll = await cliResult("gallery.collections.create", { name: "Work" }) as {
   id: string;
   name: string;
 };
@@ -301,13 +303,13 @@ if (!coll?.id || coll.name !== "Work") {
 } else {
   ok(`collections.create → fresh uuid ${coll.id.slice(0, 8)}… (non-idempotent)`);
 }
-const coll2 = cliResult("gallery.collections.create", { name: "Work" }) as { id: string };
+const coll2 = await cliResult("gallery.collections.create", { name: "Work" }) as { id: string };
 if (coll2?.id === coll.id) {
   fail("collections.create must mint a fresh uuid each call");
 } else {
   ok("collections.create non-idempotent (two calls → two uuids)");
 }
-const colls = cliResult("gallery.collections.list") as Array<{ id: string; name: string }>;
+const colls = await cliResult("gallery.collections.list") as Array<{ id: string; name: string }>;
 if (!Array.isArray(colls) || colls.length !== 2) {
   fail(`collections.list = ${JSON.stringify(colls)}`);
 } else {
@@ -329,7 +331,7 @@ if (!(await waitForConnected(activeSession))) {
 }
 ok("active page-sim connected (holds the active slot)");
 
-const st2 = cliResult("bridge.status") as {
+const st2 = await cliResult("bridge.status") as {
   activeCanvas: { profileId: string } | null;
   controlPages: Array<{ profileId: string }>;
 };
@@ -341,7 +343,7 @@ if (st2?.activeCanvas?.profileId !== activeProfileId) {
 
 // --- gallery.save (create) on the ACTIVE page ----------------------------------
 liveScene.elements = [{ id: "el-1", type: "rectangle", x: 0, y: 0, width: 10, height: 10 }];
-const saved = cliResult("gallery.save", { name: "Scene A" }) as { id: string; isNew: boolean };
+const saved = await cliResult("gallery.save", { name: "Scene A" }) as { id: string; isNew: boolean };
 if (!saved?.id || saved.isNew !== true) {
   fail(`gallery.save create = ${JSON.stringify(saved)}`);
 } else {
@@ -349,7 +351,7 @@ if (!saved?.id || saved.isNew !== true) {
 }
 
 // --- gallery.list now prefers the ACTIVE page; metadata only -------------------
-const list1 = cliResult("gallery.list") as Array<Record<string, unknown>>;
+const list1 = await cliResult("gallery.list") as Array<Record<string, unknown>>;
 if (!Array.isArray(list1) || list1.length !== 1 || list1[0].id !== saved.id) {
   fail(`gallery.list after save = ${JSON.stringify(list1)}`);
 } else {
@@ -362,7 +364,7 @@ if (!Array.isArray(list1) || list1.length !== 1 || list1[0].id !== saved.id) {
 }
 
 // --- gallery.load → scene replace ----------------------------------------------
-const loaded = cliResult("gallery.load", { id: saved.id }) as { id: string; name: string };
+const loaded = await cliResult("gallery.load", { id: saved.id }) as { id: string; name: string };
 if (loaded?.id !== saved.id || loaded.name !== "Scene A") {
   fail(`gallery.load = ${JSON.stringify(loaded)}`);
 } else {
@@ -378,7 +380,7 @@ liveScene.elements = [
   { id: "el-1", type: "rectangle", x: 0, y: 0, width: 10, height: 10 },
   { id: "el-2", type: "ellipse", x: 5, y: 5, width: 3, height: 3 },
 ];
-const overwritten = cliResult("gallery.save", { id: saved.id }) as { id: string; isNew: boolean };
+const overwritten = await cliResult("gallery.save", { id: saved.id }) as { id: string; isNew: boolean };
 if (overwritten?.id !== saved.id || overwritten.isNew !== false) {
   fail(`gallery.save overwrite = ${JSON.stringify(overwritten)}`);
 } else {
@@ -386,7 +388,7 @@ if (overwritten?.id !== saved.id || overwritten.isNew !== false) {
 }
 
 // --- gallery.rename (BLOCKING) -------------------------------------------------
-const renamed = cliResult("gallery.rename", { id: saved.id, name: "Scene B" }) as {
+const renamed = await cliResult("gallery.rename", { id: saved.id, name: "Scene B" }) as {
   id: string;
   name: string;
 };
@@ -397,13 +399,13 @@ if (renamed?.name !== "Scene B") {
 }
 
 // --- collections.delete rewrites member drawings --------------------------------
-const inColl = cliResult("gallery.save", {
+const inColl = await cliResult("gallery.save", {
   id: saved.id,
   name: "Scene B",
   collectionIds: [coll.id],
 }) as { id: string };
 if (!inColl?.id) fail(`attach collection failed: ${JSON.stringify(inColl)}`);
-const collDel = cliResult("gallery.collections.delete", { id: coll.id }) as {
+const collDel = await cliResult("gallery.collections.delete", { id: coll.id }) as {
   id: string;
   affectedDrawings: number;
 };
@@ -412,7 +414,7 @@ if (collDel?.affectedDrawings !== 1) {
 } else {
   ok("collections.delete → member drawing rewritten (affectedDrawings: 1)");
 }
-const collsAfter = cliResult("gallery.collections.list") as Array<{ id: string }>;
+const collsAfter = await cliResult("gallery.collections.list") as Array<{ id: string }>;
 if (!Array.isArray(collsAfter) || collsAfter.length !== 1) {
   fail(`collections.list after delete = ${JSON.stringify(collsAfter)}`);
 } else {
@@ -421,13 +423,13 @@ if (!Array.isArray(collsAfter) || collsAfter.length !== 1) {
 
 // --- gallery.delete (BLOCKING) + cancel path ------------------------------------
 confirmMode = "reject";
-const cancelled = cli("gallery.delete", { id: saved.id });
+const cancelled = await cli("gallery.delete", { id: saved.id });
 if (cancelled.code === 0 || !cancelled.stderr.includes("-32005")) {
   fail(`gallery.delete with user reject = code=${cancelled.code} ${cancelled.stderr.trim()}`);
 } else {
   ok("gallery.delete rejected on the confirm modal → -32005 'cancelled by user'");
 }
-const stillThere = cliResult("gallery.get", { id: saved.id }) as { id: string };
+const stillThere = await cliResult("gallery.get", { id: saved.id }) as { id: string };
 if (stillThere?.id !== saved.id) {
   fail(`drawing should survive a cancelled delete: ${JSON.stringify(stillThere)}`);
 } else {
@@ -435,13 +437,13 @@ if (stillThere?.id !== saved.id) {
 }
 
 confirmMode = "approve";
-const deleted = cliResult("gallery.delete", { id: saved.id }) as { id: string; deleted: boolean };
+const deleted = await cliResult("gallery.delete", { id: saved.id }) as { id: string; deleted: boolean };
 if (deleted?.deleted !== true) {
   fail(`gallery.delete = ${JSON.stringify(deleted)}`);
 } else {
   ok("gallery.delete → {id, deleted:true} — BLOCKING confirm auto-approved");
 }
-const afterDelete = cliResult("gallery.list");
+const afterDelete = await cliResult("gallery.list");
 if (!Array.isArray(afterDelete) || afterDelete.length !== 0) {
   fail(`gallery.list after delete = ${JSON.stringify(afterDelete)}`);
 } else {
@@ -452,7 +454,7 @@ if (!Array.isArray(afterDelete) || afterDelete.length !== 0) {
 activeSession.stop();
 controlSession.stop();
 await new Promise((r) => setTimeout(r, 300));
-const stFinal = cliResult("bridge.status") as {
+const stFinal = await cliResult("bridge.status") as {
   activeCanvas: { profileId: string } | null;
   controlPages: Array<{ profileId: string }>;
 };

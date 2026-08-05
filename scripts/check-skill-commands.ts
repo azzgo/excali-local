@@ -1,4 +1,3 @@
-#!/usr/bin/env bun
 /**
  * check-skill-commands — assert ZERO DRIFT between the command surface
  * documented in skills/excali-draw/references/command-reference.md and the
@@ -15,11 +14,12 @@
  *      (daemon-local / activated / paired) and that gate matches the
  *      contract's routing classes.
  *
- * Run: bun scripts/check-skill-commands.ts
+ * Run: pnpm skill:check
  */
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { hereDir } from "./_run";
 import {
   CANVAS_BOUND_METHODS,
   CANVAS_V1_METHODS,
@@ -30,7 +30,7 @@ import {
   PAIRED_ONLY_METHODS,
 } from "excali-shared";
 
-const DOC = join(import.meta.dir, "../skills/excali-draw/references/command-reference.md");
+const DOC = join(hereDir(import.meta.url), "../skills/excali-draw/references/command-reference.md");
 
 let failures = 0;
 const fail = (msg: string) => {

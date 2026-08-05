@@ -29,4 +29,4 @@ for WS_PATH in "${WORKSPACE_DIRS[@]}"; do
   fi
 done
 
-bun install
+pnpm install

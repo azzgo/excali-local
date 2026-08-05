@@ -74,21 +74,21 @@ When you open a `.excalidraw` file in your browser (from a web URL or a local fi
 
 ## 🛠️ Development
 
-This project uses a monorepo structure with Bun as the package manager.
+This project uses a monorepo structure with pnpm as the package manager.
 
 ```bash
 # Install dependencies
-bun install
+pnpm install
 
 # Development
-bun run page:dev      # Start editor webapp
+pnpm page:dev      # Start editor webapp
 # (no `local:dev` script — use page:dev for the editor; for the full extension, run
 #  local:build then load .output/chrome-mv3 as an unpacked extension)
 
 # Build
-bun run page:build    # Build editor webapp
-bun run local:build   # Build extension
-bun run local:tar     # Archive build assets
+pnpm page:build    # Build editor webapp
+pnpm local:build   # Build extension
+pnpm local:tar     # Archive build assets
 ```
 
 ## 🗺️ Roadmap

@@ -9,14 +9,14 @@ Excalidraw **fully offline**: screenshot annotation, an offline editor, a local 
 with collections, presentation mode, and custom fonts. No backend — all data in
 IndexedDB / localStorage.
 
-Bun workspaces, three packages (plus a Go package that is NOT a workspace member):
+pnpm workspaces, three packages (plus a Go package that is NOT a workspace member):
 
 | Package | Role |
 | --- | --- |
 | `packages/excali-local` | **Extension shell** (WXT). Generates the MV3 manifest; hosts the background service worker, content script, crop script, popup, and options page. Embeds the built editor from `excali-page`. |
 | `packages/excali-page` | **Editor app** (React 19 + Vite 5). The Excalidraw UI — editor, gallery, presentation, marker. Ships as a standalone web app and as the extension's editor. |
 | `packages/excali-shared` | **Shared layer**. Font-config IndexedDB (`excali-fonts`) + the **agent-bridge wire contract** (`agent-bridge.ts` — method sets, ports, WS types, token rules; the source of truth the Go daemon mirrors) + pure utils/types (`cn`, `getBrowser`, `getLang`). Imported via the `excali-shared` workspace alias. |
-| `packages/excali-bridge` | **Go daemon** (Go, not Bun). The Agent Bridge: a 127.0.0.1-only WS server + agent CLI. Cross-profile single-active-canvas arbiter. See the bridge section below. |
+| `packages/excali-bridge` | **Go daemon** (Go, not a workspace member). The Agent Bridge: a 127.0.0.1-only WS server + agent CLI. Cross-profile single-active-canvas arbiter. See the bridge section below. |
 
 ## Repository layout
 
@@ -43,11 +43,11 @@ packages/
       lib/ locales/        # utils + i18n
     test/                  # mirrors src/features/...; setup.ts + provider.helper.tsx
   excali-shared/src/       # db.ts (fonts) + agent-bridge.ts (wire contract) + index.ts (utils/types)
-  excali-bridge/           # Go daemon (NOT a bun workspace): go.mod + main.go +
+  excali-bridge/           # Go daemon (NOT a pnpm workspace): go.mod + main.go +
     internal/              #   contract (wire mirror), pidfile, ws (RFC 6455), fonts,
     bin/                   #   server (daemon), client (Leg-A CLI); bin/ gitignored
 skills/excali-draw/        # agent-agnostic drawing skill (SKILL.md + references/) —
-                           #   bundled daemon built at pack time; NOT a bun workspace
+                           #   bundled daemon built at pack time; NOT a pnpm workspace
 scripts/                   # build/clean/tar/zip, sync-version.sh, skill-pack.ts,
                            #   check-skill-commands.ts
   agent-bridge/            # e2e drivers: driver / driver-canvas / driver-gallery /

@@ -1,4 +1,3 @@
-#!/usr/bin/env bun
 /**
  * AGENT BRIDGE — driver: exercises the REAL page-side WS client
  * (`packages/excali-page/src/features/editor/lib/agent-bridge-client.ts`)
@@ -17,8 +16,8 @@
  * which also proves the Leg-A JSON-RPC path. Exit 0 = all phases pass.
  *
  * Run:
- *   bun run bridge:build                          (once: builds the Go daemon)
- *   bun scripts/agent-bridge/driver.ts            (spawns the daemon lazily)
+ *   pnpm bridge:build                          (once: builds the Go daemon)
+ *   tsx scripts/agent-bridge/driver.ts         (spawns the daemon lazily)
  *
  * NOTE: the driver's page sessions claim the active slot — running it while a
  * real canvas is active will displace that canvas (the intended daemon
@@ -27,6 +26,7 @@
 
 import { join } from "node:path";
 import { mintBridgeToken } from "excali-shared";
+import { run, hereDir } from "../_run";
 import {
   AgentBridgeSession,
   type BridgeConnectionStatus,
@@ -39,7 +39,7 @@ const profileA = "11111111-2222-4333-8444-555555555555";
 const profileB = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 const bin =
   process.env.EXCALI_BRIDGE_BIN ??
-  join(import.meta.dir, "../../packages/excali-bridge/bin/excali-bridge");
+  join(hereDir(import.meta.url), "../../packages/excali-bridge/bin/excali-bridge");
 
 const TIMEOUT_MS = 15000;
 
@@ -98,16 +98,16 @@ const fail = (msg: string) => {
 
 // --- bootstrap: ensure the Go daemon is up via the agent CLI (lazy spawn) ---
 console.log(`[driver] binary: ${bin}`);
-if (!Bun.spawnSync(["test", "-x", bin]).success) {
-  console.error(`[driver] bridge binary not found at ${bin} — run \`bun run bridge:build\` first`);
+if (!run(["test", "-x", bin]).ok) {
+  console.error(`[driver] bridge binary not found at ${bin} — run \`pnpm bridge:build\` first`);
   process.exit(1);
 }
-const boot = Bun.spawnSync([bin, "ping"], { env: { ...process.env, EXCALI_BRIDGE_BIN: bin } });
-if (boot.exitCode !== 0) {
+const boot = run([bin, "ping"], { env: { ...process.env, EXCALI_BRIDGE_BIN: bin } });
+if (boot.code !== 0) {
   console.error(`[driver] daemon bootstrap failed:\n${boot.stdout}\n${boot.stderr}`);
   process.exit(1);
 }
-console.log(`[driver] daemon up (CLI ping: ${boot.stdout.toString().trim()})`);
+console.log(`[driver] daemon up (CLI ping: ${boot.stdout.trim()})`);
 
 // --- Phase 1: ping round-trip through the page's own client code -----------
 const token1 = mintBridgeToken(); // ≥128-bit (256-bit) — never logged

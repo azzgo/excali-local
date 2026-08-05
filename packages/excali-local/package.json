@@ -18,7 +18,7 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
-    "excali-shared": "*",
+    "excali-shared": "workspace:*",
     "@tabler/icons-react": "^3.24.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
@@ -30,7 +30,7 @@
     "@types/chrome": "^0.0.280",
     "@types/react": "^19.2.10",
     "@types/react-dom": "^19.2.3",
-    "@wxt-dev/module-react": "^1.1.1",
+    "@wxt-dev/module-react": "1.1.5",
     "tailwindcss": "^4.1.12",
     "typescript": "^5.6.3",
     "wxt": "^0.19.13"

@@ -11,6 +11,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
+  "dependencies": {
+    "idb": "^8.0.0"
+  },
   "peerDependencies": {
     "clsx": "^2.1.1",
     "tailwind-merge": "^2.5.3"

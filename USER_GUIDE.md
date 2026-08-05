@@ -8,19 +8,19 @@ and smoke-test the full round-trip. (Two-gate consent model — see `CONTEXT.md`
 ## Part A — Build & load the extension
 
 ### Prerequisites
-- **Bun** (not npm/pnpm) and **Go** (for the daemon — the skill packs a prebuilt binary, but
+- **pnpm** (not bun/npm) + **tsx** and **Go** (for the daemon — the skill packs a prebuilt binary, but
   `bridge:build`/`bridge:test` need Go during development).
 - Clone + install:
   ```bash
   git clone <repo> && cd excali-local
-  bun install
+  pnpm install
   ```
 
 ### Build (3 steps — `public/editor/` is gitignored, so build it first)
 ```bash
-bun run page:build     # build the Excalidraw editor into excali-local/public/editor/
-bun run local:build    # package the extension → .output/chrome-mv3 + .output/firefox-mv3
-bun run bridge:build   # build the Go daemon → excali-bridge/bin/excali-bridge (for dev drivers)
+pnpm page:build     # build the Excalidraw editor into excali-local/public/editor/
+pnpm local:build    # package the extension → .output/chrome-mv3 + .output/firefox-mv3
+pnpm bridge:build   # build the Go daemon → excali-bridge/bin/excali-bridge (for dev drivers)
 ```
 > Re-run `page:build` whenever you change page code; `local:build` after shell/manifest changes.
 
@@ -63,7 +63,7 @@ bundles static, dependency-free daemon binaries.
 
 ### Pack the skill
 ```bash
-bun scripts/skill-pack.ts
+pnpm skill:pack
 # → skills/excali-draw/bin/            (4 platform binaries built in place, committed)
 ```
 `skill-pack` cross-compiles 4 targets (`darwin-arm64`, `darwin-amd64`, `linux-amd64`,
@@ -163,15 +163,15 @@ a blocking op (gallery delete, font install/clear) was declined on the confirm m
 ## Quick reference — daily commands
 
 ```bash
-bun run page:dev                  # editor dev server (port 3000)
-bun run page:build                # build editor → public/editor/
-bun run page:test                 # vitest (251 tests)
-bun run local:build               # build extension → .output/{chrome,firefox}-mv3
-bun run bridge:build              # build Go daemon → excali-bridge/bin/
-bun run bridge:test               # go test ./...
-bun scripts/skill-pack.ts         # refresh skills/excali-draw/bin/ (4 static targets) + README sizes
-bun scripts/check-skill-commands.ts   # zero-drift: skill docs == contract
-bun scripts/agent-bridge/driver-skill.ts  # smoke-test the source skill binary
+pnpm page:dev                  # editor dev server (port 3000)
+pnpm page:build                # build editor → public/editor/
+pnpm page:test                 # vitest (251 tests)
+pnpm local:build               # build extension → .output/{chrome,firefox}-mv3
+pnpm bridge:build              # build Go daemon → excali-bridge/bin/
+pnpm bridge:test               # go test ./...
+pnpm skill:pack                # refresh skills/excali-draw/bin/ (4 static targets) + README sizes
+pnpm skill:check               # zero-drift: skill docs == contract
+tsx scripts/agent-bridge/driver-skill.ts   # smoke-test the source skill binary
 # cleanup after any driver:
 pkill -f 'excali-bridge serve'; pkill -f 'bin/excali-bridge'; rm -f ~/.excali-local/bridge.pid
 ```

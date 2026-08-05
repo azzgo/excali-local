@@ -11,7 +11,7 @@
 
 `excali-page/src/components/ui/` — Radix + shadcn-style + Tailwind v4. Reuse these
 before adding new components. Add new ones via
-`bun --filter excali-page shadcn:add <name>`.
+`pnpm --filter ./packages/excali-page shadcn:add <name>`.
 
 ## Path alias
 

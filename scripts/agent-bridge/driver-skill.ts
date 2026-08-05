@@ -1,4 +1,3 @@
-#!/usr/bin/env bun
 /**
  * AGENT BRIDGE — goal-5 smoke test: run the HOST platform's daemon binary
  * from the SOURCE skill (skills/excali-draw/bin/) end-to-end, exactly as the
@@ -15,16 +14,17 @@
  *   - exit 0 = pass.
  *
  * Modeled on driver-fonts.ts / driver-canvas.ts. Requires the pack to have
- * been run first: `bun scripts/skill-pack.ts`.
+ * been run first: `pnpm skill:pack`.
  *
  * Run:
- *   bun scripts/skill-pack.ts   # refresh skills/excali-draw/bin/
- *   bun scripts/agent-bridge/driver-skill.ts
+ *   pnpm skill:pack                # refresh skills/excali-draw/bin/
+ *   tsx scripts/agent-bridge/driver-skill.ts
  */
 
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { mintBridgeToken } from "excali-shared";
+import { run, runAsync, hereDir } from "../_run";
 import { AgentBridgeSession, type BridgeWs } from "../../packages/excali-page/src/features/editor/lib/agent-bridge-client";
 import {
   blobToDataURL,
@@ -45,9 +45,9 @@ if (!hostName) {
   console.error(`[driver-skill] no bundled binary for host ${process.platform}/${process.arch} — expected one of the 4 targets`);
   process.exit(2);
 }
-const bin = process.env.EXCALI_BRIDGE_BIN ?? join(import.meta.dir, "../../skills/excali-draw/bin", hostName);
+const bin = process.env.EXCALI_BRIDGE_BIN ?? join(hereDir(import.meta.url), "../../skills/excali-draw/bin", hostName);
 if (!existsSync(bin)) {
-  console.error(`[driver-skill] bundled binary not found: ${bin} — run \`bun scripts/skill-pack.ts\` first`);
+  console.error(`[driver-skill] bundled binary not found: ${bin} — run \`pnpm skill:pack\` first`);
   process.exit(1);
 }
 console.log(`[driver-skill] binary: ${bin}`);
@@ -65,14 +65,16 @@ const fail = (msg: string) => {
 const ok = (msg: string) => console.log(`[driver-skill] ✓ ${msg}`);
 
 // ---- CLI helper: subcommand == method ---------------------------------------
-const cli = (method: string, params?: unknown): { code: number; stdout: string; stderr: string } => {
+const cli = async (method: string, params?: unknown): Promise<{ code: number; stdout: string; stderr: string }> => {
   const args = [bin, method];
   if (params !== undefined) args.push(JSON.stringify(params));
-  const res = Bun.spawnSync(args, { env: process.env });
-  return { code: res.exitCode ?? -1, stdout: res.stdout.toString(), stderr: res.stderr.toString() };
+  // async spawn: node's spawnSync would freeze the event loop and starve the
+  // page-sim's WebSocket delivery (bun's spawnSync did not)
+  const r = await runAsync(args, { env: process.env });
+  return { code: r.code, stdout: r.stdout, stderr: r.stderr };
 };
-const cliResult = (method: string, params?: unknown): unknown => {
-  const r = cli(method, params);
+const cliResult = async (method: string, params?: unknown): Promise<unknown> => {
+  const r = await cli(method, params);
   if (r.code !== 0) {
     fail(`${method} exited ${r.code}: ${r.stderr.trim() || r.stdout.trim()}`);
     return undefined;
@@ -170,21 +172,21 @@ const waitForConnected = () =>
   });
 
 // ---- bootstrap: lazy daemon via the assembled binary -----------------------
-const boot = Bun.spawnSync([bin, "ping"], { env: process.env });
-if (boot.exitCode !== 0) {
+const boot = run([bin, "ping"], { env: process.env });
+if (boot.code !== 0) {
   console.error(`[driver-skill] daemon bootstrap failed:\n${boot.stdout}\n${boot.stderr}`);
   process.exit(1);
 }
-ok(`lazy daemon up — ping → ${boot.stdout.toString().trim()}`);
+ok(`lazy daemon up — ping → ${boot.stdout.trim()}`);
 
 // ---- daemon-local meta from the assembled binary ---------------------------
-const list = cliResult("commands.list");
+const list = await cliResult("commands.list");
 if (!Array.isArray(list) || !list.includes("scene.get")) {
   fail(`commands.list = ${JSON.stringify(list)}`);
 } else {
   ok(`commands.list → ${list.length} methods`);
 }
-const proto = cliResult("protocol.version");
+const proto = await cliResult("protocol.version");
 if (proto !== "canvas/v1") {
   fail(`protocol.version = ${JSON.stringify(proto)}`);
 } else {
@@ -192,7 +194,7 @@ if (proto !== "canvas/v1") {
 }
 
 // ---- no-active guard --------------------------------------------------------
-const guard = cli("scene.get");
+const guard = await cli("scene.get");
 if (guard.code === 0 || !guard.stderr.includes("-32001")) {
   fail(`no-active guard: expected -32001, got code=${guard.code} ${guard.stderr.trim()}`);
 } else {
@@ -207,7 +209,7 @@ if (!(await waitForConnected())) {
 }
 ok("page-sim connected (active slot)");
 
-const empty = cliResult("scene.get") as { elements?: unknown[] };
+const empty = await cliResult("scene.get") as { elements?: unknown[] };
 if (!empty || !Array.isArray(empty.elements) || empty.elements.length !== 0) {
   fail(`scene.get initial = ${JSON.stringify(empty)}`);
 } else {
@@ -226,13 +228,13 @@ const rect = {
   roughness: 0,
   opacity: 100,
 };
-const add = cli("elements.add", { elements: [rect] });
+const add = await cli("elements.add", { elements: [rect] });
 if (add.code !== 0) {
   fail(`elements.add exited ${add.code}: ${add.stderr}`);
 } else {
   ok("elements.add accepted (skill template shape)");
 }
-const after = cliResult("scene.get") as { elements?: Array<Record<string, unknown>> };
+const after = await cliResult("scene.get") as { elements?: Array<Record<string, unknown>> };
 const elBack = Array.isArray(after?.elements) ? after.elements[0] : undefined;
 if (!elBack || elBack.type !== "rectangle" || elBack.width !== 180) {
   fail(`scene.get after add = ${JSON.stringify(elBack)}`);
@@ -240,7 +242,7 @@ if (!elBack || elBack.type !== "rectangle" || elBack.width !== 180) {
   ok("scene.get reflects the added element");
 }
 
-const png = cliResult("scene.exportPng", { mimeType: "image/png" }) as { dataURL?: string; width?: number };
+const png = await cliResult("scene.exportPng", { mimeType: "image/png" }) as { dataURL?: string; width?: number };
 if (!png || typeof png.dataURL !== "string" || !png.dataURL.startsWith("data:image/png;base64,")) {
   fail(`scene.exportPng = ${JSON.stringify(png)?.slice(0, 120)}`);
 } else {

@@ -1,4 +1,3 @@
-#!/usr/bin/env bun
 /**
  * AGENT BRIDGE — canvas/v1 e2e driver (Wayfinder Ticket 007).
  *
@@ -19,12 +18,13 @@
  * no-active-canvas guard.
  *
  * Run:
- *   bun run bridge:build
- *   bun scripts/agent-bridge/driver-canvas.ts        (spawns the daemon lazily)
+ *   pnpm bridge:build
+ *   tsx scripts/agent-bridge/driver-canvas.ts  (spawns the daemon lazily)
  */
 
 import { join } from "node:path";
 import { mintBridgeToken } from "excali-shared";
+import { run, runAsync, hereDir } from "../_run";
 import { AgentBridgeSession, type BridgeWs } from "../../packages/excali-page/src/features/editor/lib/agent-bridge-client";
 import {
   blobToDataURL,
@@ -39,7 +39,7 @@ const origin = process.env.ORIGIN ?? "chrome-extension://abcdabcdabcdabcdabcdabc
 const profileId = "11111111-2222-4333-8444-555555555555";
 const bin =
   process.env.EXCALI_BRIDGE_BIN ??
-  join(import.meta.dir, "../../packages/excali-bridge/bin/excali-bridge");
+  join(hereDir(import.meta.url), "../../packages/excali-bridge/bin/excali-bridge");
 
 const wsFactory = (url: string): BridgeWs =>
   new WebSocket(url, { headers: { Origin: origin } }) as unknown as BridgeWs;
@@ -52,15 +52,17 @@ const fail = (msg: string) => {
 const ok = (msg: string) => console.log(`[driver-canvas] ✓ ${msg}`);
 
 // --- CLI helper: subcommand == method ---------------------------------------
-const cli = (method: string, params?: unknown): { code: number; stdout: string; stderr: string } => {
+const cli = async (method: string, params?: unknown): Promise<{ code: number; stdout: string; stderr: string }> => {
   const args = [bin, method];
   if (params !== undefined) args.push(JSON.stringify(params));
-  const res = Bun.spawnSync(args, { env: process.env });
-  return { code: res.exitCode ?? -1, stdout: res.stdout.toString(), stderr: res.stderr.toString() };
+  // async spawn: node's spawnSync would freeze the event loop and starve the
+  // page-sim's WebSocket delivery (bun's spawnSync did not)
+  const r = await runAsync(args, { env: process.env });
+  return { code: r.code, stdout: r.stdout, stderr: r.stderr };
 };
 
-const cliResult = (method: string, params?: unknown): unknown => {
-  const r = cli(method, params);
+const cliResult = async (method: string, params?: unknown): Promise<unknown> => {
+  const r = await cli(method, params);
   if (r.code !== 0) {
     fail(`${method} exited ${r.code}: ${r.stderr.trim() || r.stdout.trim()}`);
     return undefined;
@@ -118,7 +120,7 @@ const stubApi: CanvasV1Api = {
 // Canvas-bound helpers are stubbed (real ones need a DOM canvas; pure parts
 // convertToExcalidrawElements/getCommonBounds are covered in vitest with the
 // real tgz under happy-dom). exportPng still produces a REAL base64 dataURL
-// via the dispatcher's own pure blobToDataURL + Bun's Blob.
+// via the dispatcher's own pure blobToDataURL + the global Blob.
 const helpers: CanvasV1Helpers = {
   convertToExcalidrawElements: (data) =>
     data.map((el, i) => ({
@@ -178,25 +180,25 @@ const waitForConnected = () =>
 
 // --- bootstrap ---------------------------------------------------------------
 console.log(`[driver-canvas] binary: ${bin}`);
-if (!Bun.spawnSync(["test", "-x", bin]).success) {
-  console.error(`[driver-canvas] bridge binary not found at ${bin} — run \`bun run bridge:build\` first`);
+if (!run(["test", "-x", bin]).ok) {
+  console.error(`[driver-canvas] bridge binary not found at ${bin} — run \`pnpm bridge:build\` first`);
   process.exit(1);
 }
-const boot = Bun.spawnSync([bin, "ping"], { env: process.env });
-if (boot.exitCode !== 0) {
+const boot = run([bin, "ping"], { env: process.env });
+if (boot.code !== 0) {
   console.error(`[driver-canvas] daemon bootstrap failed:\n${boot.stdout}\n${boot.stderr}`);
   process.exit(1);
 }
-ok(`daemon up (${boot.stdout.toString().trim()})`);
+ok(`daemon up (${boot.stdout.trim()})`);
 
 // --- META (daemon-local, no page needed) --------------------------------------
-const list = cliResult("commands.list");
+const list = await cliResult("commands.list");
 if (!Array.isArray(list) || !list.includes("scene.get") || !list.includes("protocol.version")) {
   fail(`commands.list missing canvas/v1 methods: ${JSON.stringify(list)}`);
 } else {
   ok(`commands.list returns ${list.length} canvas/v1 methods`);
 }
-const proto = cliResult("protocol.version");
+const proto = await cliResult("protocol.version");
 if (proto !== "canvas/v1") {
   fail(`protocol.version = ${JSON.stringify(proto)}, want "canvas/v1"`);
 } else {
@@ -204,7 +206,7 @@ if (proto !== "canvas/v1") {
 }
 
 // --- no-active guard (page not yet connected) ---------------------------------
-const guard = cli("scene.get");
+const guard = await cli("scene.get");
 if (guard.code === 0 || !guard.stderr.includes("-32001")) {
   fail(`no-active guard: expected -32001, got code=${guard.code} ${guard.stderr.trim()}`);
 } else {
@@ -220,7 +222,7 @@ if (!(await waitForConnected())) {
 ok("page-sim connected (holds the active slot)");
 
 // READ
-const empty = cliResult("scene.get");
+const empty = await cliResult("scene.get");
 if (!empty || !Array.isArray(empty.elements) || empty.elements.length !== 0) {
   fail(`scene.get initial = ${JSON.stringify(empty)}`);
 } else {
@@ -239,7 +241,7 @@ const el = {
   versionNonce: 1,
   isDeleted: false,
 };
-const up = cli("scene.update", { elements: [el], appState: { viewBackgroundColor: "#000000" } });
+const up = await cli("scene.update", { elements: [el], appState: { viewBackgroundColor: "#000000" } });
 if (up.code !== 0) {
   fail(`scene.update exited ${up.code}: ${up.stderr}`);
 } else {
@@ -247,7 +249,7 @@ if (up.code !== 0) {
 }
 
 // READ back
-const after = cliResult("scene.get");
+const after = await cliResult("scene.get");
 const elBack = Array.isArray(after?.elements) ? after.elements[0] : undefined;
 if (!elBack || (elBack as { id?: string }).id !== "rect-1" || (elBack as { version?: number }).version !== 3) {
   fail(`scene.update did not preserve id/version: ${JSON.stringify(elBack)}`);
@@ -262,7 +264,7 @@ if (bg !== "#000000") {
 }
 
 // WRITE (elements.add — normalize partials + concat)
-const add = cli("elements.add", {
+const add = await cli("elements.add", {
   elements: [{ type: "rectangle", x: 200, y: 0, width: 10, height: 10 }],
 });
 if (add.code !== 0) {
@@ -270,7 +272,7 @@ if (add.code !== 0) {
 } else {
   ok("elements.add accepted (partial normalized + concat)");
 }
-const added = cliResult("scene.elements");
+const added = await cliResult("scene.elements");
 if (!Array.isArray(added) || added.length !== 2) {
   fail(`scene.elements after add = ${JSON.stringify(added)}`);
 } else {
@@ -278,7 +280,7 @@ if (!Array.isArray(added) || added.length !== 2) {
 }
 
 // READ (bounds)
-const bounds = cliResult("scene.bounds");
+const bounds = await cliResult("scene.bounds");
 if (!bounds || typeof bounds.width !== "number" || bounds.width <= 0) {
   fail(`scene.bounds = ${JSON.stringify(bounds)}`);
 } else {
@@ -286,7 +288,7 @@ if (!bounds || typeof bounds.width !== "number" || bounds.width <= 0) {
 }
 
 // READ (exportPng — base64)
-const png = cliResult("scene.exportPng", { mimeType: "image/png" });
+const png = await cliResult("scene.exportPng", { mimeType: "image/png" });
 if (!png || typeof png.dataURL !== "string" || !png.dataURL.startsWith("data:image/png;base64,") || typeof png.width !== "number") {
   fail(`scene.exportPng = ${JSON.stringify(png)?.slice(0, 120)}`);
 } else {
@@ -294,7 +296,7 @@ if (!png || typeof png.dataURL !== "string" || !png.dataURL.startsWith("data:ima
 }
 
 // READ (exportSvg)
-const svg = cliResult("scene.exportSvg");
+const svg = await cliResult("scene.exportSvg");
 if (!svg || typeof svg.svg !== "string" || !svg.svg.includes("<svg")) {
   fail(`scene.exportSvg = ${JSON.stringify(svg)}`);
 } else {
@@ -302,13 +304,13 @@ if (!svg || typeof svg.svg !== "string" || !svg.svg.includes("<svg")) {
 }
 
 // WRITE (tool.setActive + scene.state read-back)
-const tool = cli("tool.setActive", { type: "arrow", locked: false });
+const tool = await cli("tool.setActive", { type: "arrow", locked: false });
 if (tool.code !== 0) {
   fail(`tool.setActive exited ${tool.code}`);
 } else {
   ok("tool.setActive accepted");
 }
-const state = cliResult("scene.state");
+const state = await cliResult("scene.state");
 if ((state as { activeTool?: { type?: string } })?.activeTool?.type !== "arrow") {
   fail(`scene.state activeTool = ${JSON.stringify(state?.activeTool)}`);
 } else {
@@ -316,27 +318,27 @@ if ((state as { activeTool?: { type?: string } })?.activeTool?.type !== "arrow")
 }
 
 // WRITE (view.scrollTo — no error)
-const scroll = cli("view.scrollTo", { fitToContent: true });
+const scroll = await cli("view.scrollTo", { fitToContent: true });
 if (scroll.code !== 0) fail(`view.scrollTo exited ${scroll.code}`);
 else ok("view.scrollTo accepted");
 
 // WRITE (files.add new id — non-destructive)
-const files = cli("files.add", {
+const files = await cli("files.add", {
   files: [{ id: "img-new", mimeType: "image/png", dataURL: "data:image/png;base64,AA==" }],
 });
 if (files.code !== 0) fail(`files.add exited ${files.code}`);
 else ok("files.add accepted (new id, non-destructive)");
 
 // WRITE (history.clear — destructive)
-const hist = cli("history.clear");
+const hist = await cli("history.clear");
 if (hist.code !== 0) fail(`history.clear exited ${hist.code}`);
 else ok("history.clear accepted");
 
 // WRITE (elements.clear — destructive)
-const clear = cli("elements.clear");
+const clear = await cli("elements.clear");
 if (clear.code !== 0) fail(`elements.clear exited ${clear.code}`);
 else ok("elements.clear accepted");
-const cleared = cliResult("scene.elements");
+const cleared = await cliResult("scene.elements");
 if (!Array.isArray(cleared) || cleared.length !== 0) {
   fail(`scene.elements after clear = ${JSON.stringify(cleared)}`);
 } else {
@@ -351,7 +353,7 @@ if (!destructiveOps.includes("history.clear") || !destructiveOps.includes("eleme
 }
 
 // WRITE (files.add overwrite — destructive)
-const filesOverwrite = cli("files.add", {
+const filesOverwrite = await cli("files.add", {
   files: [{ id: "img-new", mimeType: "image/png", dataURL: "data:image/png;base64,BB==" }],
 });
 if (filesOverwrite.code !== 0) fail(`files.add overwrite exited ${filesOverwrite.code}`);
@@ -364,7 +366,7 @@ if (!destructiveOps.includes("files.add")) {
 // --- no-active guard after page disconnect ------------------------------------
 page.stop();
 await new Promise((r) => setTimeout(r, 300)); // let the daemon clear the slot
-const guard2 = cli("scene.get");
+const guard2 = await cli("scene.get");
 if (guard2.code === 0 || !guard2.stderr.includes("-32001")) {
   fail(`post-disconnect guard: expected -32001, got code=${guard2.code}`);
 } else {
