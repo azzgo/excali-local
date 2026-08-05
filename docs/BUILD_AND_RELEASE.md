@@ -39,8 +39,9 @@
 module downloads, so it builds offline). The daemon is NOT packaged into the extension —
 it is the agent-side binary, distributed as the **excali-draw skill** (`skills/excali-draw/`):
 `scripts/skill-pack.ts` cross-compiles 4 static targets (darwin-arm64/amd64, linux-amd64,
-windows-amd64; CGO disabled, symbols stripped) and assembles the distributable skill
-folder + archive. Verify against the extension with the e2e drivers in
+windows-amd64; CGO disabled, symbols stripped) **in place into `skills/excali-draw/bin/`**
+(the committed source skill IS the artifact) and emits the versioned release tarball.
+Verify against the extension with the e2e drivers in
 `scripts/agent-bridge/` (`driver` / `driver-canvas` / `driver-gallery` / `driver-fonts` /
 `driver-skill` — each spawns the daemon lazily via the CLI).
 
@@ -74,8 +75,10 @@ Version bumps: set the root `package.json` `version`, then `bun run sync:version
 propagate to all three packages. Keep all three versions in sync.
 
 The **excali-draw skill** (`skills/excali-draw/`) is a separate release artifact from the
-extension: pack it with `bun scripts/skill-pack.ts` →
-`.skill-dist/excali-draw-<version>.tar.gz` (versioned from the root `package.json`, so it
-stays in sync). It is **not** wired into the tag-driven CI above yet — remote distribution
+extension: pack it with `bun scripts/skill-pack.ts` — binaries land in the committed
+`skills/excali-draw/bin/`, README sizes refresh in place, and the versioned archive is
+emitted as `.skill-dist/excali-draw-<version>.tar.gz` (versioned from the root
+`package.json`, so it stays in sync). It is **not** wired into the tag-driven CI above
+yet — remote distribution
 (e.g. `skills.sh` → `.agents/skills/`) is a tracked follow-up. The skill bundles its own
 static multi-platform daemon binaries, so it has no runtime dependency on the extension build.

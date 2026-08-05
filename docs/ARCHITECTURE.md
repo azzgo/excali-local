@@ -146,7 +146,8 @@ The agent-facing surface is packaged as the **excali-draw skill** (`skills/excal
 Ticket 009) — an agent-agnostic `SKILL.md` + `references/` that bundles static
 multi-platform daemon binaries and teaches an agent to draw via the CLI.
 `scripts/skill-pack.ts` cross-compiles (CGO disabled, symbols stripped) + static-verifies +
-assembles the distributable; `scripts/check-skill-commands.ts` is a zero-drift gate
+builds the binaries **in place** into `skills/excali-draw/bin/` (source-is-the-artifact) +
+emits the versioned tarball; `scripts/check-skill-commands.ts` is a zero-drift gate
 asserting the skill's documented command set matches the contract.
 
 
@@ -191,7 +192,7 @@ Three editor components under `features/editor/components/`:
 | `packages/excali-shared/src/db.ts` + `index.ts` | Font-config storage + shared utils/types.
 | `packages/excali-shared/src/agent-bridge.ts` | Agent-bridge wire contract — **source of truth**: method sets (canvas/gallery/fonts), ports, WS types, token rules, consent keys, error codes. The Go daemon mirrors it. |
 | `packages/excali-bridge/` (`main.go` + `internal/`) | Go daemon: WS server + agent CLI, pidfile single-instance, displacement, daemon-local OS-font enumeration, cross-profile routing. |
-| `scripts/agent-bridge/` (5 drivers) | e2e vs the real daemon: `driver` (ping+displacement), `driver-canvas` (canvas/v1), `driver-gallery` (gallery/v1), `driver-fonts` (fonts/v1), `driver-skill` (assembled skill binary). |
-| `skills/excali-draw/` | Agent-agnostic drawing skill (`SKILL.md` + `references/`); bundles the static multi-platform daemon binaries. Pack with `scripts/skill-pack.ts`. |
-| `scripts/{build,clean,tar,zip}.ts` + `sync-version.sh` + `skill-pack.ts` + `check-skill-commands.ts` | Build/pack/version tooling + skill assembly + zero-drift command gate. |
+| `scripts/agent-bridge/` (5 drivers) | e2e vs the real daemon: `driver` (ping+displacement), `driver-canvas` (canvas/v1), `driver-gallery` (gallery/v1), `driver-fonts` (fonts/v1), `driver-skill` (source skill binary). |
+| `skills/excali-draw/` | Agent-agnostic drawing skill (`SKILL.md` + `references/`); bundles the static multi-platform daemon binaries **committed under `bin/`** (source-is-the-artifact). Pack with `scripts/skill-pack.ts`. |
+| `scripts/{build,clean,tar,zip}.ts` + `sync-version.sh` + `skill-pack.ts` + `check-skill-commands.ts` | Build/pack/version tooling + skill binary refresh/archive + zero-drift command gate. |
 | `.github/workflows/release.yml` | Tag → test → build → pack → draft release. |

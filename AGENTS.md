@@ -30,6 +30,10 @@ detail, read the doc relevant to your task (links below).
   Never swap for the npm version — CSP/offline will break. See [docs/BUILD_AND_RELEASE.md](docs/BUILD_AND_RELEASE.md).
 - **`packages/excali-local/public/editor/` is a gitignored build artifact**, not
   committed. Run `bun run page:build` after changing page code; never commit it.
+- **`skills/excali-draw/bin/` is COMMITTED** (source-is-the-artifact): the 4
+  platform daemon binaries ship inside the skill dir. Refresh them with
+  `bun scripts/skill-pack.ts` (builds in place + emits only the versioned
+  tarball into the gitignored `.skill-dist/`).
 - **IndexedDB schema changes** require a `DB_VERSION` bump + `upgrade()` migration
   (users have existing data). Two DBs: `excali` (gallery) and `excali-fonts`. See
   [docs/CONVENTIONS.md](docs/CONVENTIONS.md).
