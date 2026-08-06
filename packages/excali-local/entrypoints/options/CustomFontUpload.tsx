@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, type ChangeEvent, type MouseEvent } from "react";
 import { IconUpload, IconX } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { t } from "../lib/utils";
@@ -34,7 +34,7 @@ export function CustomFontUpload({
   }, []);
 
   const handleFileChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
+    async (e: ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
 
@@ -76,7 +76,7 @@ export function CustomFontUpload({
     [validateFile, onUpload],
   );
 
-  const handleClear = useCallback((e: UIEvent) => {
+  const handleClear = useCallback((e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
     if (fileInputRef.current) {
       fileInputRef.current.value = "";

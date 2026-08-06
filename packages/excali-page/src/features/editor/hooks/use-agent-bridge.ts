@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSetAtom } from "jotai";
 import { galleryRevisionAtom } from "@/features/gallery/store/gallery-atoms";
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { nanoid } from "nanoid";
 import {
 	AB_READY,

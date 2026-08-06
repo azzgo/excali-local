@@ -1,9 +1,9 @@
 import {
-  FormEventHandler,
   useRef,
   useCallback,
   useEffect,
   useState,
+  type FormEventHandler,
 } from "react";
 import { t } from "../lib/utils";
 import { FontSlot } from "./FontSlot";

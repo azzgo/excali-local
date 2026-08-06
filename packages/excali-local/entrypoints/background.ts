@@ -1,4 +1,4 @@
-import { PromiseWithResolver, WithResolvers } from "./lib/utils";
+import { PromiseWithResolver, type WithResolvers } from "./lib/utils";
 import {
 	AB_READY,
 	AB_STATE,
@@ -71,7 +71,7 @@ const captureSelectArea = (message: any) => {
 function runAreaCaptureScript(tabId: number) {
   return browser.scripting.executeScript({
     target: { tabId },
-    files: ["crop.js"],
+    files: ["/crop.js"],
   });
 }
 
@@ -261,6 +261,7 @@ browser.runtime.onMessage.addListener((message, _, sendMessage) => {
   }
   browser.tabs.query({ active: true, currentWindow: true }).then((tabs) => {
     const activeTab = tabs[0];
+    const activeTabId = activeTab?.id;
     switch (message.type) {
       case "OPEN_LOCAL_EDITOR":
         openLocalEditor();
@@ -275,14 +276,14 @@ browser.runtime.onMessage.addListener((message, _, sendMessage) => {
         sendMessage(true);
         return;
       case "CAPTURE_SELECT_AREA":
-        if (!activeTab.id) {
+        if (activeTabId == null) {
           sendMessage({
             type: "CAPTURE_SELECT_AREA_ERROR",
             error: "No active tab",
           });
           return;
         }
-        runAreaCaptureScript(activeTab.id!)
+        runAreaCaptureScript(activeTabId)
           .then(() => {
             sendMessage(true);
           })
@@ -323,9 +324,9 @@ export default defineBackground(() => {
         browser.tabs
           .query({ active: true, currentWindow: true })
           .then((tabs) => {
-            const activeTab = tabs[0];
-            if (activeTab.id) {
-              runAreaCaptureScript(activeTab.id);
+            const activeTabId = tabs[0]?.id;
+            if (activeTabId != null) {
+              runAreaCaptureScript(activeTabId);
             }
           });
         return;

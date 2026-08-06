@@ -1,7 +1,7 @@
 import { orderAttributeLabel } from "@/features/editor/type";
 import { assembleSlides } from "@/features/editor/utils/assemble";
-import { ExcalidrawElement } from "@excalidraw/excalidraw/types/excalidraw/element/types";
-import { BinaryFiles } from "@excalidraw/excalidraw/types/excalidraw/types";
+import { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { BinaryFiles } from "@excalidraw/excalidraw/types";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 vi.mock("@excalidraw/excalidraw");
@@ -103,7 +103,7 @@ describe("assemble", () => {
       },
     ];
     const frames = await assembleSlides(
-      elementsWithOrderAttribute as ExcalidrawElement[],
+      elementsWithOrderAttribute as unknown as ExcalidrawElement[],
       files as any
     );
     expect(frames.map((f) => f.id)).toEqual(["frame-2", "frame-1"]);

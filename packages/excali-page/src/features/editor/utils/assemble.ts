@@ -1,10 +1,10 @@
 import {
   ExcalidrawElement,
   ExcalidrawFrameElement,
-} from "@excalidraw/excalidraw/types/excalidraw/element/types";
+} from "@excalidraw/excalidraw/element/types";
 import { isFrame } from "./filters";
 import { exportToBlob } from "@excalidraw/excalidraw";
-import { BinaryFiles } from "@excalidraw/excalidraw/types/excalidraw/types";
+import { BinaryFiles } from "@excalidraw/excalidraw/types";
 import { orderAttributeLabel } from "../type";
 
 type FrameId = string;

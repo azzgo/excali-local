@@ -1,7 +1,7 @@
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { orderAttributeLabel } from "../type";
 import { KeyForElements, setLocalStorage } from "./local";
-import { ExcalidrawFrameElement } from "@excalidraw/excalidraw/dist/types/element/src/types";
+import { ExcalidrawFrameElement } from "@excalidraw/excalidraw/element/types";
 import { restoreAppState } from "@excalidraw/excalidraw";
 import { omit } from "radash";
 

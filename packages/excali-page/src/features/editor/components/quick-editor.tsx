@@ -6,7 +6,7 @@ import { IconLoader2 } from "@tabler/icons-react";
 import { useMessageEvent } from "../hooks/use-message-event";
 import TopRightToolbar from "./top-right-toolbar";
 import { useMarkerEvent } from "../hooks/use-marker-effect";
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import MarkerSidebar from "./marker-sidebar";
 import GallerySidebar from "../../gallery/components/gallery-sidebar";
 import { useFileCleanup } from "../../gallery/hooks/use-file-cleanup";

@@ -1,10 +1,12 @@
-/// <reference types="vitest" />
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
-import * as path from "path";
-import tailwindcss from '@tailwindcss/vite'
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+import tailwindcss from "@tailwindcss/vite";
 
 const buildForExtension = process.env.BUILD_FOR_EXTENSION === "1";
+const currentDir = path.dirname(fileURLToPath(import.meta.url));
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -22,23 +24,23 @@ export default defineConfig({
     port: 3000,
   },
   resolve: {
-	alias: {
-	  "@": path.resolve(__dirname, "src"),
-	},
+    alias: {
+      "@": path.resolve(currentDir, "src"),
+    },
   },
   plugins: [react(), tailwindcss()],
   test: {
-	environment: "happy-dom",
-	include: ["test/**/*.test.ts", "test/**/*.test.tsx"],
-	setupFiles: ["./test/setup.ts"],
-	// The patched tgz + roughjs use extensionless imports; vitest externalizes
-	// node_modules by default (strict ESM resolution fails). Inline them so
-	// Vite's resolver handles them — required for canvas/v1 real-helpers tests.
-	server: {
-	  deps: { inline: [/@excalidraw\/excalidraw/, /roughjs/] },
-	},
+    environment: "happy-dom",
+    include: ["test/**/*.test.ts", "test/**/*.test.tsx"],
+    setupFiles: ["./test/setup.ts"],
+    // The patched tgz + roughjs use extensionless imports; vitest externalizes
+    // node_modules by default (strict ESM resolution fails). Inline them so
+    // Vite's resolver handles them — required for canvas/v1 real-helpers tests.
+    server: {
+      deps: { inline: [/@excalidraw\/excalidraw/, /roughjs/] },
+    },
     onConsoleLog: (log) => {
-      return !(log.includes('[test]') || log.includes('[font-injector]'));
+      return !(log.includes("[test]") || log.includes("[font-injector]"));
     },
     coverage: {
       include: ["src/**/*.ts"],

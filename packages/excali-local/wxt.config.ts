@@ -1,10 +1,9 @@
-import { ConfigEnv, UserManifest, defineConfig } from "wxt";
+import { defineConfig, type ConfigEnv, type UserManifest } from "wxt";
 
 import packageJson from "./package.json";
 
 function genManifest(env: ConfigEnv) {
   const manifest: UserManifest = {
-    manifest_version: 3,
     name: "Excali Local",
     description: "__MSG_description__",
     version: packageJson.version,
@@ -62,9 +61,9 @@ function genManifest(env: ConfigEnv) {
   }
   return manifest;
 }
+
 // See https://wxt.dev/api/config.html
 export default defineConfig({
-  extensionApi: "chrome",
   manifest: genManifest,
   modules: ["@wxt-dev/module-react"],
 });

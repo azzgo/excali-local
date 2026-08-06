@@ -11,7 +11,6 @@ import { isNotDeleted } from "../utils/filters";
 import { useLoadInitData } from "../hooks/use-load-initdata";
 import { IconLoader2 } from "@tabler/icons-react";
 import SlideNavigation from "./slide-navigation";
-import LocalEditorToolbar from "./local-editor-toolbar";
 import { Footer, WelcomeScreen } from "@excalidraw/excalidraw";
 import SlideNavbar from "./slide-navbar";
 import { useUpdateSlides } from "../hooks/use-update-slides";
@@ -24,8 +23,8 @@ import {
   BinaryFiles,
   ExcalidrawImperativeAPI,
   LibraryItems,
-} from "@excalidraw/excalidraw/dist/types/excalidraw/types";
-import { ExcalidrawElement } from "@excalidraw/excalidraw/dist/types/element/src/types";
+} from "@excalidraw/excalidraw/types";
+import { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import MarkerSidebar from "./marker-sidebar";
 
 import GallerySidebar from "../../gallery/components/gallery-sidebar";

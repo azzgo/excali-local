@@ -6,7 +6,7 @@ import {
 } from "../store/presentation";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { ScrollBar } from "@/components/ui/scroll-area";
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/excalidraw/types";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { Button } from "@/components/ui/button";
 import { IconChevronDown } from "@tabler/icons-react";
 import { useSlide } from "../hooks/use-slide";

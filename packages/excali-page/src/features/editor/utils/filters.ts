@@ -1,4 +1,4 @@
-import { ExcalidrawElement } from "@excalidraw/excalidraw/types/excalidraw/element/types";
+import { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 
 export const isFrame = (element: ExcalidrawElement) =>
   !element.isDeleted && element.type === "frame";

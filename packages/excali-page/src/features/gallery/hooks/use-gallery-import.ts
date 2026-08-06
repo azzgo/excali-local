@@ -5,8 +5,8 @@ import { nanoid } from "nanoid";
 import { useTranslation } from "react-i18next";
 import { useDrawingCrud } from "./use-drawing-crud";
 import { Collection, Drawing } from "../../editor/utils/indexdb";
-import { ExcalidrawElement } from "@excalidraw/excalidraw/types/excalidraw/element/types";
-import { BinaryFiles } from "@excalidraw/excalidraw/types/excalidraw/types";
+import { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { BinaryFiles } from "@excalidraw/excalidraw/types";
 import {
   getFilenameWithoutExtension,
   parseExcalidrawFile,

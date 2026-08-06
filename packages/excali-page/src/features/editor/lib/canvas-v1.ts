@@ -199,9 +199,9 @@ async function dispatch(method: string, params: unknown, deps: CanvasV1Deps): Pr
       const p = asRecord(params);
       const elements = p.elements ?? api.getSceneElements();
       if (!Array.isArray(elements)) invalidParams("scene.exportPng: elements must be an array");
-      const mimeType = p.mimeType ?? "image/png";
-      const scale = p.scale;
-      if (scale != null && (typeof scale !== "number" || scale <= 0)) {
+      const mimeType = typeof p.mimeType === "string" ? p.mimeType : "image/png";
+      const scale = typeof p.scale === "number" ? p.scale : undefined;
+      if (p.scale != null && (scale === undefined || scale <= 0)) {
         invalidParams("scene.exportPng: scale must be a positive number");
       }
       return await helpers.exportPng({
@@ -233,8 +233,9 @@ async function dispatch(method: string, params: unknown, deps: CanvasV1Deps): Pr
         patch.elements = p.elements as readonly unknown[];
       }
       if (p.appState !== undefined) {
-        if (!isRecord(p.appState)) invalidParams("scene.update: appState must be an object");
-        patch.appState = pickAppStateWriteSubset(p.appState);
+        const appState = p.appState;
+        if (!isRecord(appState)) invalidParams("scene.update: appState must be an object");
+        patch.appState = pickAppStateWriteSubset(appState as Record<string, unknown>);
       }
       if (p.captureUpdate !== undefined) {
         if (!CAPTURE_UPDATE_VALUES.includes(p.captureUpdate as never)) {
@@ -270,15 +271,20 @@ async function dispatch(method: string, params: unknown, deps: CanvasV1Deps): Pr
     case "files.add": {
       const p = asRecord(params);
       if (!Array.isArray(p.files)) invalidParams("files.add: files must be an array");
-      const files = (p.files as readonly unknown[]).map((f) => {
-        if (!isRecord(f) || typeof f.id !== "string" || typeof f.dataURL !== "string") {
+      const files = (p.files as readonly unknown[]).map((fileCandidate) => {
+        if (
+          !isRecord(fileCandidate) ||
+          typeof fileCandidate.id !== "string" ||
+          typeof fileCandidate.dataURL !== "string"
+        ) {
           invalidParams("files.add: each file needs {id, dataURL}");
         }
+        const file = fileCandidate as Record<string, unknown>;
         return {
-          id: f.id as string,
-          mimeType: typeof f.mimeType === "string" ? (f.mimeType as string) : undefined,
-          dataURL: f.dataURL as string,
-          created: typeof f.created === "number" ? (f.created as number) : undefined,
+          id: file.id as string,
+          mimeType: typeof file.mimeType === "string" ? file.mimeType : undefined,
+          dataURL: file.dataURL as string,
+          created: typeof file.created === "number" ? file.created : undefined,
         };
       });
       const existing = new Set(Object.keys(api.getFiles() ?? {}));
@@ -319,6 +325,7 @@ function asRecord(params: unknown): Record<string, unknown> {
   if (params === undefined || params === null) return {};
   if (isRecord(params)) return params;
   invalidParams("params must be an object");
+  throw new Error("unreachable");
 }
 
 /** Pick ONLY the curated appState write-subset (007). */

@@ -1,4 +1,4 @@
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types/excalidraw/types";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { useSetAtom } from "jotai";
 import { useEffect } from "react";
 import { isMarkingModeAtom, markerUnsubscriber } from "../store/marker";

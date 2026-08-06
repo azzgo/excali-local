@@ -1,4 +1,4 @@
-import { UnsubscribeCallback } from "@excalidraw/excalidraw/types/excalidraw/types";
+import { UnsubscribeCallback } from "@excalidraw/excalidraw/types";
 import { atom } from "jotai";
 
 export const isMarkingModeAtom = atom(false);

@@ -2,7 +2,7 @@ import {
   convertToExcalidrawElements,
   viewportCoordsToSceneCoords,
 } from "@excalidraw/excalidraw";
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { useCallback, useRef } from "react";
 import { isMarkingModeAtom, markerUnsubscriber } from "../store/marker";
 import { useAtom } from "jotai";

@@ -1,4 +1,4 @@
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import {
   IconCircleNumber1,
   IconLayoutGrid,

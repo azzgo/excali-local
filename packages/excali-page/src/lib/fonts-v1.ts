@@ -99,6 +99,7 @@ function asRecord(params: unknown): Record<string, unknown> {
   if (params === undefined || params === null) return {};
   if (isRecord(params)) return params;
   invalidParams("params must be an object");
+  throw new Error("unreachable");
 }
 
 function asSlot(slot: unknown): FontSlot {
@@ -106,6 +107,7 @@ function asSlot(slot: unknown): FontSlot {
     return slot as FontSlot;
   }
   invalidParams(`slot must be one of ${FONT_SLOTS.join("|")}`);
+  throw new Error("unreachable");
 }
 
 /** Detect the font format from MAGIC BYTES (base64 payloads carry no filename). */
@@ -215,15 +217,18 @@ async function dispatch(method: string, params: unknown, deps: FontsV1Deps): Pro
       if (typeof p.family !== "string" || p.family === "") {
         invalidParams("fonts.install: family is required");
       }
+      const family = p.family as string;
       if (typeof p.data !== "string" || p.data === "") {
         invalidParams("fonts.install: data (base64) is required");
       }
+      const encodedData = p.data as string;
       // Validate BEFORE the blocking modal — never prompt for an invalid file.
       let bytes: Uint8Array;
       try {
-        bytes = decodeBase64(p.data);
+        bytes = decodeBase64(encodedData);
       } catch {
         invalidParams("fonts.install: data is not valid base64");
+        throw new Error("unreachable");
       }
       if (fontFormat(bytes) === null) {
         invalidParams("fonts.install: unsupported font format (must be .ttf/.otf/.woff/.woff2)");
@@ -232,7 +237,7 @@ async function dispatch(method: string, params: unknown, deps: FontsV1Deps): Pro
         invalidParams(`fonts.install: font exceeds the ${FONT_SIZE_LIMIT / (1024 * 1024)} MiB limit`);
       }
       await confirmGate(deps, method, p);
-      await deps.db.updateFontSlot(slot, { type: "custom", family: p.family, data: bytes });
+      await deps.db.updateFontSlot(slot, { type: "custom", family, data: bytes });
       const config = await deps.db.getFontConfig();
       return { config: trimConfig(config), requiresReload: true };
     }

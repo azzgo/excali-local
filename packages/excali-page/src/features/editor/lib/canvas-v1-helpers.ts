@@ -45,9 +45,9 @@ export function buildCanvasV1Helpers(): CanvasV1Helpers {
         files: (files ?? null) as Parameters<typeof exportToCanvas>[0]["files"],
         getDimensions:
           scale != null && scale !== 1
-            ? (w, h) => ({
-                width: Math.round(w * scale),
-                height: Math.round(h * scale),
+            ? (width: number, height: number) => ({
+                width: Math.round(width * scale),
+                height: Math.round(height * scale),
                 scale,
               })
             : undefined,

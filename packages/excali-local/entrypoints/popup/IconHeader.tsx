@@ -1,4 +1,4 @@
-import { Icon } from "@tabler/icons-react";
+import type { Icon } from "@tabler/icons-react";
 
 interface IconHeaderProps {
   icon: Icon;

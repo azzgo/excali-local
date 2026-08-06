@@ -9,7 +9,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import {
   IconArrowNarrowRight,
   IconCircleNumber1,
@@ -26,7 +26,7 @@ import { useMarker } from "../hooks/use-marker";
 import {
   StrokeStyle,
   RoundnessType,
-} from "@excalidraw/excalidraw/dist/types/element/src/types";
+} from "@excalidraw/excalidraw/element/types";
 import { useTranslation } from "react-i18next";
 import { Separator } from "@/components/ui/separator";
 import {

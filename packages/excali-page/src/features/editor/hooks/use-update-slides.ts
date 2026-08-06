@@ -3,8 +3,8 @@ import { slidesAtom } from "../store/presentation";
 import { useCallback, useMemo } from "react";
 import { assembleSlides } from "../utils/assemble";
 import { debounce } from "radash";
-import { ExcalidrawElement } from "@excalidraw/excalidraw/types/excalidraw/element/types";
-import { BinaryFiles } from "@excalidraw/excalidraw/types/excalidraw/types";
+import { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { BinaryFiles } from "@excalidraw/excalidraw/types";
 
 export const useUpdateSlides = () => {
   const setSlides = useSetAtom(slidesAtom);

@@ -59,7 +59,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { Hint } from "@/components/ui/hint";
 import { loadDrawingToScene } from "../../editor/utils/excalidraw-api.helper";
 import { useGalleryImport, GalleryImportMode } from "../hooks/use-gallery-import";

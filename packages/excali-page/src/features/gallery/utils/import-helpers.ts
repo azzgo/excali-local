@@ -1,6 +1,6 @@
 import { ExportMetadata } from "./export-helpers";
-import { ExcalidrawElement } from "@excalidraw/excalidraw/types/excalidraw/element/types";
-import { BinaryFiles } from "@excalidraw/excalidraw/types/excalidraw/types";
+import { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { BinaryFiles } from "@excalidraw/excalidraw/types";
 
 export interface ParsedExcalidrawFile {
   elements: ExcalidrawElement[];

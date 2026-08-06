@@ -1,6 +1,6 @@
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { nanoid } from "nanoid";
-import { FileId } from "@excalidraw/excalidraw/dist/types/element/src/types";
+import { FileId } from "@excalidraw/excalidraw/element/types";
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 import { useEffect } from "react";
 import { getSizeOfDataImage } from "../utils/images";

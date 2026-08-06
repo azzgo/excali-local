@@ -1,4 +1,4 @@
-import { ExcalidrawFrameElement } from "@excalidraw/excalidraw/types/excalidraw/element/types";
+import { ExcalidrawFrameElement } from "@excalidraw/excalidraw/element/types";
 export const orderAttributeLabel = "excali_local_order";
 
 export interface Slide {

@@ -1,6 +1,6 @@
 import { exportToBlob } from "@excalidraw/excalidraw";
-import { ExcalidrawElement } from "@excalidraw/excalidraw/types/excalidraw/element/types";
-import { BinaryFiles } from "@excalidraw/excalidraw/types/excalidraw/types";
+import { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { BinaryFiles } from "@excalidraw/excalidraw/types";
 import { useCallback, useRef } from "react";
 
 const THUMBNAIL_HEIGHT = 200;
@@ -33,7 +33,7 @@ export function useThumbnail() {
         mimeType: "image/webp",
         quality: THUMBNAIL_QUALITY,
         exportPadding: 10,
-        getDimensions: (width, height) => {
+        getDimensions: (width: number, height: number) => {
           const scale = THUMBNAIL_HEIGHT / height;
           return {
             width: Math.round(width * scale),
@@ -51,7 +51,9 @@ export function useThumbnail() {
           
           if (cacheRef.current.size > 50) {
             const firstKey = cacheRef.current.keys().next().value;
-            cacheRef.current.delete(firstKey);
+            if (firstKey !== undefined) {
+              cacheRef.current.delete(firstKey);
+            }
           }
           
           resolve(result);

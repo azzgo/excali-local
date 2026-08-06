@@ -30,7 +30,7 @@ function makeApi(overrides: Partial<CanvasV1Api> = {}): CanvasV1Api {
 function makeHelpers(overrides: Partial<CanvasV1Helpers> = {}): CanvasV1Helpers {
   return {
     convertToExcalidrawElements: vi.fn((data) => data as unknown[]),
-    getCommonBounds: vi.fn(() => [0, 0, 100, 50]),
+    getCommonBounds: vi.fn(() => [0, 0, 100, 50] as [number, number, number, number]),
     exportPng: vi.fn(async () => ({
       dataURL: "data:image/png;base64,AAAA",
       width: 100,
@@ -109,7 +109,7 @@ describe("canvas/v1 dispatcher — READ", () => {
     const elements = [{ id: "a" }];
     const { helpers, resp } = await call("scene.bounds", { elements }, {
       api: makeApi({ getSceneElements: () => elements }),
-      helpers: makeHelpers({ getCommonBounds: vi.fn(() => [10, 20, 110, 60]) }),
+      helpers: makeHelpers({ getCommonBounds: vi.fn(() => [10, 20, 110, 60] as [number, number, number, number]) }),
     });
     expect(helpers.getCommonBounds).toHaveBeenCalledWith(elements);
     expect(resp.result).toEqual({ x: 10, y: 20, width: 100, height: 40 });
@@ -274,7 +274,9 @@ describe("canvas/v1 dispatcher — errors + meta", () => {
 
   test("non-2.0 jsonrpc → -32600", async () => {
     const resp = await handleCanvasV1Request(
-      { jsonrpc: "1.0", id: 1, method: "scene.get", params: {} },
+      { jsonrpc: "1.0", id: 1, method: "scene.get", params: {} } as unknown as Parameters<
+        typeof handleCanvasV1Request
+      >[0],
       { api: makeApi(), helpers: makeHelpers() },
     );
     expect(resp.error?.code).toBe(-32600);

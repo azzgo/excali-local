@@ -291,7 +291,9 @@ describe("useAgentBridge", () => {
 		// pending. Defer the ACTIVATE reply to reproduce that window.
 		const origImpl = harness.browser.runtime.sendMessage.getMockImplementation();
 		let resolveActivate: ((v: unknown) => void) | null = null;
-		harness.browser.runtime.sendMessage.mockImplementation((msg: { type: string }) => {
+		harness.browser.runtime.sendMessage.mockImplementation(((
+			msg: { type: string },
+		) => {
 			harness.swState.sendMessages.push(msg);
 			if (msg.type === AB_ACTIVATE) {
 				return new Promise((res) => {
@@ -308,7 +310,7 @@ describe("useAgentBridge", () => {
 			}
 			if (msg.type === AB_DEACTIVATE) return Promise.resolve(true);
 			return Promise.resolve(undefined);
-		});
+		}) as never);
 		try {
 			act(() => result.current.toggleActivation());
 			act(() => result.current.confirmActivation()); // ACTIVATE sent, reply pending
@@ -475,9 +477,9 @@ describe("useAgentBridge", () => {
   test("activation failure: SW unreachable → onActivateError('transport')", async () => {
     setConsent(true, true);
     const original = harness.browser.runtime.sendMessage.getMockImplementation();
-    harness.browser.runtime.sendMessage.mockImplementation(() =>
-      Promise.reject(new Error("no SW")),
-    );
+    harness.browser.runtime.sendMessage.mockImplementation((() =>
+      Promise.reject(new Error("no SW"))
+    ) as never);
     const onError = vi.fn();
     const { result } = renderHook(() =>
       useAgentBridge({
@@ -492,7 +494,9 @@ describe("useAgentBridge", () => {
       act(() => result.current.confirmActivation());
       await waitFor(() => expect(onError).toHaveBeenCalledWith("transport"));
     } finally {
-      harness.browser.runtime.sendMessage.mockImplementation(original);
+      harness.browser.runtime.sendMessage.mockImplementation(
+        (original ?? (() => Promise.resolve(undefined))) as never,
+      );
 	}
   });
 
@@ -556,12 +560,18 @@ describe("useAgentBridge", () => {
 	  session.opts.onInbound?.({ jsonrpc: "2.0", id: 5, method: "scene.get", params: {} });
 	});
 	await waitFor(() => expect(session.sent.length).toBeGreaterThan(0));
-	expect(session.sent[0]).toMatchObject({
-	  jsonrpc: "2.0",
-	  id: 5,
-	  result: { elements: [{ id: "a" }], appState: {}, files: {} },
-	});
-	expect(session.sent[0].error).toBeUndefined();
+		const response = session.sent[0] as {
+		  jsonrpc: string;
+		  id: number;
+		  result: unknown;
+		  error?: unknown;
+		};
+		expect(response).toMatchObject({
+		  jsonrpc: "2.0",
+		  id: 5,
+		  result: { elements: [{ id: "a" }], appState: {}, files: {} },
+		});
+		expect(response.error).toBeUndefined();
   });
 
   test("inbound destructive RPC: fires the one-shot destructive flash", async () => {
@@ -642,8 +652,9 @@ describe("useAgentBridge", () => {
       session.opts.onInbound?.({ jsonrpc: "2.0", id: 7, method: "gallery.list", params: {} });
     });
     await waitFor(() => expect(session.sent.length).toBeGreaterThan(0));
+    const galleryResponse = session.sent[0] as { error?: unknown };
     expect(session.sent[0]).toMatchObject({ jsonrpc: "2.0", id: 7, result: [] });
-    expect(session.sent[0].error).toBeUndefined();
+    expect(galleryResponse.error).toBeUndefined();
   });
 
   test("control connection dispatches fonts/v1 (real dispatcher, mocked excali-fonts db)", async () => {
@@ -661,6 +672,7 @@ describe("useAgentBridge", () => {
       jsonrpc: string;
       id: number;
       result: { code: { type: string; family: string; data?: unknown } };
+      error?: unknown;
     };
     expect(resp.id).toBe(11);
     expect(resp.error).toBeUndefined();

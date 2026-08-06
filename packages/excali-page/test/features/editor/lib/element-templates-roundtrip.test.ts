@@ -39,7 +39,7 @@ import {
 // happy-dom has no canvas 2d context — install a deterministic text
 // measurer so text width/height are computed (as the browser would).
 setCustomTextMetricsProvider({
-  getLineWidth: (text) => Math.max(20, text.length * 8),
+  getLineWidth: (text: string) => Math.max(20, text.length * 8),
 });
 
 const convert = (partials: unknown[]) =>

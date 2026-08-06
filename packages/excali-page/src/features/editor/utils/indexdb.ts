@@ -1,5 +1,5 @@
 // get/save filed to indexdb
-import { BinaryFileData } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
+import { BinaryFileData } from "@excalidraw/excalidraw/types";
 import { openDB } from "idb";
 
 const DB_NAME = "excali";

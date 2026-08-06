@@ -115,11 +115,11 @@ describe("gallery/v1 dispatcher", () => {
       addDrawing(store, { id: "b", name: "Newer", updatedAt: 900, thumbnail: "thumb-b" });
 
       const result = await okResult(await call(deps, "gallery.list", {}));
-      const list = result as Array<{ id: string; name: string }>;
+      const list = result as Array<{ id: string; name: string; thumbnail: string }>;
       expect(list.map((d) => d.id)).toEqual(["b", "a"]); // db sorts; dispatcher preserves
       expect(list[0]).toMatchObject({ id: "b", name: "Newer" });
       // includeThumbnail=false default → thumbnail stripped (small payload)
-      expect((list[0] as { thumbnail: string }).thumbnail).toBe("");
+      expect(list[0].thumbnail).toBe("");
       // NEVER raw scene strings
       expect(JSON.stringify(result)).not.toContain("el-1");
     });
@@ -440,7 +440,7 @@ describe("gallery/v1 dispatcher", () => {
     test("non-2.0 jsonrpc → -32600", async () => {
       const { deps } = makeDeps();
       const resp = await handleGalleryV1Request(
-        { jsonrpc: "1.0", id: 1, method: "gallery.list" } as GalleryV1Request,
+        { jsonrpc: "1.0", id: 1, method: "gallery.list" } as unknown as GalleryV1Request,
         deps,
       );
       expect(resp.error?.code).toBe(-32600);

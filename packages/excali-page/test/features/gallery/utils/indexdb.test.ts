@@ -93,11 +93,15 @@ describe("IndexedDB - Lazy Loading Functions", () => {
         },
       ];
 
-      let cursorIndex = 0;
-      const cursors = [
-        { value: mockFullDrawings[0], continue: vi.fn(() => Promise.resolve(cursors[1])) },
-        { value: mockFullDrawings[1], continue: vi.fn(() => Promise.resolve(null)) },
-      ];
+      const secondCursor = {
+        value: mockFullDrawings[1],
+        continue: vi.fn(() => Promise.resolve(null)),
+      };
+      const firstCursor = {
+        value: mockFullDrawings[0],
+        continue: vi.fn(() => Promise.resolve(secondCursor)),
+      };
+      const cursors = [firstCursor, secondCursor];
 
       mockStore.openCursor.mockResolvedValue(cursors[0]);
 
@@ -134,10 +138,13 @@ describe("IndexedDB - Lazy Loading Functions", () => {
     });
 
     test("should sort by updatedAt descending", async () => {
-      const mockDrawings = [
+      const mockDrawings: Drawing[] = [
         {
           id: "1",
           name: "Old",
+          elements: "[]",
+          appState: "{}",
+          files: "{}",
           thumbnail: "t1",
           collectionIds: [],
           createdAt: 1000,
@@ -146,6 +153,9 @@ describe("IndexedDB - Lazy Loading Functions", () => {
         {
           id: "2",
           name: "New",
+          elements: "[]",
+          appState: "{}",
+          files: "{}",
           thumbnail: "t2",
           collectionIds: [],
           createdAt: 2000,
@@ -153,10 +163,15 @@ describe("IndexedDB - Lazy Loading Functions", () => {
         },
       ];
 
-      const cursors = [
-        { value: mockDrawings[0] as Drawing, continue: vi.fn(() => Promise.resolve(cursors[1])) },
-        { value: mockDrawings[1] as Drawing, continue: vi.fn(() => Promise.resolve(null)) },
-      ];
+      const secondCursor = {
+        value: mockDrawings[1],
+        continue: vi.fn(() => Promise.resolve(null)),
+      };
+      const firstCursor = {
+        value: mockDrawings[0],
+        continue: vi.fn(() => Promise.resolve(secondCursor)),
+      };
+      const cursors = [firstCursor, secondCursor];
 
       mockStore.openCursor.mockResolvedValue(cursors[0]);
 
@@ -266,10 +281,15 @@ describe("IndexedDB - Lazy Loading Functions", () => {
         },
       ];
 
-      const cursors = [
-        { value: mockDrawings[0], continue: vi.fn(() => Promise.resolve(cursors[1])) },
-        { value: mockDrawings[1], continue: vi.fn(() => Promise.resolve(null)) },
-      ];
+      const secondCursor = {
+        value: mockDrawings[1],
+        continue: vi.fn(() => Promise.resolve(null)),
+      };
+      const firstCursor = {
+        value: mockDrawings[0],
+        continue: vi.fn(() => Promise.resolve(secondCursor)),
+      };
+      const cursors = [firstCursor, secondCursor];
 
       mockStore.openCursor.mockResolvedValue(cursors[0]);
 

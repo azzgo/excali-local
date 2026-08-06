@@ -139,7 +139,7 @@ describe("excalidrawAPI helper test", () => {
   describe("loadDrawingToScene", () => {
     beforeEach(() => {
       (restoreAppState as MockedFunction<any>).mockImplementation(
-        (args) => args,
+        (args: unknown) => args,
       );
     });
     test("should load drawing to scene with elements, appState and files", () => {

@@ -170,6 +170,7 @@ function asRecord(params: unknown): Record<string, unknown> {
   if (params === undefined || params === null) return {};
   if (isRecord(params)) return params;
   invalidParams("params must be an object");
+  throw new Error("unreachable");
 }
 
 async function requireScene(deps: GalleryV1Deps): Promise<GalleryV1Scene> {
@@ -272,24 +273,27 @@ async function dispatch(
     case "gallery.rename": {
       const p = asRecord(params);
       if (typeof p.id !== "string" || !p.id) invalidParams("gallery.rename: id is required");
+      const id = p.id as string;
       if (typeof p.name !== "string" || !p.name) invalidParams("gallery.rename: name is required");
+      const name = p.name as string;
       await confirmGate(deps, method, p);
       const drawings = await deps.db.getDrawings();
-      if (!drawings.some((d) => d.id === p.id)) {
+      if (!drawings.some((d) => d.id === id)) {
         throw new GalleryV1Error(JSON_RPC_ERROR_NOT_FOUND, "drawing not found");
       }
-      await deps.db.updateDrawing(p.id, { name: p.name });
+      await deps.db.updateDrawing(id, { name });
       notifyMutated(deps);
-      return { id: p.id, name: p.name };
+      return { id, name };
     }
 
     case "gallery.delete": {
       const p = asRecord(params);
       if (typeof p.id !== "string" || !p.id) invalidParams("gallery.delete: id is required");
+      const id = p.id as string;
       await confirmGate(deps, method, p);
-      await deps.db.deleteDrawing(p.id);
+      await deps.db.deleteDrawing(id);
       notifyMutated(deps);
-      return { id: p.id, deleted: true };
+      return { id, deleted: true };
     }
 
     case "gallery.collections.create": {
@@ -297,10 +301,11 @@ async function dispatch(
       if (typeof p.name !== "string" || !p.name) {
         invalidParams("gallery.collections.create: name is required");
       }
+      const name = p.name as string;
       // Fresh uuid each call — NON-idempotent by design (014; follow-up: key).
       const collection: GalleryCollection = {
         id: crypto.randomUUID(),
-        name: p.name,
+        name,
         createdAt: Date.now(),
       };
       await deps.db.createCollection(collection);
@@ -313,16 +318,18 @@ async function dispatch(
       if (typeof p.id !== "string" || !p.id) {
         invalidParams("gallery.collections.rename: id is required");
       }
+      const id = p.id as string;
       if (typeof p.name !== "string" || !p.name) {
         invalidParams("gallery.collections.rename: name is required");
       }
+      const name = p.name as string;
       await confirmGate(deps, method, p);
       const collections = await deps.db.getCollections();
-      const found = collections.find((c) => c.id === p.id);
+      const found = collections.find((c) => c.id === id);
       if (!found) throw new GalleryV1Error(JSON_RPC_ERROR_NOT_FOUND, "collection not found");
-      await deps.db.updateCollection(p.id, { name: p.name });
+      await deps.db.updateCollection(id, { name });
       notifyMutated(deps);
-      return { id: found.id, name: p.name, createdAt: found.createdAt };
+      return { id: found.id, name, createdAt: found.createdAt };
     }
 
     case "gallery.collections.delete": {
@@ -330,27 +337,29 @@ async function dispatch(
       if (typeof p.id !== "string" || !p.id) {
         invalidParams("gallery.collections.delete: id is required");
       }
+      const id = p.id as string;
       await confirmGate(deps, method, p);
       // Rewrites every member drawing to strip the id; reports the count.
-      const affectedDrawings = await deps.db.deleteCollectionAndReport(p.id);
+      const affectedDrawings = await deps.db.deleteCollectionAndReport(id);
       notifyMutated(deps);
-      return { id: p.id, affectedDrawings };
+      return { id, affectedDrawings };
     }
 
     // ---------------- ACTIVATED (canvas-bound, Ticket 014 gates) ----------------
     case "gallery.load": {
       const p = asRecord(params);
       if (typeof p.id !== "string" || !p.id) invalidParams("gallery.load: id is required");
+      const id = p.id as string;
       const scene = await requireScene(deps);
       const drawings = await deps.db.getDrawings();
-      const found = drawings.find((d) => d.id === p.id);
+      const found = drawings.find((d) => d.id === id);
       if (!found) throw new GalleryV1Error(JSON_RPC_ERROR_NOT_FOUND, "drawing not found");
-      const full = await deps.db.getDrawingFullData(p.id);
+      const full = await deps.db.getDrawingFullData(id);
       const elements = JSON.parse(full.elements);
       const appState = JSON.parse(full.appState);
       const files = JSON.parse(full.files);
       scene.loadDrawingToScene(elements, appState, files);
-      scene.onLoaded?.(p.id);
+      scene.onLoaded?.(id);
       return { id: found.id, name: found.name };
     }
 

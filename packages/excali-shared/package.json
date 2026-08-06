@@ -16,10 +16,10 @@
   },
   "peerDependencies": {
     "clsx": "^2.1.1",
-    "tailwind-merge": "^2.5.3"
+    "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
-    "@types/chrome": "^0.0.280",
-    "typescript": "^5.6.3"
+    "@types/chrome": "^0.2.5",
+    "typescript": "^7.0.2"
   }
 }

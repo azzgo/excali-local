@@ -1,6 +1,6 @@
-import { useState, useRef, MouseEventHandler, useMemo } from "react";
+import { useState, useRef, useMemo, type MouseEventHandler } from "react";
 import { IconAlertTriangle, IconLetterCase } from "@tabler/icons-react";
-import { FontData } from "./type";
+import type { FontData } from "./type";
 import { t } from "../lib/utils";
 import { toast } from "sonner";
 
@@ -24,7 +24,7 @@ const FontChooser = ({ className, onChoose }: FontChooserProps) => {
   const [selectedFont, setSelectedFont] = useState<FontData | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const openDialog = async (e: UIEvent) => {
+  const openDialog: MouseEventHandler<SVGSVGElement> = async (e) => {
     e.preventDefault();
     if (fontList.length === 0) {
       const fonts = await window.queryLocalFonts();
@@ -47,14 +47,14 @@ const FontChooser = ({ className, onChoose }: FontChooserProps) => {
     dialogRef.current?.showModal();
   };
 
-  const closeDialog: MouseEventHandler = (e) => {
+  const closeDialog: MouseEventHandler<HTMLButtonElement> = (e) => {
     e.preventDefault();
     setSearchText("");
     setSelectedFont(null);
     dialogRef.current?.close();
   };
 
-  const handleSave: MouseEventHandler = (e) => {
+  const handleSave: MouseEventHandler<HTMLButtonElement> = (e) => {
     e.preventDefault();
     if (onChoose && selectedFont) {
       onChoose(selectedFont);

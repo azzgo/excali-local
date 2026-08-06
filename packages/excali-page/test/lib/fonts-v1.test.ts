@@ -223,7 +223,7 @@ describe("fonts/v1 dispatcher", () => {
     test("non-2.0 → -32600; unknown method → -32601; bad params → -32602", async () => {
       const { deps } = makeDeps();
       const bad = await handleFontsV1Request(
-        { jsonrpc: "1.0", id: 1, method: "fonts.get" } as FontsV1Request,
+        { jsonrpc: "1.0", id: 1, method: "fonts.get" } as unknown as FontsV1Request,
         deps,
       );
       expect(bad.error?.code).toBe(-32600);

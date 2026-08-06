@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { IconRobot, IconRobotOff } from "@tabler/icons-react";
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Modal } from "@/components/ui/modal";

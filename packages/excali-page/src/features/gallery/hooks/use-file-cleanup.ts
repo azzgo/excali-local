@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { getDrawingsFilesOnly, getFiles, batchSaveFile } from "../../editor/utils/indexdb";
-import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/dist/types/excalidraw/types";
+import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
 const LAST_CLEANUP_KEY = "gallery_last_cleanup";
 const CLEANUP_INTERVAL = 24 * 60 * 60 * 1000;
