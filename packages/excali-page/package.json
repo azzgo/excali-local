@@ -14,7 +14,7 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@excalidraw/excalidraw": "file:./excalidraw-excalidraw-0.18.0-csp.12.tgz",
+    "@excalidraw/excalidraw": "file:./excalidraw-excalidraw-v0.18.0-csp.14.tgz",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-scroll-area": "^1.2.10",
     "@radix-ui/react-select": "^2.2.6",
