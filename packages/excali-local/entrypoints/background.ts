@@ -69,6 +69,11 @@ const captureSelectArea = (message: any) => {
 };
 
 function runAreaCaptureScript(tabId: number) {
+  // NOTE: the leading `/` on crop.js is intentional and REQUIRED — WXT 0.21 types
+  // scripting.executeScript files as ScriptPublicPath (Extract<PublicPath, `${string}.js`>),
+  // i.e. slash-prefixed public paths; `"crop.js"` is a TS error (TS2820). It is also
+  // runtime-safe: Chrome trims leading slashes, Firefox resolves against the extension
+  // root. crop.ts (unlisted entrypoint) builds to /crop.js at the output root.
   return browser.scripting.executeScript({
     target: { tabId },
     files: ["/crop.js"],
