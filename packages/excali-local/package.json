@@ -1,5 +1,5 @@
 {
-  "name": "wxt-react-starter",
+  "name": "excali-local",
   "description": "manifest.json description",
   "private": true,
   "version": "1.6.4",
@@ -19,8 +19,8 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
-    "excali-shared": "workspace:*",
     "@tabler/icons-react": "^3.24.0",
+    "excali-shared": "workspace:*",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "sonner": "^2.0.7",
@@ -35,6 +35,7 @@
     "tailwindcss": "^4.3.3",
     "typescript": "^7.0.2",
     "vite": "^8.2.0",
+    "web-ext": "^10.6.0",
     "wxt": "^0.21.3"
   }
 }

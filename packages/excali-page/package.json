@@ -60,7 +60,8 @@
     "tw-animate-css": "^1.3.7",
     "typescript": "^7.0.2",
     "vite": "^8.2.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "web-ext": "^10.6.0"
   },
   "module": "src/main.tsx",
   "type": "module"
