@@ -64,39 +64,27 @@ const AgentPairing = () => {
 
   return (
     <div className="mb-2">
-      <div className="flex flex-row items-center justify-between border-t border-b border-gray-300 dark:border-gray-800 py-2">
-        <div className="flex flex-col">
-          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
-            {t("AgentPairing")}
-          </span>
-          <span className="text-xs text-gray-500">
-            {isPaired ? t("AgentPairingPaired") : t("AgentPairingUnpaired")}
-          </span>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={isPaired}
-          onClick={handleToggle}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors cursor-pointer ${
-            isPaired
-              ? "bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900 dark:text-green-300 dark:hover:bg-green-800"
-              : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-          }`}
-        >
-          {isPaired ? (
-            <>
-              <IconPlugConnected className="size-4" />
-              {t("UnpairAgent")}
-            </>
-          ) : (
-            <>
-              <IconPlugConnectedX className="size-4" />
-              {t("PairAgent")}
-            </>
-          )}
-        </button>
-      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={isPaired}
+        onClick={handleToggle}
+        title={isPaired ? t("AgentPairingPaired") : t("AgentPairingUnpaired")}
+        className={`flex w-full items-center justify-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer ${
+          isPaired
+            ? "bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/70"
+            : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+        }`}
+      >
+        {isPaired ? (
+          <IconPlugConnected className="size-4 shrink-0" />
+        ) : (
+          <IconPlugConnectedX className="size-4 shrink-0" />
+        )}
+        <span className="truncate">
+          {isPaired ? t("UnpairAgent") : t("PairAgent")}
+        </span>
+      </button>
     </div>
   );
 };
