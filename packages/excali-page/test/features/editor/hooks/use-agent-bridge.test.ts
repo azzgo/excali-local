@@ -1,8 +1,11 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import { getDefaultStore } from "jotai";
 import { useAgentBridge } from "@/features/editor/hooks/use-agent-bridge";
+import { currentLoadedDrawingIdAtom } from "@/features/gallery/store/gallery-atoms";
 import {
 	AB_ACTIVATE,
+	AB_CANVAS_NAME,
 	AB_DEACTIVATE,
 	AB_DISPLACED,
 	AB_READY,
@@ -10,6 +13,10 @@ import {
 	AGENT_BRIDGE_STORAGE_KEY,
 	PROFILE_ID_STORAGE_KEY,
 } from "excali-shared";
+
+vi.mock("react-i18next", () => ({
+  useTranslation: () => [(key: string) => key],
+}));
 
 // ---------------------------------------------------------------------------
 // Hoisted harness: a stable fake browser (same object every getBrowser() call),
@@ -230,6 +237,7 @@ beforeEach(() => {
   harness.MockSession.instances = [];
   window.excaliAPI = undefined;
   delete window.excaliAPI;
+  getDefaultStore().set(currentLoadedDrawingIdAtom, null);
 });
 
 describe("useAgentBridge", () => {
@@ -760,5 +768,138 @@ describe("useAgentBridge", () => {
     // Displacing the control connection must NOT touch activation state.
     expect(result.current.isActive).toBe(false);
     expect(result.current.displaced).toBe(false);
+  });
+
+  // ------------------------------------------------------------------
+  // Wayfinder 033/034 — redesigned journey (canvas button owns pairing)
+  // ------------------------------------------------------------------
+
+  test("hideButton is read from storage and exposed", async () => {
+    harness.swState.storage[AGENT_BRIDGE_STORAGE_KEY] = { master: true, pairing: true, hideButton: true };
+    const { result } = renderLocal({});
+    await waitFor(() => expect(result.current.masterOn).toBe(true));
+    expect(result.current.hideButton).toBe(true);
+  });
+
+  test("quick-enable + pair write merged storage from the canvas button", async () => {
+    harness.swState.storage[AGENT_BRIDGE_STORAGE_KEY] = { master: false, pairing: false, hideButton: true };
+    const { result } = renderLocal({});
+    await waitFor(() => expect(result.current.masterOn).toBe(false));
+
+    act(() => result.current.quickEnableAgent());
+    await waitFor(() => {
+      const s = harness.swState.storage[AGENT_BRIDGE_STORAGE_KEY] as Record<string, boolean>;
+      expect(s.master).toBe(true);
+      expect(s.pairing).toBe(false);
+      expect(s.hideButton).toBe(true); // merged, never clobbered
+    });
+
+    act(() => result.current.pairAgent());
+    await waitFor(() => {
+      const s = harness.swState.storage[AGENT_BRIDGE_STORAGE_KEY] as Record<string, boolean>;
+      expect(s.pairing).toBe(true);
+      expect(s.hideButton).toBe(true);
+    });
+  });
+
+  test("otherActive: SW registry points at another canvas", async () => {
+    setConsent(true, true);
+    const { result } = renderLocal({});
+    await waitFor(() => expect(result.current.canActivate).toBe(true));
+    expect(result.current.otherActive).toBe(false);
+
+    broadcast({ swInstanceId: "sw-1", activeTabId: 2, isActive: false });
+    await waitFor(() => expect(result.current.otherActive).toBe(true));
+
+    broadcast({ swInstanceId: "sw-1", activeTabId: null, isActive: false });
+    await waitFor(() => expect(result.current.otherActive).toBe(false));
+  });
+
+  test("per-canvas consent (034 R1): asks once per canvas, auto after; re-asks on a new canvas", async () => {
+    setConsent(true, true);
+    const { result } = renderLocal({});
+    await waitFor(() => expect(result.current.canActivate).toBe(true));
+
+    // canvas A (default "unsaved") — first activation asks.
+    act(() => result.current.toggleActivation());
+    expect(result.current.showConfirm).toBe(true);
+    act(() => result.current.confirmActivation());
+    await waitFor(() =>
+      expect(harness.swState.sendMessages.some((m: any) => m.type === AB_ACTIVATE)).toBe(true),
+    );
+    broadcast({ swInstanceId: "sw-1", activeTabId: 1, isActive: true });
+    await waitFor(() => expect(result.current.isActive).toBe(true));
+
+    // deactivate, then re-activate the SAME canvas → no modal (auto).
+    act(() => result.current.toggleActivation());
+    await waitFor(() => expect(result.current.isActive).toBe(false));
+    act(() => result.current.toggleActivation());
+    expect(result.current.showConfirm).toBe(false);
+    await waitFor(() =>
+      expect(harness.swState.sendMessages.filter((m: any) => m.type === AB_ACTIVATE).length).toBe(2),
+    );
+    broadcast({ swInstanceId: "sw-1", activeTabId: 1, isActive: true });
+    await waitFor(() => expect(result.current.isActive).toBe(true));
+
+    // deactivate + switch to canvas B → the modal asks again.
+    act(() => result.current.toggleActivation());
+    await waitFor(() => expect(result.current.isActive).toBe(false));
+    act(() => getDefaultStore().set(currentLoadedDrawingIdAtom, "drawing-b"));
+    act(() => result.current.toggleActivation());
+    expect(result.current.showConfirm).toBe(true);
+  });
+
+  test("re-pair resets the per-canvas consent map (asks again)", async () => {
+    setConsent(true, true);
+    const { result } = renderLocal({});
+    await waitFor(() => expect(result.current.canActivate).toBe(true));
+
+    act(() => result.current.toggleActivation());
+    act(() => result.current.confirmActivation());
+    await waitFor(() =>
+      expect(harness.swState.sendMessages.some((m: any) => m.type === AB_ACTIVATE)).toBe(true),
+    );
+    broadcast({ swInstanceId: "sw-1", activeTabId: 1, isActive: true });
+    await waitFor(() => expect(result.current.isActive).toBe(true));
+
+    // deactivate; unpair then re-pair (a NEW connection) → consent asks again.
+    act(() => result.current.toggleActivation());
+    await waitFor(() => expect(result.current.isActive).toBe(false));
+    fireStorageChange(true, false); // unpair
+    await waitFor(() => expect(result.current.paired).toBe(false));
+    fireStorageChange(true, true); // re-pair
+    await waitFor(() => expect(result.current.paired).toBe(true));
+
+    act(() => result.current.toggleActivation());
+    expect(result.current.showConfirm).toBe(true);
+  });
+
+  test("AB_CANVAS_NAME: reports the current canvas name to the popup", async () => {
+    setConsent(true, true);
+    getDefaultStore().set(currentLoadedDrawingIdAtom, "d1");
+    const { result } = renderLocal({});
+    await waitFor(() => expect(result.current.canActivate).toBe(true));
+
+    // The gallery DB is mocked (empty) — the fallback is the localized label.
+    let reply: unknown;
+    act(() => {
+      for (const fn of harness.swState.runtimeListeners) {
+        (fn as (m: unknown, s: unknown, r: (v: unknown) => void) => void)({ type: AB_CANVAS_NAME }, undefined, (v) => { reply = v; });
+      }
+    });
+    await waitFor(() => expect(reply).toEqual({ name: "New Drawing" }));
+
+    // A saved drawing resolves its real name from the gallery DB.
+    const getDrawingsMock = (await import("@/features/editor/utils/indexdb")).getDrawings as ReturnType<typeof vi.fn>;
+    getDrawingsMock.mockResolvedValueOnce([
+      { id: "d1", name: "My Canvas", thumbnail: "", collectionIds: [], createdAt: 0, updatedAt: 0 },
+    ]);
+    let reply2: unknown;
+    act(() => {
+      for (const fn of harness.swState.runtimeListeners) {
+        (fn as (m: unknown, s: unknown, r: (v: unknown) => void) => void)({ type: AB_CANVAS_NAME }, undefined, (v) => { reply2 = v; });
+      }
+    });
+    await waitFor(() => expect(reply2).toEqual({ name: "My Canvas" }));
   });
 });

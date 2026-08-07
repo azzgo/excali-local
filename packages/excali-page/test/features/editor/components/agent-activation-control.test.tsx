@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, test, vi } from "vitest";
+import { act, cleanup, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import AgentActivationControl from "@/features/editor/components/agent-activation-control";
 import type { UseAgentBridgeResult } from "@/features/editor/hooks/use-agent-bridge";
 
@@ -11,7 +11,9 @@ const bridgeMock = vi.hoisted(() => {
 	const base = (overrides: Partial<UseAgentBridgeResult> = {}): UseAgentBridgeResult => ({
 	  masterOn: true,
 	  paired: true,
+	  hideButton: false,
 	  isActive: false,
+	  otherActive: false,
 	  connection: "idle",
 	  connectedPort: null,
 	  profileId: "11111111-2222-4333-8444-555555555555",
@@ -24,6 +26,8 @@ const bridgeMock = vi.hoisted(() => {
 	  cancelGallery: vi.fn(),
 	  showConfirm: false,
 	  canActivate: true,
+	  quickEnableAgent: vi.fn(),
+	  pairAgent: vi.fn(),
 	  toggleActivation: vi.fn(),
 	  confirmActivation: vi.fn(),
 	  cancelConfirm: vi.fn(),
@@ -34,7 +38,7 @@ const bridgeMock = vi.hoisted(() => {
 	return { base };
 });
 
-const toastMock = vi.hoisted(() => ({ error: vi.fn(), info: vi.fn() }));
+const toastMock = vi.hoisted(() => ({ error: vi.fn(), info: vi.fn(), success: vi.fn() }));
 vi.mock("sonner", () => ({ toast: toastMock }));
 
 vi.mock("@/features/editor/hooks/use-agent-bridge", () => ({
@@ -59,54 +63,132 @@ const renderControl = () =>
     <AgentActivationControl excalidrawAPI={{} as never} editorType="local" />,
   );
 
-describe("AgentActivationControl", () => {
-  test("hidden when Layer 0 / Gate 1 closed (kill-switch) — nothing renders", () => {
-    setOverrides({ canActivate: false, masterOn: false });
-    renderControl();
-    expect(screen.queryByTestId("agent-activation-toggle")).toBeNull();
-    expect(screen.queryByTestId("agent-controlling-pill")).toBeNull();
-  });
+// vitest runs without globals → testing-library's auto-cleanup doesn't
+// register; render() accumulates DOM across tests without this.
+afterEach(cleanup);
 
-  test("shows the toggle when master ON + paired, no indicator while inactive", () => {
-    setOverrides({});
+// A "paired + daemon up" baseline: control WS connected, nothing active.
+const ready = {
+  masterOn: true,
+  paired: true,
+  controlConnection: "connected",
+} as const;
+
+describe("AgentActivationControl", () => {
+  test("button renders even when the feature is OFF (state-driven entry)", () => {
+    setOverrides({ masterOn: false, paired: false, canActivate: false });
     renderControl();
     expect(screen.getByTestId("agent-activation-toggle")).toBeTruthy();
     expect(screen.queryByTestId("agent-controlling-pill")).toBeNull();
   });
 
-  test("active: renders the persistent indicator pill (status text, NO duplicate robot icon)", () => {
-    setOverrides({ isActive: true, connection: "connected" });
+  test("hidden only when the Options hide-toggle is on AND the feature is OFF", () => {
+    setOverrides({ masterOn: false, paired: false, hideButton: true, canActivate: false });
+    renderControl();
+    expect(screen.queryByTestId("agent-activation-toggle")).toBeNull();
+    cleanup();
+    // An active canvas can never hide the button (034 invariant).
+    setOverrides({ ...ready, hideButton: true, isActive: true });
+    renderControl();
+    expect(screen.getByTestId("agent-activation-toggle")).toBeTruthy();
+  });
+
+  test("quick-enable: feature OFF → click opens the enable modal; confirm calls quickEnableAgent", () => {
+    const quickEnableAgent = vi.fn();
+    setOverrides({ masterOn: false, paired: false, canActivate: false, quickEnableAgent });
+    renderControl();
+    act(() => {
+      screen.getByTestId("agent-activation-toggle").click();
+    });
+    expect(screen.getByText("AgentEnableTitle")).toBeTruthy();
+    screen.getByText("AgentEnableConfirm").click();
+    expect(quickEnableAgent).toHaveBeenCalled();
+    expect(toastMock.success).toHaveBeenCalledWith("AgentEnabledToast");
+  });
+
+  test("coach: ON + unpaired → click pairs and opens the coach-install card", () => {
+    const pairAgent = vi.fn();
+    setOverrides({ masterOn: true, paired: false, canActivate: false, pairAgent });
+    renderControl();
+    act(() => {
+      screen.getByTestId("agent-activation-toggle").click();
+    });
+    expect(pairAgent).toHaveBeenCalled();
+    expect(screen.getByTestId("agent-coach-card")).toBeTruthy();
+    expect(screen.getByText("AgentCoachCommand")).toBeTruthy();
+    // ✕ closes the card
+    act(() => {
+      screen.getByLabelText("AgentDismiss").click();
+    });
+    expect(screen.queryByTestId("agent-coach-card")).toBeNull();
+  });
+
+  test("coach: paired but daemon not detected → click toggles the coach card", () => {
+    setOverrides({ ...ready, controlConnection: "reconnecting" });
+    renderControl();
+    act(() => {
+      screen.getByTestId("agent-activation-toggle").click();
+    });
+    expect(screen.getByTestId("agent-coach-card")).toBeTruthy();
+    act(() => {
+      screen.getByTestId("agent-activation-toggle").click();
+    });
+    expect(screen.queryByTestId("agent-coach-card")).toBeNull();
+  });
+
+  test("ready: paired + daemon up + idle → click activates via the consent gate", () => {
+    const toggleActivation = vi.fn();
+    setOverrides({ ...ready, toggleActivation });
+    renderControl();
+    screen.getByTestId("agent-activation-toggle").click();
+    expect(toggleActivation).toHaveBeenCalled();
+  });
+
+  test("another canvas active → click toasts the take-over hint then activates", () => {
+    const toggleActivation = vi.fn();
+    setOverrides({ ...ready, otherActive: true, toggleActivation });
+    renderControl();
+    screen.getByTestId("agent-activation-toggle").click();
+    expect(toastMock.info).toHaveBeenCalledWith("AgentTakeOverHint");
+    expect(toggleActivation).toHaveBeenCalled();
+  });
+
+  test("active: renders the persistent indicator pill + click deactivates", () => {
+    const toggleActivation = vi.fn();
+    setOverrides({ ...ready, isActive: true, connection: "connected", toggleActivation });
     renderControl();
     const pill = screen.getByTestId("agent-controlling-pill");
     expect(pill).toBeTruthy();
     expect(screen.getByText("AgentControllingCanvas")).toBeTruthy();
-    // One robot affordance total: the toggle shows IconRobotOff while active;
+    // One robot affordance total: the button shows IconRobotOff while active;
     // the pill itself must not render an svg (de-duped — goal feedback #3).
     expect(pill.querySelector("svg")).toBeNull();
+    screen.getByTestId("agent-activation-toggle").click();
+    expect(toggleActivation).toHaveBeenCalled();
   });
 
-  test("first-time confirm modal renders Confirm/Cancel", async () => {
-    setOverrides({ showConfirm: true });
+  test("first-time consent modal renders Confirm/Cancel", async () => {
+    setOverrides({ ...ready, showConfirm: true });
     renderControl();
     expect(screen.getByText("AgentConfirmTitle")).toBeTruthy();
     expect(screen.getByText("AgentConfirmContent")).toBeTruthy();
   });
 
   test("SW-restart offer renders with Re-activate", () => {
-	setOverrides({ swRestartOffer: true, isActive: false });
+	setOverrides({ ...ready, swRestartOffer: true, isActive: false });
 	renderControl();
 	expect(screen.getByText("AgentSessionEndedTitle")).toBeTruthy();
 	expect(screen.getByText("AgentReactivate")).toBeTruthy();
   });
 
   test("displaced: fires the displacement toast once", () => {
-	setOverrides({ displaced: true });
+	setOverrides({ ...ready, displaced: true });
 	renderControl();
 	expect(toastMock.info).toHaveBeenCalledWith("AgentDisplaced");
   });
 
   test("destructive canvas/v1 op: renders the non-blocking amber flash", () => {
-	setOverrides({ destructiveFlash: { method: "elements.clear", key: 1 } });
+	setOverrides({ ...ready, destructiveFlash: { method: "elements.clear", key: 1 } });
 	renderControl();
 	const flash = screen.getByTestId("agent-destructive-flash");
 	expect(flash).toBeTruthy();
@@ -117,6 +199,7 @@ describe("AgentActivationControl", () => {
 	const confirmGallery = vi.fn();
 	const cancelGallery = vi.fn();
 	setOverrides({
+	  ...ready,
 	  galleryConfirm: { method: "gallery.delete", params: { id: "d1" }, key: 7 },
 	  confirmGallery,
 	  cancelGallery,

@@ -6,6 +6,8 @@ import {
 	AB_DEACTIVATE,
 	AB_DISPLACED,
 	AB_HEARTBEAT,
+	AB_STATE_QUERY,
+	AB_CANVAS_NAME,
   AGENT_BRIDGE_STORAGE_KEY,
   AGENT_BRIDGE_DEFAULT_STORAGE,
   type AgentBridgeStorage,
@@ -214,6 +216,30 @@ const handleAgentBridgeMessage = async (
         swInstanceId,
         activeTabId,
         isActive: tabId != null && activeTabId === tabId,
+      });
+      return;
+    }
+    case AB_STATE_QUERY: {
+      // Popup indicator (Wayfinder 034): the popup is never a canvas, so it
+      // queries the registry + the active canvas's drawing name. The name is
+      // resolved by relaying an AB_CANVAS_NAME ask to the active editor tab.
+      let canvasName: string | null = null;
+      if (activeTabId != null) {
+        try {
+          const reply = (await browser.tabs.sendMessage(activeTabId, {
+            type: AB_CANVAS_NAME,
+          })) as { name?: string | null } | undefined;
+          canvasName = reply?.name ?? null;
+        } catch {
+          // active tab gone / not ready — fall back to null
+        }
+      }
+      sendResponse({
+        type: AB_STATE,
+        swInstanceId,
+        activeTabId,
+        isActive: false, // popup is never the active canvas
+        canvasName,
       });
       return;
     }

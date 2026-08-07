@@ -45,13 +45,20 @@ export const WS_PROFILE_ID_FIELD = "profileId";
 export interface AgentBridgeStorage {
   /** Layer 0 — feature master switch (Options). Default OFF = kill-switch. */
   master: boolean;
-  /** Gate 1 — paired connection (popup). Gates ALL agent control. */
+  /** Gate 1 — paired connection (canvas button). Gates ALL agent control. */
   pairing: boolean;
+  /**
+   * Hide the canvas AI button (Options). Default OFF = button shown. Only
+   * adjustable while master is OFF — an active canvas must always have a
+   * visible stop control (Wayfinder 034 locked invariant).
+   */
+  hideButton: boolean;
 }
 
 export const AGENT_BRIDGE_DEFAULT_STORAGE: AgentBridgeStorage = {
   master: false,
   pairing: false,
+  hideButton: false,
 };
 
 // ---------------------------------------------------------------------------
@@ -127,8 +134,16 @@ export const AB_DEACTIVATE = "AGENT_BRIDGE_DEACTIVATE";
  */
 export const AB_DISPLACED = "AGENT_BRIDGE_DISPLACED";
 
-/** Page → SW: keepalive + epoch probe while active; SW replies with current state. */
 export const AB_HEARTBEAT = "AGENT_BRIDGE_HEARTBEAT";
+/**
+ * Popup → SW state query (Wayfinder 034): the popup needs the live registry
+ * (activeTabId) to render its Paired/Controlling indicator. The SW replies
+ * with an AB_STATE-shaped payload plus canvasName, resolved by relaying an
+ * AB_CANVAS_NAME ask to the active editor tab.
+ */
+export const AB_STATE_QUERY = "AGENT_BRIDGE_STATE_QUERY";
+/** SW → active editor tab: what is the current canvas name? (popup indicator.) */
+export const AB_CANVAS_NAME = "AGENT_BRIDGE_CANVAS_NAME";
 
 export interface AgentBridgeStatePayload {
   type: typeof AB_STATE;
@@ -138,6 +153,11 @@ export interface AgentBridgeStatePayload {
   activeTabId: number | null;
   /** true when this message is addressed to the activated tab. */
   isActive: boolean;
+  /**
+   * Popup-only (AB_STATE_QUERY reply): the active canvas's drawing name, or
+   * null when no canvas is active / the name couldn't be resolved.
+   */
+  canvasName?: string | null;
 }
 
 // ---------------------------------------------------------------------------

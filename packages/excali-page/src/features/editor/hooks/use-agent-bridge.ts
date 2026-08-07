@@ -12,8 +12,13 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSetAtom } from "jotai";
-import { galleryRevisionAtom } from "@/features/gallery/store/gallery-atoms";
+import { useAtomValue, useSetAtom } from "jotai";
+import { useTranslation } from "react-i18next";
+import {
+  currentLoadedDrawingIdAtom,
+  galleryRevisionAtom,
+} from "@/features/gallery/store/gallery-atoms";
+
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { nanoid } from "nanoid";
 import {
@@ -23,6 +28,7 @@ import {
 	AB_DEACTIVATE,
 	AB_DISPLACED,
 	AB_HEARTBEAT,
+	AB_CANVAS_NAME,
 	AGENT_BRIDGE_STORAGE_KEY,
 	AGENT_BRIDGE_DEFAULT_STORAGE,
 	AGENT_BRIDGE_HEARTBEAT_MS,
@@ -104,10 +110,17 @@ export type AgentBridgeConnection =
 export interface UseAgentBridgeResult {
   /** Layer 0 — Options master switch (persisted). */
   masterOn: boolean;
-  /** Gate 1 — paired connection (persisted). */
+  /** Gate 1 — paired connection (persisted, written by the canvas button). */
   paired: boolean;
+  /** Options hide-button toggle (persisted; adjustable only while master OFF). */
+  hideButton: boolean;
   /** Gate 2 — this canvas is the SW-registered activated canvas. */
   isActive: boolean;
+  /**
+   * true when the SW registry points at ANOTHER canvas (single-active-canvas
+   * invariant, same profile): paired + idle here, but control is elsewhere.
+   */
+  otherActive: boolean;
   connection: AgentBridgeConnection;
   connectedPort: number | null;
   /** Per-profile identity uuid (minted once, persisted in chrome.storage.local). */
@@ -115,7 +128,8 @@ export interface UseAgentBridgeResult {
   /**
    * Goal 3 (Option A): status of the CONTROL connection — dialed when paired
    * (Gate 1) WITHOUT activation; serves paired-only gallery ops when no canvas
-   * is active. Independent of the active-slot connection.
+   * is active. Independent of the active-slot connection. Also the daemon
+   * detection signal for the redesigned canvas button (Wayfinder 034).
    */
   controlConnection: AgentBridgeConnection;
   /** true when the SW restarted while this canvas was active → offer re-activate. */
@@ -144,6 +158,10 @@ export interface UseAgentBridgeResult {
   showConfirm: boolean;
   /** The activation toggle may be shown (master ON + paired + Local editor). */
   canActivate: boolean;
+  /** Quick-enable (Wayfinder 034): master ON from the canvas button, no nav. */
+  quickEnableAgent(): void;
+  /** Pair (Wayfinder 034): persist `pairing` from the canvas button. */
+  pairAgent(): void;
   toggleActivation(): void;
   confirmActivation(): void;
   cancelConfirm(): void;
@@ -179,16 +197,21 @@ export function useAgentBridge({
   editorType,
   onActivateError,
 }: UseAgentBridgeOptions): UseAgentBridgeResult {
+  const [t] = useTranslation();
   const isLocal = editorType === "local";
+  // current drawing (per-canvas consent key, 034 R1) — null = unsaved canvas.
+  const drawingId = useAtomValue(currentLoadedDrawingIdAtom);
 
   // --- consent (chrome.storage, persisted) ---------------------------------
   const [masterOn, setMasterOn] = useState(false);
   const [paired, setPaired] = useState(false);
+  const [hideButton, setHideButton] = useState(false);
   // --- per-profile identity (goal 3): minted once, persisted ----------------
   const [profileId, setProfileId] = useState<string | null>(null);
 
   // --- activation state (mirror of SW registry) -----------------------------
   const [isActive, setIsActive] = useState(false);
+  const [activeTabId, setActiveTabId] = useState<number | null>(null);
   const [connection, setConnection] =
     useState<AgentBridgeConnection>("idle");
   const [connectedPort, setConnectedPort] = useState<number | null>(null);
@@ -205,7 +228,12 @@ export function useAgentBridge({
   const sessionActiveRef = useRef(false);
   const lastSwIdRef = useRef<string | null>(null);
   const wasActiveRef = useRef(false);
-  const confirmShownRef = useRef(false);
+  // Per-canvas first-time consent (034 R1): keyed by drawing id ("unsaved"
+  // for a blank canvas); cleared on unpair/re-pair so a NEW connection asks again.
+  const confirmShownRef = useRef<Record<string, boolean>>({});
+  const prevPairingRef = useRef(false);
+  const consentKeyRef = useRef<string>(drawingId ?? "unsaved");
+  consentKeyRef.current = drawingId ?? "unsaved";
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onActivateErrorRef = useRef(onActivateError);
   onActivateErrorRef.current = onActivateError;
@@ -243,6 +271,8 @@ export function useAgentBridge({
         const consent = stored ?? AGENT_BRIDGE_DEFAULT_STORAGE;
         setMasterOn(consent.master);
         setPaired(consent.pairing);
+        setHideButton(!!consent.hideButton);
+        prevPairingRef.current = consent.pairing;
       })
       .catch(() => {});
 
@@ -255,17 +285,23 @@ export function useAgentBridge({
           AGENT_BRIDGE_DEFAULT_STORAGE) as AgentBridgeStorage;
         setMasterOn(consent.master);
         setPaired(consent.pairing);
-        // a new paired connection resets the first-time confirm
-        if (consent.pairing) confirmShownRef.current = false;
+        setHideButton(!!consent.hideButton);
+        // a NEW paired connection (false→true) resets the per-canvas confirms
+        // (034 R1: ask once per canvas until unpair/re-pair).
+        if (consent.pairing && !prevPairingRef.current) {
+          confirmShownRef.current = {};
+        }
+        prevPairingRef.current = consent.pairing;
       }
     };
     browser.storage.onChanged.addListener(onChange);
     return () => browser.storage.onChanged.removeListener(onChange);
   }, [isLocal, browser]);
 
-  // reset confirm when pairing flips off (new connection next time)
+  // unpair (Gate 1 OFF) → clear the per-canvas consent map; the next pair
+  // asks again on every canvas (034 R1).
   useEffect(() => {
-    if (!paired) confirmShownRef.current = false;
+    if (!paired) confirmShownRef.current = {};
   }, [paired]);
 
   // --- SW messaging + reconciliation ----------------------------------------
@@ -282,6 +318,7 @@ export function useAgentBridge({
       const instanceChanged =
         lastSwIdRef.current !== null && lastSwIdRef.current !== state.swInstanceId;
       lastSwIdRef.current = state.swInstanceId;
+      setActiveTabId(state.activeTabId);
 
       if (instanceChanged && wasActiveRef.current && !state.isActive) {
         // SW restarted → ephemeral registry wiped → offer one-click re-activate
@@ -311,13 +348,36 @@ export function useAgentBridge({
   useEffect(() => {
     if (!isLocal || !browser?.runtime) return;
 
-    const onMessage = (message: unknown) => {
+    const onMessage = (
+      message: unknown,
+      _sender: unknown,
+      sendResponse: (response?: unknown) => void,
+    ) => {
       const m = message as Partial<AgentBridgeStatePayload> & {
         type?: string;
         granted?: boolean;
       };
       if (m?.type === AB_STATE) {
         reconcile(m as AgentBridgeStatePayload);
+      } else if (m?.type === AB_CANVAS_NAME) {
+        // Popup indicator (034): report this canvas's drawing name so the
+        // popup can show "Controlling: <name>". Resolved from the gallery DB;
+        // an unsaved canvas reports the localized "New Drawing" label.
+        // (async reply → return true keeps the channel open, Chrome+Firefox)
+        void (async () => {
+          const id = consentKeyRef.current === "unsaved" ? null : consentKeyRef.current;
+          let name: string | null = null;
+          if (id) {
+            try {
+              const list = await getDrawings();
+              name = list.find((d) => d.id === id)?.name ?? null;
+            } catch {
+              /* db unavailable — leave name null */
+            }
+          }
+          sendResponse({ name: name ?? t("New Drawing") });
+        })();
+        return true;
       }
     };
     browser.runtime.onMessage.addListener(onMessage);
@@ -387,7 +447,10 @@ export function useAgentBridge({
       void sendToSW({ type: AB_DEACTIVATE });
       return;
     }
-    if (!confirmShownRef.current) {
+    // Per-canvas first-time consent (034 R1): ask once per canvas, then
+    // auto-confirm activations of the SAME canvas until unpair/re-pair.
+    const key = consentKeyRef.current;
+    if (!confirmShownRef.current[key]) {
       setShowConfirm(true);
       return;
     }
@@ -396,12 +459,41 @@ export function useAgentBridge({
 
   const confirmActivation = useCallback(() => {
     setShowConfirm(false);
-    confirmShownRef.current = true;
+    confirmShownRef.current[consentKeyRef.current] = true;
     requestActivation();
   }, [requestActivation]);
 
-  const cancelConfirm = useCallback(() => setShowConfirm(false), []);
+  // --- canvas-button storage writes (Wayfinder 034) ---------------------------
+  // The canvas button owns pairing now: quick-enable (master ON) and pair
+  // (Gate 1 open) both MERGE into the persisted chrome.storage blob so the
+  // Options hideButton field (and anything else) is never clobbered.
+  const updateAgentStorage = useCallback(
+    async (patch: Partial<AgentBridgeStorage>) => {
+      if (!browser?.storage?.local) return;
+      try {
+        const result = await browser.storage.local.get(AGENT_BRIDGE_STORAGE_KEY);
+        const stored = (result[AGENT_BRIDGE_STORAGE_KEY] as
+          | AgentBridgeStorage
+          | undefined) ?? AGENT_BRIDGE_DEFAULT_STORAGE;
+        await browser.storage.local.set({
+          [AGENT_BRIDGE_STORAGE_KEY]: { ...stored, ...patch },
+        });
+      } catch {
+        /* storage unavailable */
+      }
+    },
+    [browser],
+  );
 
+  const quickEnableAgent = useCallback(() => {
+    void updateAgentStorage({ master: true, pairing: false });
+  }, [updateAgentStorage]);
+
+  const pairAgent = useCallback(() => {
+    void updateAgentStorage({ pairing: true });
+  }, [updateAgentStorage]);
+
+  const cancelConfirm = useCallback(() => setShowConfirm(false), []);
   const acceptReconnect = useCallback(() => {
     setSwRestartOffer(false);
     requestActivation();
@@ -676,7 +768,9 @@ export function useAgentBridge({
   return {
     masterOn,
     paired,
+    hideButton,
     isActive,
+    otherActive: activeTabId != null && !isActive,
     connection,
     connectedPort,
     profileId,
@@ -689,6 +783,8 @@ export function useAgentBridge({
     cancelGallery,
     showConfirm,
     canActivate: isLocal && masterOn && paired,
+    quickEnableAgent,
+    pairAgent,
     toggleActivation,
     confirmActivation,
     cancelConfirm,

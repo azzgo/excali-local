@@ -111,27 +111,30 @@
     "message": "Disabled"
   },
   "AgentControlEnabledHint": {
-    "message": "Agent controls are available in the popup and on the Local editor."
+    "message": "Agent controls are available from the canvas button and on the Options page."
   },
-  "AgentControlDisabledHint": {
-    "message": "Agent controls are hidden everywhere."
+  "AgentSetupNeeded": {
+    "message": "Setup needed"
   },
-  "AgentPairing": {
-    "message": "Agent connection"
+  "AgentNoDaemonMeta": {
+    "message": "no daemon connected"
   },
-  "AgentPairingDescription": {
-    "message": "Open a paired connection to your local agent bridge. Required before a canvas can be activated."
+  "AgentPaired": {
+    "message": "Paired"
   },
-  "PairAgent": {
-    "message": "Pair with agent"
+  "AgentPairedIdleMeta": {
+    "message": "idle — activate from canvas"
   },
-  "UnpairAgent": {
-    "message": "Unpair agent"
+  "AgentOtherCanvasControlling": {
+    "message": "another canvas is controlling"
   },
-  "AgentPairingPaired": {
-    "message": "Paired — agent connection open"
+  "AgentControlling": {
+    "message": "Controlling"
   },
-  "AgentPairingUnpaired": {
-    "message": "Not paired"
+  "AgentHideButton": {
+    "message": "Hide the AI button on canvas"
+  },
+  "AgentHideButtonHint": {
+    "message": "Only adjustable while Agent control is off. Default off (button shown) — prevents a hidden button while a canvas is active."
   }
 }

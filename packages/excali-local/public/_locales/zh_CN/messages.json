@@ -111,27 +111,30 @@
     "message": "已禁用"
   },
   "AgentControlEnabledHint": {
-    "message": "Agent 控制在弹出菜单和本地编辑器中可用。"
+    "message": "Agent 控制在画布按钮和设置页中可用。"
   },
-  "AgentControlDisabledHint": {
-    "message": "所有 Agent 界面均已隐藏。"
+  "AgentSetupNeeded": {
+    "message": "需要设置"
   },
-  "AgentPairing": {
-    "message": "Agent 连接"
+  "AgentNoDaemonMeta": {
+    "message": "未连接守护进程"
   },
-  "AgentPairingDescription": {
-    "message": "打开与本地 Agent 桥的配对连接。激活画布前需要先配对。"
+  "AgentPaired": {
+    "message": "已配对"
   },
-  "PairAgent": {
-    "message": "与 Agent 配对"
+  "AgentPairedIdleMeta": {
+    "message": "空闲 — 从画布激活"
   },
-  "UnpairAgent": {
-    "message": "解除 Agent 配对"
+  "AgentOtherCanvasControlling": {
+    "message": "另一个画布正在受控"
   },
-  "AgentPairingPaired": {
-    "message": "已配对 — Agent 连接已打开"
+  "AgentControlling": {
+    "message": "控制中"
   },
-  "AgentPairingUnpaired": {
-    "message": "未配对"
+  "AgentHideButton": {
+    "message": "隐藏画布上的 AI 按钮"
+  },
+  "AgentHideButtonHint": {
+    "message": "仅在 Agent 控制关闭时可调整。默认关闭（显示按钮）——避免画布受控时按钮被隐藏。"
   }
 }
