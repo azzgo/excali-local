@@ -34,12 +34,23 @@ Demo: [YouTube](https://youtu.be/_aHWUz9Og-I) | [Bilibili](https://www.bilibili.
 ## How it works
 
 1. **Screenshot & annotate** — capture a full page or select an area, then annotate directly in Excalidraw.
-   <img src="./.assets/capture-tab.png" width="400px" /> <img src="./.assets/select-area.png" width="400px" />
+
+| | |
+|:-:|:-:|
+| <img src="./.assets/capture-tab.png" width="480px" /> | <img src="./.assets/select-area.png" width="480px" /> |
+
 2. **Edit & organize locally** — every drawing lives in your browser (IndexedDB). Group drawings into collections, search them, and export or import everything as a ZIP archive.
-   <img src="./.assets/gallery-sidebar-empty.png" width="600px" />
-   <img src="./.assets/gallery-with-drawing.png" width="600px" />
+
+| | |
+|:-:|:-:|
+| <img src="./.assets/gallery-sidebar-empty.png" width="480px" /> | <img src="./.assets/gallery-with-drawing.png" width="480px" /> |
+
 3. **Present** — turn drawings into slide presentations with simple navigation.
-   <img src="./.assets/presentation-mode.png" width="600px" />
+
+| |
+|:-:|
+| <img src="./.assets/presentation-mode.png" width="600px" /> |
+
 4. **Personalize** — upload your own fonts or use system font families (`.ttf`, `.woff`, `.woff2`).
    <img src="./.assets/FontFamily-Customization.png" width="600px" />
 5. **Open `.excalidraw` files** — recognized files get an “Open with Excali Local” button that imports them instantly.
