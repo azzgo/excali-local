@@ -35,27 +35,29 @@ Demo: [YouTube](https://youtu.be/_aHWUz9Og-I) | [Bilibili](https://www.bilibili.
 
 1. **Screenshot & annotate** — capture a full page or select an area, then annotate directly in Excalidraw.
 
-| | |
+| Capture a full page | Select an area |
 |:-:|:-:|
 | <img src="./.assets/capture-tab.png" width="480px" /> | <img src="./.assets/select-area.png" width="480px" /> |
 
 2. **Edit & organize locally** — every drawing lives in your browser (IndexedDB). Group drawings into collections, search them, and export or import everything as a ZIP archive.
 
-| | |
+| Empty gallery sidebar | Gallery with a drawing |
 |:-:|:-:|
 | <img src="./.assets/gallery-sidebar-empty.png" width="480px" /> | <img src="./.assets/gallery-with-drawing.png" width="480px" /> |
 
 3. **Present** — turn drawings into slide presentations with simple navigation.
 
-| |
-|:-:|
-| <img src="./.assets/presentation-mode.png" width="600px" /> |
+<img src="./.assets/presentation-mode.png" />
 
 4. **Personalize** — upload your own fonts or use system font families (`.ttf`, `.woff`, `.woff2`).
-   <img src="./.assets/FontFamily-Customization.png" width="600px" />
-5. **Open `.excalidraw` files** — recognized files get an “Open with Excali Local” button that imports them instantly.
-   <video src="https://github.com/user-attachments/assets/3be7b273-cac4-4fc8-ab03-5bb50eab8cd4" width="600px" autoplay loop muted></video>
-6. **Drive the canvas from an agent or CLI** — enable agent access in the extension, install the Skill (`npx skills add azzgo/excali-local --skill excali-draw -y`), and draw programmatically over the local WebSocket bridge. Full guide: [Agent Bridge Guide](docs/AGENT_BRIDGE.md).
+
+<img src="./.assets/FontFamily-Customization.png" />
+
+6. **Open `.excalidraw` files** — recognized files get an “Open with Excali Local” button that imports them instantly.
+
+<video src="https://github.com/user-attachments/assets/3be7b273-cac4-4fc8-ab03-5bb50eab8cd4" autoplay loop muted></video>
+
+7. **Drive the canvas from an agent or CLI** — enable agent access in the extension, install the Skill (`npx skills add azzgo/excali-local --skill excali-draw -y`), and draw programmatically over the local WebSocket bridge. Full guide: [Agent Bridge Guide](docs/AGENT_BRIDGE.md).
 
 ## Development
 
@@ -72,3 +74,4 @@ pnpm local:tar      # archive build assets
 ---
 
 *Screenshots from [unDraw](https://undraw.co/) — free illustrations for everyone.*
+
