@@ -17,6 +17,20 @@ offline) through one small CLI: `excali-bridge`.
    open on a canvas.
 2. **This skill** (this folder). No third artifact, no runtime, no downloads.
 
+Install it with the [`skills`](https://github.com/vercel-labs/skills) CLI —
+npm package `skills`, maintained by **vercel-labs/skills** (not WorkOS):
+
+```bash
+npx skills add azzgo/excali-local --skill excali-draw -y
+```
+
+Read-only discovery (`--list`) confirms the skill exists and is named
+`excali-draw` before installing:
+
+```bash
+npx skills add azzgo/excali-local --list
+```
+
 ## Picking your binary
 
 | Platform | Binary |
@@ -88,4 +102,4 @@ version info"; it would re-introduce non-idempotent binaries that dirty every co
 
 ## Version
 
-`excali-draw` tracks the excali-local release version (currently `1.6.4`).
+`excali-draw` tracks the excali-local release version (currently `1.7.0`).

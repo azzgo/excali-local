@@ -1,111 +1,63 @@
-# 🎨 Excali Local
+# Excali Local
 
-> A powerful browser extension that brings offline Excalidraw editing with screenshot annotation and presentation features.
+> A local-first, offline Excalidraw app that lives entirely in your browser.
 
 <p align="center">
-  <img src="./.assets/banner.jpg" alt="Banner">
+  <img src="./.assets/banner.jpg" alt="Excali Local banner">
 </p>
 
-## ✨ Key Features
+Excali Local is a browser extension that brings **Excalidraw fully offline**: screenshot annotation, a complete local editor, a private gallery, and presentation mode — with no backend, no account, no uploads. Every drawing stays in your browser.
 
-- **📸 Smart Screenshot Annotation** - Capture any webpage area and instantly annotate with Excalidraw
-- **🔧 Offline Excalidraw Editor** - Full-featured local editor that works without internet
-- **🗂️ Gallery & Collection Management** - Save, organize, and manage multiple drawings locally with collections
-- **📦 Export Gallery** - Export all drawings as a ZIP archive for backup or migration to excalidraw.com
-- **📊 Presentation Mode** - Turn your drawings into interactive slide presentations
-- **⌨️ Keyboard Shortcuts** - Quick access to all features
-- **🌙 Dark Mode Support** - Seamless theme switching
-- **🅰️ Custom Font Support** - Upload and use your own .ttf, .woff, or .woff2 files
-- **📂 Direct Excalidraw File Opening** - Automatically recognize and open .excalidraw files from any website or local folder
+## New in v1.7.0
 
-## 🚀 Quick Start
+- **Import your gallery from a ZIP** — bring a previously exported archive (even one edited outside the app) back into your gallery.
+- **Agent-driven editing** — drive the active canvas from a CLI or an AI agent through the `excali-draw` Skill and the `excali-bridge` daemon, over a local-only WebSocket. → [Agent Bridge Guide](docs/AGENT_BRIDGE.md)
 
-### Install
+## Features
+
+- **Screenshot annotation** — capture a full page or select an area, then annotate it in Excalidraw.
+- **Offline editor** — the complete Excalidraw experience, no internet connection required.
+- **Gallery & collections** — save, organize, search, and manage drawings locally; export or import everything as a ZIP archive.
+- **Presentation mode** — turn any drawing into a slide-based presentation.
+- **Custom fonts** — upload `.ttf`, `.woff`, or `.woff2` fonts, or use your system fonts, on an editor built from a fully-offline fork of Excalidraw 0.18.
+- **Direct `.excalidraw` file opening** — open files from any website or local folder in the editor.
+- **Keyboard shortcuts & dark mode** — fast access everywhere, easy on the eyes at night.
+
+## Install
+
 - [Chrome Web Store](https://chromewebstore.google.com/detail/excali-local/ebmgbhnihcbgpbcjnjeamnkkplnppddd)
 - [Firefox Add-ons](https://addons.mozilla.org/addon/excali-local)
 - [Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/excali-local/kflccadkimelkkjcmedhhfbnnlbdggol)
 
-### Demo
-- [YouTube](https://youtu.be/_aHWUz9Og-I) | [Bilibili](https://www.bilibili.com/video/BV1gJqnY3EAP)
+Demo: [YouTube](https://youtu.be/_aHWUz9Og-I) | [Bilibili](https://www.bilibili.com/video/BV1gJqnY3EAP)
 
-## 📖 How It Works
+## How it works
 
-### 1. Screenshot & Annotate
-<img src="./.assets/capture-tab.png" width="400px" /> <img src="./.assets/select-area.png" width="400px" />
+1. **Screenshot & annotate** — capture a full page or select an area, then annotate directly in Excalidraw.
+   <img src="./.assets/capture-tab.png" width="400px" /> <img src="./.assets/select-area.png" width="400px" />
+2. **Edit & organize locally** — every drawing lives in your browser (IndexedDB). Group drawings into collections, search them, and export or import everything as a ZIP archive.
+   <img src="./.assets/gallery-sidebar-empty.png" width="600px" />
+   <img src="./.assets/gallery-with-drawing.png" width="600px" />
+3. **Present** — turn drawings into slide presentations with simple navigation.
+   <img src="./.assets/presentation-mode.png" width="600px" />
+4. **Personalize** — upload your own fonts or use system font families (`.ttf`, `.woff`, `.woff2`).
+   <img src="./.assets/FontFamily-Customization.png" width="600px" />
+5. **Open `.excalidraw` files** — recognized files get an “Open with Excali Local” button that imports them instantly.
+   <video src="https://github.com/user-attachments/assets/3be7b273-cac4-4fc8-ab03-5bb50eab8cd4" width="600px" autoplay loop muted></video>
+6. **Drive the canvas from an agent or CLI** — enable agent access in the extension, install the Skill (`npx skills add azzgo/excali-local --skill excali-draw -y`), and draw programmatically over the local WebSocket bridge. Full guide: [Agent Bridge Guide](docs/AGENT_BRIDGE.md).
 
-Capture full page or select specific areas, then annotate directly in Excalidraw.
+## Development
 
-### 2. Smart Marking Tools
-<img src="./.assets/number-mark-tool.png" width="600px" />
-
-Use specialized marking tools for quick annotations and callouts.
-
-### 3. Presentation Mode
-<img src="./.assets/presentation-mode.png" width="600px" />
-
-Transform your drawings into professional presentations with slide navigation.
-
-### 4. Gallery & Collection Management
-<img src="./.assets/gallery-sidebar-empty.png" width="600px" />
-
-Save and organize your drawings with powerful gallery features:
-- **Save & Load** - Store multiple drawings locally with auto-generated thumbnails
-- **Collections** - Group related drawings into collections for better organization
-- **Search** - Quickly find drawings with real-time search functionality
-- **Drawing Management** - Rename, overwrite, or delete drawings with ease
-- **Export Gallery** - Export all drawings as a ZIP archive for backup or migration to excalidraw.com
-
-<img src="./.assets/gallery-with-drawing.png" width="600px" />
-
-All your work is stored locally in IndexedDB, ensuring privacy and offline access.
-
-### 5. Custom Font Support
-<img src="./.assets/FontFamily-Customization.png" width="600px" />
-
-Personalize your drawings by using your own typography:
-- **Uploading Cutomized Font or Using System Font Family** - Support for `.ttf`, `.woff`, and `.woff2` font files
-- **Automatic Injection** - Seamlessly integrated into the Excalidraw editor via FontFace API
-
-### 6. Open .excalidraw Files with Local Editor
-
-When you open a `.excalidraw` file in your browser (from a web URL or a local file), Excali Local automatically detects it and provides an "Open with Excali Local" button. Clicking it instantly imports the content into the editor for seamless editing.
-
-<video src="https://github.com/user-attachments/assets/3be7b273-cac4-4fc8-ab03-5bb50eab8cd4" width="600px" autoplay loop muted></video>
-
-## 🛠️ Development
-
-This project uses a monorepo structure with pnpm as the package manager.
+Monorepo built with pnpm.
 
 ```bash
-# Install dependencies
-pnpm install
-
-# Development
-pnpm page:dev      # Start editor webapp
-# (no `local:dev` script — use page:dev for the editor; for the full extension, run
-#  local:build then load .output/chrome-mv3 as an unpacked extension)
-
-# Build
-pnpm page:build    # Build editor webapp
-pnpm local:build   # Build extension
-pnpm local:tar     # Archive build assets
+pnpm install        # install dependencies
+pnpm page:dev       # start the editor webapp
+pnpm page:build     # build the editor webapp
+pnpm local:build    # build the extension (then load .output/chrome-mv3 unpacked)
+pnpm local:tar      # archive build assets
 ```
-
-## 🗺️ Roadmap
-
-- [x] Screenshot annotation with area selection
-- [x] Offline Excalidraw editor
-- [x] Presentation mode with slide navigation
-- [x] Keyboard shortcuts support
-- [x] Internationalization (i18n)
-- [x] Dark mode support
-- [x] Settings customization
-- [x] Gallery & Collection Management in local
-- [x] Gallery export to ZIP
-- [x] Custom binary font support (.ttf, .woff, .woff2)
-- [x] Direct .excalidraw file recognition and opening
 
 ---
 
-*Screenshots from [unDraw](https://undraw.co/) - Free illustrations for everyone.*
-
+*Screenshots from [unDraw](https://undraw.co/) — free illustrations for everyone.*

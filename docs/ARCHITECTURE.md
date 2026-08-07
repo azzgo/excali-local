@@ -1,6 +1,6 @@
 # Architecture
 
-> Detail doc linked from [AGENTS.md](../AGENTS.md). Verified against `main` @ `00a9674` (v1.6.4).
+> Detail doc linked from [AGENTS.md](../AGENTS.md). Verified against `main` @ `00a9674` (v1.7.0).
 
 ## Three-layer monorepo
 
@@ -33,7 +33,7 @@ packages/
     public/_locales/{en,zh_CN}/messages.json  # chrome.i18n strings
     public/editor/         # GENERATED (gitignored) — output of page:build
   excali-page/
-    excalidraw-excalidraw-0.18.0-csp.12.tgz   # local patched Excalidraw dep
+    excalidraw-excalidraw-v0.18.0-csp.14.tgz   # local patched Excalidraw dep
     vite.config.mts        # CSP globals, @ alias, Vitest config
     src/
       main.tsx             # single root: mounts <Editor/>, injects fonts

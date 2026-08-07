@@ -1,4 +1,4 @@
-# Excali Local — Agent Bridge User Guide
+# Agent Bridge Guide
 
 How to build the extension, enable the Agent Bridge, load the drawing skill into your agent,
 and smoke-test the full round-trip. (Two-gate consent model — see `CONTEXT.md` for terms.)
@@ -7,28 +7,10 @@ and smoke-test the full round-trip. (Two-gate consent model — see `CONTEXT.md`
 
 ## Part A — Build & load the extension
 
-### Prerequisites
-- **pnpm** (not bun/npm) + **tsx** and **Go** (for the daemon — the skill packs a prebuilt binary, but
-  `bridge:build`/`bridge:test` need Go during development).
-- Clone + install:
-  ```bash
-  git clone <repo> && cd excali-local
-  pnpm install
-  ```
-
-### Build (3 steps — `public/editor/` is gitignored, so build it first)
-```bash
-pnpm page:build     # build the Excalidraw editor into excali-local/public/editor/
-pnpm local:build    # package the extension → .output/chrome-mv3 + .output/firefox-mv3
-pnpm bridge:build   # build the Go daemon → excali-bridge/bin/excali-bridge (for dev drivers)
-```
-> Re-run `page:build` whenever you change page code; `local:build` after shell/manifest changes.
-
-### Load into the browser
-- **Chrome / Edge / Brave (Chromium):** open `chrome://extensions` → toggle **Developer mode**
-  ON → **Load unpacked** → select the **`.output/chrome-mv3`** folder.
-- **Firefox:** open `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** →
-  select **`.output/firefox-mv3/manifest.json`**.
+Build the editor + extension and load it into the browser following the commands and pipeline
+in [`docs/BUILD_AND_RELEASE.md`](BUILD_AND_RELEASE.md) (`## Commands` and `## Build pipeline`):
+`pnpm install` → `pnpm page:build` → `pnpm local:build`, then load `.output/chrome-mv3`
+(Chromium) or `.output/firefox-mv3/manifest.json` (Firefox) as an unpacked/temporary add-on.
 
 Open the editor: click the Excali Local toolbar icon → open the **Local editor** (a full
 editor tab). This is the canvas the agent will drive.
@@ -160,21 +142,17 @@ a blocking op (gallery delete, font install/clear) was declined on the confirm m
 
 ---
 
-## Quick reference — daily commands
+## Quick reference
+
+For the daily build/test command list (`page:*`, `local:*`, `bridge:*`, `skill:*`), see
+[`AGENTS.md`](../AGENTS.md) ("Daily commands") and [`docs/BUILD_AND_RELEASE.md`](BUILD_AND_RELEASE.md)
+(`## Commands`). The agent-bridge-specific bits not covered there:
 
 ```bash
-pnpm page:dev                  # editor dev server (port 3000)
-pnpm page:build                # build editor → public/editor/
-pnpm page:test                 # vitest (251 tests)
-pnpm local:build               # build extension → .output/{chrome,firefox}-mv3
-pnpm bridge:build              # build Go daemon → excali-bridge/bin/
-pnpm bridge:test               # go test ./...
-pnpm skill:pack                # refresh skills/excali-draw/bin/ (4 static targets) + README sizes
-pnpm skill:check               # zero-drift: skill docs == contract
 tsx scripts/agent-bridge/driver-skill.ts   # smoke-test the source skill binary
 # cleanup after any driver:
 pkill -f 'excali-bridge serve'; pkill -f 'bin/excali-bridge'; rm -f ~/.excali-local/bridge.pid
 ```
 
-Full detail: `AGENTS.md`, `docs/BUILD_AND_RELEASE.md`, `docs/ARCHITECTURE.md`. The agent-facing
-contract is `skills/excali-draw/SKILL.md` + `references/`.
+The agent-facing contract is `skills/excali-draw/SKILL.md` + `references/`; deeper context in
+[`docs/ARCHITECTURE.md`](ARCHITECTURE.md).

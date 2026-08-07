@@ -26,7 +26,7 @@ detail, read the doc relevant to your task (links below).
 ## Hard constraints (do not break these)
 
 - **pnpm** (package manager) + **tsx** (TS script runtime), not bun/npm/yarn.
-- **Excalidraw is a local patched tgz** (`excalidraw-excalidraw-0.18.0-csp.12.tgz`).
+- **Excalidraw is a local patched tgz** (`excalidraw-excalidraw-v0.18.0-csp.14.tgz`).
   Never swap for the npm version — CSP/offline will break. See [docs/BUILD_AND_RELEASE.md](docs/BUILD_AND_RELEASE.md).
 - **`packages/excali-local/public/editor/` is a gitignored build artifact**, not
   committed. Run `pnpm page:build` after changing page code; never commit it.

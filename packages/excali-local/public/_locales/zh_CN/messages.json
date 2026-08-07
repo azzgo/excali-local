@@ -1,6 +1,6 @@
 {
   "description": {
-    "message": "本地 Excalidraw 编辑器，尽情使用吧！"
+    "message": "浏览器里的离线 Excalidraw：截屏批注、在本地编辑与整理绘图，并支持演示。无需账号，不上传。"
   },
   "Visible": {
     "message": "可见区域"

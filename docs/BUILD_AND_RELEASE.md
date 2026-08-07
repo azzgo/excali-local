@@ -51,7 +51,7 @@ Excalidraw dep) are gitignored build artifacts — skip them when exploring.
 ## CSP constraints (critical)
 
 1. **Excalidraw is a local patched tgz**, not the npm release:
-   `@excalidraw/excalidraw: ./excalidraw-excalidraw-0.18.0-csp.12.tgz`. The patch
+   `@excalidraw/excalidraw: ./excalidraw-excalidraw-v0.18.0-csp.14.tgz`. The patch
    disables CDN font/asset loading to satisfy the extension CSP / no-remote-code
    rules. **Never swap it for the npm version** — offline mode and CSP will break.
 2. **Vite injects CSP-compliance globals** (`excali-page/vite.config.mts`):
