@@ -22,13 +22,10 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - uses: actions/setup-go@v5
-        with:
-          go-version: '>=1.22'
       - name: Install
         run: pnpm install
-      - name: Test bridge
-        run: pnpm bridge:test
+      - name: Check skill (zero-drift)
+        run: pnpm skill:check
       - name: Test Page
         run: |
           pnpm run 'page:test'
@@ -43,6 +40,8 @@ jobs:
           pnpm run local:tar
           pnpm run local:zip
           pnpm run local:tar
+      - name: Pack skill
+        run: tar -czf skills-${{ github.ref_name }}.tar.gz -C skills/excali-draw .
       - name: Release
         env:
            GH_TOKEN: ${{ github.token }}
@@ -52,6 +51,7 @@ jobs:
             --generate-notes \
             --draft \
             ./packages/excali-local/.output/*.zip \
-            ./packages/excali-local/*.tar.gz
+            ./packages/excali-local/*.tar.gz \
+            ./excali-draw-${{ github.ref_name }}.tar.gz
       - run: echo "🍏 This job's status is ${{ job.status }}."
 
