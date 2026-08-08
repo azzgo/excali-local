@@ -20,7 +20,6 @@ const bridgeMock = vi.hoisted(() => {
 	  controlConnection: "idle",
 	  swRestartOffer: false,
 	  displaced: false,
-	  destructiveFlash: null,
 	  galleryConfirm: null,
 	  confirmGallery: vi.fn(),
 	  cancelGallery: vi.fn(),
@@ -30,6 +29,7 @@ const bridgeMock = vi.hoisted(() => {
 	  pairAgent: vi.fn(),
 	  toggleActivation: vi.fn(),
 	  confirmActivation: vi.fn(),
+	  activateCurrentCanvas: vi.fn(),
 	  cancelConfirm: vi.fn(),
 	  acceptReconnect: vi.fn(),
 	  dismissReconnect: vi.fn(),
@@ -107,7 +107,7 @@ describe("AgentActivationControl", () => {
     expect(toastMock.success).toHaveBeenCalledWith("AgentEnabledToast");
   });
 
-  test("coach: ON + unpaired → click pairs and opens the coach-install card", () => {
+  test("coach: ON + unpaired → click pairs and opens the bridge-start help card", () => {
     const pairAgent = vi.fn();
     setOverrides({ masterOn: true, paired: false, canActivate: false, pairAgent });
     renderControl();
@@ -116,11 +116,10 @@ describe("AgentActivationControl", () => {
     });
     expect(pairAgent).toHaveBeenCalled();
     expect(screen.getByTestId("agent-coach-card")).toBeTruthy();
+    // Two onboarding paths: A (agent auto-starts), B (user runs `serve`).
+    expect(screen.getByText("AgentCoachOptionA")).toBeTruthy();
+    expect(screen.getByText("AgentCoachOptionB")).toBeTruthy();
     expect(screen.getByText("AgentCoachCommand")).toBeTruthy();
-    // Two-step guidance: install the skill, then invoke it to start the daemon.
-    expect(screen.getByText("AgentCoachStep1")).toBeTruthy();
-    expect(screen.getByText("AgentCoachStep2")).toBeTruthy();
-    expect(screen.getByText("AgentCoachDaemonCommand")).toBeTruthy();
     // ✕ closes the card
     act(() => {
       screen.getByLabelText("AgentDismiss").click();
@@ -189,14 +188,6 @@ describe("AgentActivationControl", () => {
 	setOverrides({ ...ready, displaced: true });
 	renderControl();
 	expect(toastMock.info).toHaveBeenCalledWith("AgentDisplaced");
-  });
-
-  test("destructive canvas/v1 op: renders the non-blocking amber flash", () => {
-	setOverrides({ ...ready, destructiveFlash: { method: "elements.clear", key: 1 } });
-	renderControl();
-	const flash = screen.getByTestId("agent-destructive-flash");
-	expect(flash).toBeTruthy();
-	expect(flash.textContent).toContain("AgentDestructiveOp");
   });
 
   test("gallery BLOCKING confirm: renders the modal; Confirm/Cancel wired", () => {

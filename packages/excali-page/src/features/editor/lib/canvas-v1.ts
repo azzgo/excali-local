@@ -123,7 +123,7 @@ export interface CanvasV1Api {
 export interface CanvasV1Deps {
   api: CanvasV1Api;
   helpers: CanvasV1Helpers;
-  /** Fired for the destructive subset (003/011 non-blocking indicator). */
+  /** Fired for the destructive subset (003/011 non-blocking op; the page surfaces a toast). */
   onDestructive?: (method: string) => void;
 }
 

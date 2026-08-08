@@ -24,7 +24,7 @@ import {
  * always-visible canvas button. The popup is a glanceable indicator only:
  *
  *   grey  "Agent control off"
- *   amber "Setup needed"          (master on, no daemon / not paired yet)
+ *   amber "Waiting for bridge"   (master on, daemon not detected / not paired yet)
  *   green "Paired"                (idle — activate from canvas / another canvas
  *                                  is controlling)
  *   blue  "Controlling: <name>"   (an active canvas is being driven)
@@ -167,7 +167,7 @@ const AgentStatus = () => {
   const controlling = activeCanvas.activeTabId != null;
 
   // Derive the indicator (controlling takes precedence over daemon-down so a
-  // live canvas is never mislabeled "Setup needed" by a flaky probe).
+  // live canvas is never mislabeled "Waiting for bridge" by a flaky probe).
   let status: PopupStatus = "off";
   let text = t("AgentControlOff");
   let meta = "—";

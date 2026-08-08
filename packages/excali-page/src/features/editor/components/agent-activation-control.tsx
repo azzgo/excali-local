@@ -1,21 +1,25 @@
 /**
  * Agent Activation Control — the single state-driven entry point for the
- * agentic-drive journey (Wayfinder 033/034 redesign, design-locked).
+ * agent-drive journey (Wayfinder 033/034 redesign).
  *
  * Rendered by the LOCAL editor only (Quick never shows it — Ticket 006).
  * The button is ALWAYS visible (unless the Options hide-toggle is on while the
  * feature is OFF — an active canvas must always have a visible stop control):
  *
- *   grey   = feature OFF        → click quick-enables (master ON, stays here)
- *   amber  = needs setup        → click pairs; if the daemon isn't detected it
- *                                 toggles the inline coach-install card
- *   blue   = paired / ready     → click → per-canvas consent → activate
+ *   grey   = feature OFF        → click → enable modal; confirm opens master +
+ *                                 pairing (Gate 0+1) and arms auto-activate
+ *   amber  = waiting for bridge → paired but daemon not detected; click toggles
+ *                                 the inline help card (two daemon-start paths)
+ *   blue   = ready              → paired + daemon detected, not active. The
+ *                                 cold-start path auto-activates past this; the
+ *                                 warm path: click → (first time per canvas)
+ *                                 consent modal → activate
  *   solid  = controlling        → click deactivates (no consent needed to stop)
  *
- * While active the button switches to "Controlling" — the single stop
- * control (click to deactivate, no consent needed to stop).
- * The consent modal is asked ONCE per canvas (034 R1), then auto-confirmed for
- * that same canvas until unpair/re-pair.
+ * Cold-start (feature OFF → Turn On): one confirm opens master+pairing and, once
+ * the bridge is detected, activates THIS canvas directly (the enable confirm
+ * counts as its per-canvas consent — no second modal). The per-canvas consent
+ * modal still applies on the warm path (feature already on, Activate a canvas).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -69,6 +73,9 @@ const AgentActivationControl = ({
   // (a newer activation from any profile — Tickets 016/017). Fire once per
   // displacement, not on every render.
   const displacedShownRef = useRef(false);
+  // Cold-start auto-activate arm flag (set on quick-enable; consumed by the
+  // effect after handleQuickEnable). Declared with the other refs.
+  const autoActivateArmedRef = useRef(false);
   useEffect(() => {
 	  if (bridge.displaced && !displacedShownRef.current) {
 		    displacedShownRef.current = true;
@@ -77,7 +84,7 @@ const AgentActivationControl = ({
 	  if (!bridge.displaced) displacedShownRef.current = false;
   }, [bridge.displaced, t]);
 
-  // Quick-enable modal + inline coach-install card (component-local UI state).
+  // Quick-enable modal + inline bridge-start help card (component-local UI state).
   const [showEnable, setShowEnable] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false);
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
@@ -135,7 +142,26 @@ const AgentActivationControl = ({
     setShowEnable(false);
     bridge.quickEnableAgent();
     toast.success(t("AgentEnabledToast"));
+    // Arm auto-activate: once the bridge is detected, skip the separate
+    // "Activate" click and go straight to the (per-canvas) activation flow.
+    autoActivateArmedRef.current = true;
   };
+
+  // Cold-start auto-activate (removes the redundant "Activate" click): after
+  // Turn On, once the bridge is detected we auto-request activation. The
+  // per-canvas consent modal still applies the first time (Gate 2 invariant);
+  // a re-activate of an already-consented canvas goes straight to Controlling.
+  // One-shot per enable — cleared on fire.
+  useEffect(() => {
+    if (!autoActivateArmedRef.current) return;
+    if (bridge.masterOn && bridge.paired && daemonDetected && !bridge.isActive) {
+      autoActivateArmedRef.current = false;
+      // Direct activation: the enable confirm already counted as this canvas's
+      // per-canvas consent, so no second modal — straight to Controlling once
+      // the bridge is detected.
+      bridge.activateCurrentCanvas();
+    }
+  }, [bridge.masterOn, bridge.paired, daemonDetected, bridge.isActive, bridge.activateCurrentCanvas]);
   const handleCopyCommand = async (key: string) => {
     try {
       await navigator.clipboard.writeText(t(key));
@@ -166,11 +192,6 @@ const AgentActivationControl = ({
       </button>
     </div>
   );
-
-  // Non-blocking destructive-op flash (003/011): canvas/v1 destructive
-  // subset (elements.clear / scene.reset / history.clear / files.add-overwrite)
-  // surfaces a one-shot amber pill — never a blocking modal.
-  const destructiveMethod = bridge.destructiveFlash?.method ?? null;
 
   const connectionLabel =
     bridge.connection === "connected"
@@ -212,15 +233,6 @@ const AgentActivationControl = ({
 
   return (
     <>
-      {destructiveMethod && (
-	<div
-	  data-testid="agent-destructive-flash"
-	  className="flex items-center gap-1.5 rounded-full bg-amber-500 text-white text-xs font-medium px-3 py-1.5 shadow-sm"
-	  key={bridge.destructiveFlash?.key}
-	>
-	  <span>⚠ {t("AgentDestructiveOp", { method: destructiveMethod })}</span>
-	</div>
-      )}
       <div className="relative">
         <Hint label={tooltip} align="end" sideOffset={8}>
           <button
@@ -267,13 +279,14 @@ const AgentActivationControl = ({
               {t("AgentCoachBody")}
             </p>
             <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold tracking-wide text-muted-foreground">
-              {t("AgentCoachStep1")}
+              {t("AgentCoachOptionA")}
             </div>
-            {renderCommandRow("AgentCoachCommand")}
+            <p className="mb-2 text-muted-foreground">{t("AgentCoachOptionADesc")}</p>
             <div className="mb-1 mt-1.5 flex items-center gap-1.5 text-[10px] font-semibold tracking-wide text-muted-foreground">
-              {t("AgentCoachStep2")}
+              {t("AgentCoachOptionB")}
             </div>
-            {renderCommandRow("AgentCoachDaemonCommand")}
+            <p className="mb-2 text-muted-foreground">{t("AgentCoachOptionBDesc")}</p>
+            {renderCommandRow("AgentCoachCommand")}
             <p className="mt-2 text-[11px] text-muted-foreground">{t("AgentCoachFooter")}</p>
           </div>
         )}

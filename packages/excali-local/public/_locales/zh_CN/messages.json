@@ -114,10 +114,10 @@
     "message": "Agent 控制在画布按钮和设置页中可用。"
   },
   "AgentSetupNeeded": {
-    "message": "需要设置"
+    "message": "等待桥接"
   },
   "AgentNoDaemonMeta": {
-    "message": "守护进程未启动 — 运行一次 Skill 以启动"
+    "message": "守护进程未运行 — 通过 Agent 或 CLI 启动"
   },
   "AgentPaired": {
     "message": "已配对"

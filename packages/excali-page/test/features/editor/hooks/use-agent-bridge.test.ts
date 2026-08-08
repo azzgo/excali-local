@@ -18,6 +18,9 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => [(key: string) => key],
 }));
 
+const toastMock = vi.hoisted(() => ({ warning: vi.fn() }));
+vi.mock("sonner", () => ({ toast: toastMock }));
+
 // ---------------------------------------------------------------------------
 // Hoisted harness: a stable fake browser (same object every getBrowser() call),
 // a scriptable runtime + storage, and a mock of the WS client lib.
@@ -582,7 +585,7 @@ describe("useAgentBridge", () => {
 		expect(response.error).toBeUndefined();
   });
 
-  test("inbound destructive RPC: fires the one-shot destructive flash", async () => {
+  test("inbound destructive RPC: fires a sonner toast (no on-page warning)", async () => {
 	setConsent(true, true);
 	const api = {
 	  updateScene: vi.fn(),
@@ -605,15 +608,14 @@ describe("useAgentBridge", () => {
 	await waitFor(() => expect(result.current.isActive).toBe(true));
 
 	const session = activeSession()!;
+	toastMock.warning.mockClear();
 	await act(async () => {
 	  session.opts.onInbound?.({ jsonrpc: "2.0", id: 6, method: "elements.clear", params: {} });
 	});
-	await waitFor(() => expect(result.current.destructiveFlash).not.toBeNull());
-	expect(result.current.destructiveFlash?.method).toBe("elements.clear");
+	// Destructive op → sonner toast (no on-page warning). The hook test's t is
+	// the pass-through (returns the key), so the warning carries the locale key.
+	expect(toastMock.warning).toHaveBeenCalledWith("AgentDestructiveOp");
 	expect(api.updateScene).toHaveBeenCalledWith({ elements: [], captureUpdate: "IMMEDIATELY" });
-
-	// Flash auto-clears.
-	await waitFor(() => expect(result.current.destructiveFlash).toBeNull(), { timeout: 3000 });
   });
 
   // ------------------------------------------------------------------
@@ -781,19 +783,23 @@ describe("useAgentBridge", () => {
     expect(result.current.hideButton).toBe(true);
   });
 
-  test("quick-enable + pair write merged storage from the canvas button", async () => {
+  test("quick-enable opens master + pairing together from the canvas button", async () => {
     harness.swState.storage[AGENT_BRIDGE_STORAGE_KEY] = { master: false, pairing: false, hideButton: true };
     const { result } = renderLocal({});
     await waitFor(() => expect(result.current.masterOn).toBe(false));
 
+    // One canvas-button action opens both gates (master + pairing); the
+    // "enabled but not paired" intermediate state is gone.
     act(() => result.current.quickEnableAgent());
     await waitFor(() => {
       const s = harness.swState.storage[AGENT_BRIDGE_STORAGE_KEY] as Record<string, boolean>;
       expect(s.master).toBe(true);
-      expect(s.pairing).toBe(false);
+      expect(s.pairing).toBe(true);
       expect(s.hideButton).toBe(true); // merged, never clobbered
     });
 
+    // pairAgent stays available for the Options path (master ON there resets
+    // pairing to false); here it is idempotent.
     act(() => result.current.pairAgent());
     await waitFor(() => {
       const s = harness.swState.storage[AGENT_BRIDGE_STORAGE_KEY] as Record<string, boolean>;

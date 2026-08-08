@@ -114,10 +114,10 @@
     "message": "Agent controls are available from the canvas button and on the Options page."
   },
   "AgentSetupNeeded": {
-    "message": "Setup needed"
+    "message": "Waiting for bridge"
   },
   "AgentNoDaemonMeta": {
-    "message": "no daemon — run the skill once to start it"
+    "message": "daemon not running — start via the agent or CLI"
   },
   "AgentPaired": {
     "message": "Paired"

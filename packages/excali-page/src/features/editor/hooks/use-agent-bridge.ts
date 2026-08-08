@@ -14,6 +14,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import {
   currentLoadedDrawingIdAtom,
   galleryRevisionAtom,
@@ -95,11 +96,6 @@ declare global {
     excaliAPI?: ExcaliAPI;
   }
 }
-/** One-shot destructive-op flash data (003/011 non-blocking indicator). */
-export interface DestructiveFlashInfo {
-  method: string;
-  key: number;
-}
 
 export type AgentBridgeConnection =
   | "idle"
@@ -141,12 +137,6 @@ export interface UseAgentBridgeResult {
    */
   displaced: boolean;
   /**
-   * Non-blocking visible indicator data for the destructive canvas/v1 subset
-   * (elements.clear / scene.reset / history.clear / files.add-overwrite) per
-   * 003/011 — a one-shot flash, NOT a blocking modal. key bumps per op.
-   */
-  destructiveFlash: DestructiveFlashInfo | null;
-  /**
    * BLOCKING gallery confirm (013/014): a global destructive op is waiting on
    * the user. null = no pending confirm. key bumps per request.
    */
@@ -164,6 +154,8 @@ export interface UseAgentBridgeResult {
   pairAgent(): void;
   toggleActivation(): void;
   confirmActivation(): void;
+  /** Cold-start: activate THIS canvas directly — the enable confirm counts as its per-canvas consent, so no second modal. */
+  activateCurrentCanvas(): void;
   cancelConfirm(): void;
   acceptReconnect(): void;
   dismissReconnect(): void;
@@ -220,7 +212,6 @@ export function useAgentBridge({
   const [swRestartOffer, setSwRestartOffer] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [displacedNotice, setDisplacedNotice] = useState(false);
-  const [destructiveFlash, setDestructiveFlash] = useState<DestructiveFlashInfo | null>(null);
   // --- gallery BLOCKING confirm (013/014) ----------------------------------
   const [galleryConfirm, setGalleryConfirm] = useState<GalleryConfirmInfo | null>(null);
 
@@ -234,7 +225,6 @@ export function useAgentBridge({
   const prevPairingRef = useRef(false);
   const consentKeyRef = useRef<string>(drawingId ?? "unsaved");
   consentKeyRef.current = drawingId ?? "unsaved";
-  const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onActivateErrorRef = useRef(onActivateError);
   onActivateErrorRef.current = onActivateError;
   const excalidrawAPIRef = useRef(excalidrawAPI);
@@ -463,6 +453,16 @@ export function useAgentBridge({
     requestActivation();
   }, [requestActivation]);
 
+  // Cold-start direct activation: the canvas-button enable modal's confirm IS
+  // this canvas's per-canvas consent (Gate 2), so the cold-start path skips the
+  // separate consent modal. Pre-mark the canvas consented, then request
+  // activation directly. Called by the component's auto-activate effect after
+  // Turn On (once the bridge is detected) — one confirm → straight to Controlling.
+  const activateCurrentCanvas = useCallback(() => {
+    confirmShownRef.current[consentKeyRef.current] = true;
+    requestActivation();
+  }, [requestActivation]);
+
   // --- canvas-button storage writes (Wayfinder 034) ---------------------------
   // The canvas button owns pairing now: quick-enable (master ON) and pair
   // (Gate 1 open) both MERGE into the persisted chrome.storage blob so the
@@ -486,7 +486,13 @@ export function useAgentBridge({
   );
 
   const quickEnableAgent = useCallback(() => {
-    void updateAgentStorage({ master: true, pairing: false });
+    // One consent action from the canvas button: open master + pairing together.
+    // The two flags stay in the storage model (master = kill-switch, pairing =
+    // transport dial gate) but are a single user-facing toggle — the "enabled but
+    // not paired" intermediate state forced a redundant second click and served no
+    // purpose. The Options page still sets them independently (master ON there
+    // resets pairing to false), so pairAgent() below stays valid for that path.
+    void updateAgentStorage({ master: true, pairing: true });
   }, [updateAgentStorage]);
 
   const pairAgent = useCallback(() => {
@@ -691,12 +697,11 @@ export function useAgentBridge({
             api: api as never,
             helpers: canvasV1HelpersRef.current!,
             onDestructive: (method) => {
-              if (flashTimerRef.current) clearTimeout(flashTimerRef.current);
-              setDestructiveFlash({ method, key: Date.now() });
-              flashTimerRef.current = setTimeout(
-                () => setDestructiveFlash(null),
-                2500,
-              );
+              // Non-blocking indicator (003/011): destructive canvas/v1 ops
+              // (elements.clear / scene.reset / history.clear / files.add-overwrite)
+              // surface a sonner toast — never a blocking modal, never an on-page
+              // warning (keep the toolbar clean; the user asked for toast-only alerts).
+              toast.warning(t("AgentDestructiveOp", { method }));
             },
           }).then((resp) => session.sendJSON(resp));
         }
@@ -743,10 +748,6 @@ export function useAgentBridge({
     return () => {
       controlSession?.stop();
       activeSession?.stop();
-      if (flashTimerRef.current) {
-        clearTimeout(flashTimerRef.current);
-        flashTimerRef.current = null;
-      }
       if (window.excaliAPI?.excalidrawAPI === api) {
         delete window.excaliAPI;
       }
@@ -777,7 +778,6 @@ export function useAgentBridge({
     controlConnection,
     swRestartOffer,
     displaced: displacedNotice,
-    destructiveFlash,
     galleryConfirm,
     confirmGallery,
     cancelGallery,
@@ -787,6 +787,7 @@ export function useAgentBridge({
     pairAgent,
     toggleActivation,
     confirmActivation,
+    activateCurrentCanvas,
     cancelConfirm,
     acceptReconnect,
     dismissReconnect,
