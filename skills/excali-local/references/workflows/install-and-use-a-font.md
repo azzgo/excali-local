@@ -63,7 +63,7 @@ appState default font is NOT sufficient — every text element carries its own
 { "type": "text", "text": "const x = 1;",
   "fontFamily": 3, "fontSize": 14,          // 3 = the code slot you configured
   "textAlign": "left", "verticalAlign": "top",
-  "strokeColor": "#64748b", "strokeWidth": 2, "roughness": 0, "opacity": 100 }
+  "strokeColor": "#64748b", "strokeWidth": 2, "roughness": 1, "opacity": 100 }
 ```
 
 ## Behavior notes (verified against the implementation)

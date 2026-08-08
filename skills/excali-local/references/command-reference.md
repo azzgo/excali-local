@@ -181,6 +181,9 @@ editor page reloads — every page-side font write returns
    to Excalidraw fontFamily ids: `handwriting → 1`, `normal → 2`, `code → 3`
    (element templates carry `fontFamily` explicitly). The canvas's appState
    default font is NOT sufficient — set it on each text element.
+   Which slot is the default depends on the preset — Sketch/Notebook/Cartoon
+   use handwriting `1` as the primary face; Clean uses normal `2`; see
+   [`style-presets.md`](style-presets.md).
 
 Hot font-swap without a reload is out of scope for this skill — do not
 attempt it; a reload is the contract.

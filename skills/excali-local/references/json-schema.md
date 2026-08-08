@@ -45,10 +45,10 @@ Add-input — only these matter to you:
 | `fillStyle` | optional | `solid` | `hachure` | `cross-hatch` | `zigzag`; default `solid` |
 | `strokeWidth` | **required by methodology** | 1/2/3; default `2` |
 | `strokeStyle` | optional | `solid` | `dashed` | `dotted`; default `solid` |
-| `roughness` | **required by methodology** | default is **1** — set `0` for clean diagrams |
+| `roughness` | **required by methodology** | methodology default **1** (Sketch, hand-drawn — also the canvas default); set `0` for the Clean preset, `2` for Cartoon |
 | `opacity` | **required by methodology** | default `100` — keep `100` |
 | `angle` | optional | radians; default `0` |
-| `roundness` | leave null | default `null` (straight corners) |
+| `roundness` | optional | default `null` (sharp corners); Sketch/Notebook/Cartoon set `{ "type": 3 }` (soft); arrows stay `null` (straight) unless curving via the liveliness toolbox |
 | `seed` / `version` / `versionNonce` / `index` / `updated` | **never set** | transform-owned |
 | `id` | optional hint | **regenerated** by `elements.add`; use only as a binding target (`start`/`end`, `label`, `children`) |
 | `groupIds` / `frameId` / `locked` / `link` / `isDeleted` | omit | transform fills (`groupIds: []`, `frameId: null`, `locked: false`, `link: null`, `isDeleted: false`) |
@@ -59,7 +59,7 @@ Add-input — only these matter to you:
 | Key | Add-input | Notes |
 | --- | --- | --- |
 | `text` | **required** | the readable words; `originalText` is derived |
-| `fontFamily` | **required** | `1` = handwriting slot, `2` = normal slot, `3` = code slot (see fonts workflow); **default is 5** — always set it |
+| `fontFamily` | **required** | `1` handwriting, `2` normal, `3` code (see fonts workflow); Sketch/Notebook/Cartoon default `1` (handwriting primary), Clean defaults `2`; `3` **only for real code**; **canvas default is 5** — always set it |
 | `fontSize` | **required** | methodology default `16`; **canvas default is 20** — always set it |
 | `textAlign` | recommended | `left` | `center` | `right`; canvas default `left` — set `center` for labels |
 | `verticalAlign` | recommended | `top` | `middle` | `bottom`; canvas default `top` — set `middle` for labels |

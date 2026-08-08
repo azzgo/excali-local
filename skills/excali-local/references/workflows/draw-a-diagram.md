@@ -11,6 +11,14 @@ Prerequisites: a **paired connection** and an **activated canvas** (see
 
 ## 0. Plan before you touch the canvas
 
+0. **Pick a visual style preset** (default **Sketch** — hand-drawn, warm).
+   Infer from the user's words: "技术 / 架构 / 示意 / clean / technical" →
+   Clean; "草稿 / 白板 / 头脑风暴 / draft / whiteboard" → Notebook;
+   "卡通 / playful" → Cartoon; unstated → Sketch. Say in one line which
+   preset you're using and why. This sets your `roughness`, corners, palette,
+   and font defaults — see [`style-presets.md`](../style-presets.md). Shape
+   vocabulary is a separate axis in [`diagram-shape-grammar.md`](../diagram-shape-grammar.md).
+
 1. **Diagrams should ARGUE, not DISPLAY.** Two tests:
    - *Isomorphism*: remove all text — does the structure alone still convey
      the concept?
@@ -59,6 +67,11 @@ call, in reading order:
   namespacing discipline still keeps your *sections* independent.)
 - **Incremental binding**: bind text/arrows within the section as you emit
   it; never re-emit a whole section just to fix one binding.
+- **Cross-section arrows**: `elements.add` resolves `start`/`end` only within
+  its own batch — an arrow to a box from an earlier section comes out unbound.
+  To connect to existing elements, read the scene, add the arrow with
+  serialized `startBinding`/`endBinding` + the endpoints' `boundElements`
+  closures, and push via `scene.update` (verified — see `element-templates.md`).
 - Keep each `elements.add` batch self-contained (a few elements to a dozen),
   so failures are cheap to fix.
 
@@ -126,13 +139,21 @@ incremental delivery is mandatory).
 
 ## 4. Aesthetics (the standing rules)
 
-- `roughness: 0` (clean, deliberate — the canvas default is 1, set it).
+These follow the preset you picked in step 0 (see
+[`style-presets.md`](../style-presets.md)). The **Sketch** defaults:
+
+- `roughness: 1` (hand-drawn — also the canvas's own default; set `0` only for
+  the Clean preset).
+- `roundness: { "type": 3 }` on shapes — soft rounded corners (`null` for the
+  Clean preset's sharp corners).
 - `strokeWidth` 1/2/3 — never arbitrary; use 1 for hairlines, 2 for
   structure, 3 for the hero/emphasis.
 - `opacity: 100` always.
-- `fontFamily` 1|2|3 and `fontSize` explicit on every text element
-  (canvas defaults are 5/20 — see `element-templates.md`).
-- Colors from `color-palette.md` only.
+- `fontFamily` 1 (handwriting) primary for Sketch/Notebook/Cartoon; `2` (normal)
+  for Clean; `3` (code) **only for real code/evidence**. `fontSize` explicit on
+  every text element (canvas defaults are 5/20 — see `element-templates.md`).
+- Colors from `color-palette.md` only — **Warm** for Sketch/Notebook/Cartoon,
+  **Slate** for Clean.
 
 ## 5. What NOT to do
 
@@ -154,22 +175,22 @@ Goal: a two-box flow — "input" → "pipeline" — with one arrow and a caption
 ```bash
 $BIN elements.add '{"elements":[
   {"type":"rectangle","id":"input","x":100,"y":200,"width":180,"height":90,
-   "strokeColor":"#020817","backgroundColor":"#f1f5f9","fillStyle":"solid",
-   "strokeWidth":2,"roughness":0,"opacity":100,
-   "label":{"text":"Input","fontFamily":3,"fontSize":16,
+   "strokeColor":"#1e1e1e","fillStyle":"solid",
+   "strokeWidth":2,"roughness":1,"opacity":100,"roundness":{"type":3},
+   "label":{"text":"Input","fontFamily":1,"fontSize":16,
             "textAlign":"center","verticalAlign":"middle"}},
   {"type":"rectangle","id":"pipeline","x":420,"y":200,"width":180,"height":90,
-   "strokeColor":"#020817","backgroundColor":"#e8c468","fillStyle":"solid",
-   "strokeWidth":2,"roughness":0,"opacity":100,
-   "label":{"text":"Pipeline","fontFamily":3,"fontSize":16,
+   "strokeColor":"#1e1e1e","backgroundColor":"#ffec99","fillStyle":"solid",
+   "strokeWidth":2,"roughness":1,"opacity":100,"roundness":{"type":3},
+   "label":{"text":"Pipeline","fontFamily":1,"fontSize":16,
             "textAlign":"center","verticalAlign":"middle"}},
   {"type":"arrow","x":280,"y":245,"width":140,"height":0,
    "points":[[0,0],[140,0]],
-   "strokeColor":"#020817","strokeWidth":2,"roughness":0,"opacity":100,
+   "strokeColor":"#1e1e1e","strokeWidth":2,"roughness":1,"opacity":100,
    "start":{"id":"input"},"end":{"id":"pipeline"}},
-  {"type":"text","x":280,"y":270,"text":"feeds","fontFamily":2,"fontSize":14,
+  {"type":"text","x":280,"y":270,"text":"feeds","fontFamily":1,"fontSize":14,
    "textAlign":"center","verticalAlign":"middle",
-   "strokeColor":"#64748b","strokeWidth":2,"roughness":0,"opacity":100}
+   "strokeColor":"#868e96","strokeWidth":2,"roughness":1,"opacity":100}
 ]}'
 $BIN scene.exportPng   # view → fix → repeat
 ```

@@ -87,8 +87,10 @@ when explaining anything to the user.
 | The complete command surface: every method, its gate, exact invocation, payload shapes, error codes | [`references/command-reference.md`](references/command-reference.md) |
 | The drawing methodology: how to design diagrams that argue, layout rules, the mandatory render→view→fix loop | [`references/workflows/draw-a-diagram.md`](references/workflows/draw-a-diagram.md) |
 | Copy-paste element JSON (text, line, dot, rectangle, text-in-shape, arrow) verified against the live canvas | [`references/element-templates.md`](references/element-templates.md) |
+| Shape vocabulary by diagram type (flowchart / architecture / mindmap / sequence / tree·timeline / ER) — lightweight conventions | [`references/diagram-shape-grammar.md`](references/diagram-shape-grammar.md) |
 | The element schema: every element type + property the canvas actually accepts | [`references/json-schema.md`](references/json-schema.md) |
 | The palette: the one brand seam for colors | [`references/color-palette.md`](references/color-palette.md) |
+| Visual style presets (Sketch default · Clean · Notebook · Cartoon) + the liveliness toolbox | [`references/style-presets.md`](references/style-presets.md) |
 | Save/load drawings to the local gallery | [`references/workflows/save-to-gallery.md`](references/workflows/save-to-gallery.md) |
 | Install or assign fonts (the two-step recipe) | [`references/workflows/install-and-use-a-font.md`](references/workflows/install-and-use-a-font.md) |
 
@@ -122,14 +124,35 @@ to the live-canvas delivery model**. The complete methodology is in
      with your image tool), or structural readbacks with `scene.get` /
      `scene.bounds` (bounds catch clipped text, overlaps, misrouted arrows).
    - Fix: adjust coordinates/sizes/points and re-emit; re-render.
-6. **Aesthetics**: `roughness: 0`, `strokeWidth` 1/2/3, `opacity: 100`,
-   `fontFamily` 1|2|3 — always explicit (the canvas's own defaults differ:
-   roughness defaults to 1, fontFamily defaults to the app font; see
-   `element-templates.md`).
+6. **Aesthetics — a default hand-drawn style.** The skill defaults to the
+   **Sketch** preset (`roughness: 1`, soft rounded corners, Warm palette,
+   handwriting font primary); Clean/Notebook/Cartoon are opt-in. `strokeWidth`
+   1/2/3 and `opacity: 100` always; `fontFamily`/`fontSize` always explicit
+   (canvas defaults are roughness 1 / fontFamily 5 / fontSize 20 — see
+   `element-templates.md`). Presets live in
+   [`references/style-presets.md`](references/style-presets.md), colors in
+   [`references/color-palette.md`](references/color-palette.md).
 
 Because the canvas is the renderer, everything is offline-safe: no CDN, no
 Playwright, no Python, no network — the same reason this skill carries its
 own binaries instead of fetching anything at runtime.
+
+## Visual style — presets (pick one before drawing)
+
+The skill ships a small set of named visual presets; the default is **Sketch**
+(Excalidraw's hand-drawn, warm look). The others are opt-in:
+
+- **Sketch** *(default)* — hand-drawn, warm, lively.
+- **Clean** / Technical — crisp, schematic, cool.
+- **Notebook** / Whiteboard — loose sketch, hachure warmth, doodled accents.
+- **Cartoon** *(optional)* — bold, very rough, playful.
+
+Each bundles `roughness`, corners, palette, and font defaults. Pick one from the
+user's wording (or default to Sketch), and say in one line which you're using.
+Full details, the liveliness toolbox, and the per-knob menu are in
+[`references/style-presets.md`](references/style-presets.md); colors in
+[`references/color-palette.md`](references/color-palette.md); per-type shape
+vocabulary in [`references/diagram-shape-grammar.md`](references/diagram-shape-grammar.md).
 
 ## Incremental delivery is mandatory (never one-shot)
 
@@ -164,7 +187,7 @@ $BIN ping                                  # daemon-local: pong
 $BIN commands.list                         # full method inventory
 $BIN scene.get                             # current scene (needs activated canvas)
 $BIN scene.exportPng '{"mimeType":"image/png"}'   # base64 PNG of the scene
-$BIN elements.add '{"elements":[{"type":"rectangle","x":100,"y":100,"width":180,"height":90,"strokeColor":"#020817","backgroundColor":"#f1f5f9","strokeWidth":2,"roughness":0,"opacity":100}]}'
+$BIN elements.add '{"elements":[{"type":"rectangle","x":100,"y":100,"width":180,"height":90,"strokeColor":"#1e1e1e","strokeWidth":2,"roughness":1,"opacity":100,"roundness":{"type":3}}]}'
 $BIN scene.bounds                          # bounding box of the scene
 ```
 

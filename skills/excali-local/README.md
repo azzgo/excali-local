@@ -6,7 +6,8 @@ offline) through one small CLI: `excali-bridge`.
 
 - **Read** [`SKILL.md`](SKILL.md) first — overview, consent model, routing.
 - **Reference docs** live in [`references/`](references/) (command surface,
-  element templates, JSON schema, palette, workflows).
+  element templates, JSON schema, color palette, style presets, shape grammar,
+  workflows).
 - **The daemon** is bundled pre-built for four platforms under [`bin/`](bin/).
   It is BOTH the WS server the editor page connects to (Leg B) AND the agent
   CLI you invoke (Leg A) — one binary, launched lazily on first use.
