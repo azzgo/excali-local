@@ -76,10 +76,13 @@ Adding a message type: update both the background router and the editor hook.
 The **Agent Bridge** lets an external local agent drive the activated canvas and the
 canvas-related subsystems (gallery, fonts) over a loopback-only connection. It is a
 **two-gate consent** model (Wayfinder 003/011/013): a **paired connection** (the user has
-allowed *this* agent via first-use pairing) gates **all** agent control; an **activated
-canvas** (the user has exposed a specific canvas on the editor page) is an **additional**
-gate for canvas-bound operations + the single-active-canvas invariant. Global operations
-(gallery, fonts) work over a paired connection **without** an activated canvas.
+allowed this profile's pages to dial the local bridge — a profile-level transport consent,
+NOT a bond with a specific agent) gates **all** agent control; an **activated canvas** (the
+user has exposed a specific canvas on the editor page) is an **additional** gate for
+canvas-bound operations + the single-active-canvas invariant. Global operations (gallery,
+fonts) work over a paired connection **without** an activated canvas. The canvas button opens
+master + pairing in one action; the Options page toggles master independently (pairing is
+then opened from the canvas button).
 
 The **Go daemon** (`packages/excali-bridge`, Tickets 009/016/017) is the **cross-profile
 arbiter** — the only entity shared across browsers/profiles (loopback). One self-contained
@@ -95,7 +98,10 @@ binary, two faces:
   never claiming the slot.
 - **Leg-A agent CLI** — versioned minimal JSON-RPC (ADR 0001); **CLI subcommand ==
   JSON-RPC method** (`excali-bridge <method> [params-json]`). Lazy daemon: the first CLI
-  command spawns `serve` detached if needed.
+  command spawns `serve` detached if needed. The daemon is a **shared bridge, not a
+  session**: any number of agent CLIs (and the user at a terminal) may call concurrently;
+  none claims an exclusive session — the only singletons are the daemon instance (pidfile)
+  and the active canvas (≤1).
 - **Single-instance** = fixed-path pidfile `~/.excali-local/bridge.pid` holding
   `{pid, port}` **only** (never the token, per 011/017); stale pid cleaned up; a later
   invocation finds a live pid + answering daemon → reuses, no respawn.
@@ -121,7 +127,7 @@ drawing skill teaches this surface, never the JSON-RPC/WS internals):
 - **canvas/v1** (16) — the activated Excalidraw canvas: read (`scene.get`/`elements`/
   `state`/`bounds`/`exportPng`/`exportSvg`), write (`scene.update`/`elements.add`/`clear`/
   `scene.reset`/`files.add`/`tool.setActive`/`view.scrollTo`/`history.clear`), +
-  `commands.list`/`protocol.version`. Destructive subset fires a non-blocking indicator.
+  `commands.list`/`protocol.version`. Destructive subset fires a non-blocking toast (sonner).
 - **gallery/v1** (10) — `gallery.{list,get,rename,delete,collections.*}` paired;
   `gallery.{load,save}` canvas-bound. delete/rename = blocking confirm.
 - **fonts/v1** (5) — `fonts.system.list` **daemon-local** (Go enumerates OS-installed

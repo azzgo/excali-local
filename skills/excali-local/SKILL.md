@@ -40,7 +40,24 @@ files written to disk.
    [`README.md`](README.md) for the platform caveats.
 
 That is the whole install set: extension + skill. There is no separate bridge
-daemon to download — the daemon is launched automatically on first use.
+daemon to download — and no agent-session ownership: the daemon is a machine-wide,
+single-instance bridge (pidfile `~/.excali-local/bridge.pid`), shared by every caller
+(you, another agent, or the user at a terminal). Starting it never claims an
+exclusive session.
+
+### Starting the daemon — two equivalent paths
+
+The daemon is lazy, so either of these brings it up; once `$BIN ping` answers,
+proceed normally:
+
+- **Option A (default) — you start it.** Just run your first command (e.g.
+  `$BIN ping`). The CLI spawns `serve` detached if no live daemon is found.
+- **Option B — the user started it.** The user may run `excali-bridge serve`
+  (or any command) in a terminal themselves. Your `$BIN ping` then finds it
+  already running and reuses it — a second start never double-launches.
+
+You cannot tell (and need not care) who started it. `$BIN bridge.status` tells
+you whether a daemon is up and which canvas/profiles are connected.
 
 ## Consent model — the two gates (read before touching anything)
 
@@ -66,7 +83,7 @@ Consequences you must honor:
   delete/rename, save-overwrite, font install/clear) show the user a
   **blocking confirmation**; if they decline you get `-32005` — back off,
   don't retry. Canvas destructive operations (clearing the scene, resetting)
-  are **not** blocking — the editor shows a non-blocking indicator.
+  are **not** blocking — the editor shows a non-blocking toast.
 - **Single-active-canvas**: at most one canvas is active at a time. If you
   are working on a canvas and the user activates another one, your canvas is
   *displaced* and canvas-bound calls start failing — re-check with the user

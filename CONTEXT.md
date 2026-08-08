@@ -14,14 +14,17 @@ page that owns that canvas.
 _Avoid_: active canvas, controlled canvas, open canvas
 
 **Paired connection**:
-A bridge connection from a specific agent that the user has explicitly allowed via first-use
-pairing. The connection-level consent; independent of any canvas. Gates all agent control.
+A bridge connection the user has explicitly allowed (first-use pairing). The
+connection-level consent; independent of any canvas and of any specific agent
+(the daemon is a shared bridge — pairing is a profile-level transport consent,
+not a bond with one agent). Gates all agent control.
 _Avoid_: trusted session, authenticated connection
 
 **Global allow**:
 The user-controlled, opt-in extension toggle (default off) that permits the bridge to accept
-agent connections at all — i.e. permits pairing. Lives in the global UI (popup/options), not
-on a canvas.
+agent connections at all — i.e. permits pairing. Adjustable on the Options page (a
+kill-switch) and, as a one-action quick-start that also pairs + activates the current
+canvas, from the canvas button.
 _Avoid_: agent permission, bridge enable
 
 **Canvas-bound operation**:

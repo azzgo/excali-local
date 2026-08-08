@@ -53,7 +53,7 @@ npx skills add azzgo/excali-local --list
 Verify: `bin/excali-bridge-<your-platform> ping` → prints `"pong"`. The
 human-facing way to start it is to tell your agent: **"Use the excali-local
 skill: run excali-bridge ping"** — the first invocation starts the daemon
-(lazy spawn), the actual pairing prerequisite.
+(lazy spawn) — the local bridge your canvas connects to (or run `excali-bridge serve` yourself).
 
 ## Built binaries (static, dependency-free)
 

@@ -26,8 +26,10 @@ excali-bridge <method> [params-json]
   exit code `0`.
 - On failure: `rpc error <code>: <message>` on stderr, exit code `1`.
   Invalid params JSON → exit code `2`. Unknown subcommand → exit code `2`.
-- The daemon is spawned automatically on first use (lazy daemon); nothing to
-  start by hand.
+- The daemon is spawned automatically on first use (lazy daemon). You may also
+  start it explicitly with `serve`; both paths reach the same machine-wide,
+  single-instance bridge (a second start reuses the live one — never
+  double-launches).
 
 Environment: `EXCALI_BRIDGE_PIDFILE` overrides the pidfile path;
 `EXCALI_BRIDGE_ORIGIN` overrides the strict origin allow-list.

@@ -17,31 +17,42 @@ editor tab). This is the canvas the agent will drive.
 
 ---
 
-## Part B — Enable the Agent Bridge (the two gates + master switch)
+## Part B — Enable the Agent Bridge (consent gates)
 
-The bridge is **off by default**. Enable it in this order:
+The bridge is **off by default**. The fastest path is a single action from the
+canvas; the Options page is a conservative kill-switch.
 
-1. **Master switch (Layer 0):** open the extension **Options** page → find **"Agent control"**
-   → turn it **ON**. (Default OFF is a kill-switch: pairing/activation are hidden while off.)
-2. **Pair a connection (Gate 1):** click the toolbar icon to open the **popup** → click
-   **"Open a paired connection"**. (Only visible after step 1.) This allows *your* local agent
-   to connect. A paired connection gates **all** agent control.
-   > **Daemon prerequisite:** pairing is only offered once a daemon answers on
-   > `127.0.0.1:[17331..17335]`. **Installing the skill does not start it** — the daemon
-   > spawns lazily the first time the skill is *invoked*. So: install the skill (Part C),
-   > then have your agent start it — e.g. tell it **"Use the excali-local skill: run
-   > excali-bridge ping"** (or run `$BIN ping` yourself, Part C "Verify the binary runs"),
-   > *then* pair. If the popup shows "Setup needed / no daemon", the skill has not been
-   > invoked yet.
-3. **Activate a canvas (Gate 2):** in the **Local editor** tab, use the
-   **agent-activation control** in the top-right toolbar to **activate** the current canvas.
-   (Quick editor never activates.) Activation is an *additional* gate for canvas-bound ops +
-   the single-active-canvas invariant.
+1. **Turn on + pair + activate (from the canvas button).** In the **Local editor**
+   tab, click the **Agent** button (top-right toolbar) → confirm **"Turn on agent
+   control?"**. That one confirm opens the master switch (Layer 0) **and** the
+   paired connection (Gate 1), and — once the local bridge daemon is running —
+   activates the current canvas (Gate 2) straight to **Controlling**. No separate
+   pair or activate step on the cold-start path. (Quick editor never activates.)
+2. **Start the bridge daemon.** The browser can't launch a local process, so this
+   one step is external. Two equivalent paths — pick either:
+   - **Option A — let the agent start it (default).** Just ask your agent to draw.
+     Its first command (e.g. `excali-bridge ping`) lazily starts the daemon; the
+     canvas activates the moment it answers.
+   - **Option B — start it yourself.** Run `excali-bridge serve` in a terminal
+     (see Part C for the binary), then the canvas activates.
+   - If you turned on before the daemon was up, the button shows **"Waiting for
+     the bridge daemon"** (amber) — click it for these two start options. Order
+     does not matter: turning on before vs after the daemon starts reaches the
+     same end state.
 
-> **What each gate allows:** with only a paired connection (steps 1-2), your agent can do
-> **global** ops (gallery list/save, font config) — no canvas needed. **Canvas-bound** ops
-> (draw, read scene, export, gallery load/save) additionally need an activated canvas (step 3).
-> At most one canvas is active at a time; activating another **displaces** the prior.
+> **Options page (conservative kill-switch).** The **Options → "Agent control"**
+> master toggle still exists and defaults OFF. Turning it **ON** there enables the
+> feature but does *not* auto-pair or activate — use the canvas button for that.
+> Turning it **OFF** tears down any pairing/activation immediately. The **popup**
+> is a glanceable status indicator only (no pair button).
+
+> **What each gate allows:** with only a paired connection (Gate 1), your agent
+> can do **global** ops (gallery list/save, font config) — no canvas needed.
+> **Canvas-bound** ops (draw, read scene, export, gallery load/save) additionally
+> need an activated canvas (Gate 2). At most one canvas is active at a time;
+> activating another **displaces** the prior. The per-canvas consent modal is
+> asked once per canvas on the *warm* path (feature already on, you click
+> Activate on a canvas); the cold-start Turn On counts as that consent.
 
 ---
 
@@ -79,7 +90,7 @@ chmod +x ~/.agents/skills/excali-local/bin/excali-bridge-*
 ```
 
 ### Verify the binary runs (no extension needed for this)
-Running the skill once is what **starts the daemon** — the actual pairing prerequisite.
+Running the skill once is what **starts the daemon** — the bridge the canvas connects to.
 ```bash
 cd ~/.agents/skills/excali-local     # or wherever you installed it
 BIN=bin/excali-bridge-darwin-arm64  # Apple Silicon Mac; use -darwin-amd64 on Intel,
@@ -89,9 +100,10 @@ $BIN ping                # → "pong"  (spawns the daemon lazily on first use)
 $BIN commands.list       # → the 33-method inventory
 ```
 If `ping` returns `"pong"`, the daemon + CLI are healthy. (The daemon binds `127.0.0.1`
-on the first free port in `[17331..17335]`; nothing to configure, nothing to open.) This
-invocation is what the extension's "daemon detected" probe looks for — pair from the popup
-/ canvas button **after** this step, not before.
+on the first free port in `[17331..17335]`; nothing to configure, nothing to open.) The
+daemon is a machine-wide, single-instance bridge (pidfile `~/.excali-local/bridge.pid`);
+a second start reuses the live one. Turn the canvas on before or after — order doesn't
+matter.
 
 ---
 
@@ -134,7 +146,7 @@ a blocking op (gallery delete, font install/clear) was declined on the confirm m
 
 - **Live-browser rendering is your QA lane.** The e2e drivers stub `window.excaliAPI`, so
   they prove the *protocol* loop but not that Excalidraw actually renders your elements.
-  Visually confirm drawings, the destructive indicator, the blocking confirm modal, and the
+  Visually confirm drawings, the destructive-op toast, the blocking confirm modal, and the
   displacement UI in a real tab.
 - **The skill's element templates were round-trip-verified** against the patched Excalidraw
   (`test/features/editor/lib/element-templates-roundtrip.test.ts`). Notable: `elements.add`
