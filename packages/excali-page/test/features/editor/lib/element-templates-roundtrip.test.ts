@@ -14,7 +14,7 @@ import {
  * dispatcher calls — and asserts the CANONICAL shape a subsequent scene.get
  * returns, including the binding closures (text-in-shape, arrow bindings).
  *
- * The documented templates in skills/excali-draw/references/element-templates.md
+ * The documented templates in skills/excali-local/references/element-templates.md
  * are the same partials exercised here; this test is their verification.
  *
  * Ground-truth findings encoded below (verified against the patched tgz):

@@ -1,8 +1,8 @@
 /**
- * skill-pack — build the excali-draw skill (source-is-the-artifact).
+ * skill-pack — build the excali-local skill (source-is-the-artifact).
  *
- * `skills/excali-draw/` IS the usable skill. The platform binaries are COMMITTED
- * under `skills/excali-draw/bin/`; this script refreshes them in place. It writes
+ * `skills/excali-local/` IS the usable skill. The platform binaries are COMMITTED
+ * under `skills/excali-local/bin/`; this script refreshes them in place. It writes
  * nothing to the repo outside that dir — cross-compile scratch lives in the OS
  * temp dir and is cleaned up on exit, so a gate failure never leaves a partial
  * binary (or a patched README) in the committed source.
@@ -18,8 +18,8 @@
  *    dep-free story: linux fully static; windows imports only kernel32;
  *    darwin links only Apple system libraries. FAILS otherwise.
  * 4. Only after ALL gates pass: copies the verified binaries into
- *    `skills/excali-draw/bin/` (overwriting) and refreshes the PACK-SIZES
- *    table IN PLACE in `skills/excali-draw/README.md`.
+ *    `skills/excali-local/bin/` (overwriting) and refreshes the PACK-SIZES
+ *    table IN PLACE in `skills/excali-local/README.md`.
  *
  * Reproducibility (-buildvcs=false): Go 1.18+ stamps binaries with the
  * surrounding git repo's vcs.revision/time/modified by default, so two builds
@@ -32,7 +32,7 @@
  *
  * No release tarball is produced here — the committed skill dir IS the
  * artifact. A release archive (when one is needed) is just
- * `tar -czf excali-draw-<version>.tar.gz -C skills/excali-draw .`.
+ * `tar -czf excali-local-<version>.tar.gz -C skills/excali-local .`.
  *
  * Run: pnpm skill:pack
  */
@@ -44,7 +44,7 @@ import { run as runCmd, hereDir } from "./_run";
 
 const ROOT = join(hereDir(import.meta.url), "..");
 const BRIDGE_DIR = join(ROOT, "packages/excali-bridge");
-const SKILL_DIR = join(ROOT, "skills/excali-draw");
+const SKILL_DIR = join(ROOT, "skills/excali-local");
 const SKILL_BIN_DIR = join(SKILL_DIR, "bin");
 
 const VERSION = (JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")) as { version: string }).version;
@@ -86,7 +86,7 @@ const built: BuiltTarget[] = [];
 const scratch = mkdtempSync(join(os.tmpdir(), "skill-pack-"));
 mkdirSync(SKILL_BIN_DIR, { recursive: true });
 
-console.log(`[skill-pack] excali-draw v${VERSION} — building ${TARGETS.length} targets`);
+console.log(`[skill-pack] excali-local v${VERSION} — building ${TARGETS.length} targets`);
 let exitCode = 0;
 try {
   for (const t of TARGETS) {
@@ -191,7 +191,7 @@ try {
     for (const b of built) {
       const dest = join(SKILL_BIN_DIR, binName(b.target));
       writeFileSync(dest, readFileSync(b.path), { mode: 0o755 });
-      ok(`installed bin/${binName(b.target)} → skills/excali-draw/bin/`);
+      ok(`installed bin/${binName(b.target)} → skills/excali-local/bin/`);
     }
 
     // Patch the README size table with the real measurements (in place — the
@@ -212,7 +212,7 @@ try {
     for (const b of built) {
       console.log(`  bin/${binName(b.target)}  ${(b.sizeBytes / (1024 * 1024)).toFixed(2)} MiB  ${b.verify}`);
     }
-    console.log(`[skill-pack] PASS — excali-draw v${VERSION} binaries refreshed in skills/excali-draw/bin/ ✔`);
+    console.log(`[skill-pack] PASS — excali-local v${VERSION} binaries refreshed in skills/excali-local/bin/ ✔`);
   }
 } finally {
   rmSync(scratch, { recursive: true, force: true });

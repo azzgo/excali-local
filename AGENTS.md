@@ -16,7 +16,7 @@ member — it builds with `go build`):
   single-active-canvas arbiter: pidfile single-instance, ≤1 active page, new
   activation displaces. Wire contract mirrored from `excali-shared/src/agent-bridge.ts`
   (the source of truth the Go side mirrors by hand). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-- `skills/excali-draw/` — the **agent-agnostic drawing skill** (NOT a workspace member):
+- `skills/excali-local/` — the **agent-agnostic drawing skill** (NOT a workspace member):
   `SKILL.md` + `references/` that bundle the static Go daemon and teach an agent to draw
   via the CLI. Pack with `scripts/skill-pack.ts`; verify with `scripts/check-skill-commands.ts`.
 
@@ -30,10 +30,10 @@ detail, read the doc relevant to your task (links below).
   Never swap for the npm version — CSP/offline will break. See [docs/BUILD_AND_RELEASE.md](docs/BUILD_AND_RELEASE.md).
 - **`packages/excali-local/public/editor/` is a gitignored build artifact**, not
   committed. Run `pnpm page:build` after changing page code; never commit it.
-- **`skills/excali-draw/bin/` is COMMITTED** (source-is-the-artifact): the 4
+- **`skills/excali-local/bin/` is COMMITTED** (source-is-the-artifact): the 4
   platform daemon binaries ship inside the skill dir. Refresh them in place with
   `pnpm skill:pack` (cross-compile + static-verify; writes only to
-  `skills/excali-draw/bin/` + the README size table — scratch is in the OS temp
+  `skills/excali-local/bin/` + the README size table — scratch is in the OS temp
   dir, no `.skill-dist/`).
 - **IndexedDB schema changes** require a `DB_VERSION` bump + `upgrade()` migration
   (users have existing data). Two DBs: `excali` (gallery) and `excali-fonts`. See
@@ -58,7 +58,7 @@ detail, read the doc relevant to your task (links below).
 | `pnpm sync:version` | Sync version across all packages.
 | `pnpm bridge:build` | `go build` the Go bridge daemon into `excali-bridge/bin/` (gitignored).
 | `pnpm bridge:test` | `go test ./...` for the Go daemon (ws codec, pidfile, server).
-| `pnpm skill:pack` | Cross-compile + refresh `skills/excali-draw/bin/` (needs Go). |
+| `pnpm skill:pack` | Cross-compile + refresh `skills/excali-local/bin/` (needs Go). |
 | `pnpm skill:check` | Zero-drift gate: skill docs == wire contract. |
 
 Full list + build/release/CSP detail: [docs/BUILD_AND_RELEASE.md](docs/BUILD_AND_RELEASE.md).

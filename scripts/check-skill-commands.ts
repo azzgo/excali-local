@@ -1,9 +1,9 @@
 /**
  * check-skill-commands — assert ZERO DRIFT between the command surface
- * documented in skills/excali-draw/references/command-reference.md and the
+ * documented in skills/excali-local/references/command-reference.md and the
  * wire contract in packages/excali-shared/src/agent-bridge.ts.
  *
- * The CLI is the stable contract of the excali-draw skill; the reference doc
+ * The CLI is the stable contract of the excali-local skill; the reference doc
  * is its teaching surface. If the daemon/contract gains or loses a method
  * and this file is not updated, the skill would teach a wrong surface.
  *
@@ -30,7 +30,7 @@ import {
   PAIRED_ONLY_METHODS,
 } from "excali-shared";
 
-const DOC = join(hereDir(import.meta.url), "../skills/excali-draw/references/command-reference.md");
+const DOC = join(hereDir(import.meta.url), "../skills/excali-local/references/command-reference.md");
 
 let failures = 0;
 const fail = (msg: string) => {

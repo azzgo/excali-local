@@ -1,6 +1,6 @@
 /**
  * AGENT BRIDGE — goal-5 smoke test: run the HOST platform's daemon binary
- * from the SOURCE skill (skills/excali-draw/bin/) end-to-end, exactly as the
+ * from the SOURCE skill (skills/excali-local/bin/) end-to-end, exactly as the
  * skill's consumers will.
  *
  *   - binary = bin/excali-bridge-<os>-<arch>[.exe] inside the skill dir
@@ -17,7 +17,7 @@
  * been run first: `pnpm skill:pack`.
  *
  * Run:
- *   pnpm skill:pack                # refresh skills/excali-draw/bin/
+ *   pnpm skill:pack                # refresh skills/excali-local/bin/
  *   tsx scripts/agent-bridge/driver-skill.ts
  */
 
@@ -45,7 +45,7 @@ if (!hostName) {
   console.error(`[driver-skill] no bundled binary for host ${process.platform}/${process.arch} — expected one of the 4 targets`);
   process.exit(2);
 }
-const bin = process.env.EXCALI_BRIDGE_BIN ?? join(hereDir(import.meta.url), "../../skills/excali-draw/bin", hostName);
+const bin = process.env.EXCALI_BRIDGE_BIN ?? join(hereDir(import.meta.url), "../../skills/excali-local/bin", hostName);
 if (!existsSync(bin)) {
   console.error(`[driver-skill] bundled binary not found: ${bin} — run \`pnpm skill:pack\` first`);
   process.exit(1);

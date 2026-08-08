@@ -63,7 +63,7 @@ Check which package you're in before importing.
   **canvas/v1** (16 — the activated canvas), **gallery/v1** (10 — gallery + collections),
   **fonts/v1** (5 — font config + daemon-local OS-font list); plus daemon-local meta
   (`ping`/`commands.list`/`protocol.version`/`bridge.status`). 33 methods total. The
-  agent-facing surface is taught by the `excali-draw` skill (`skills/excali-draw/`); the CLI
+  agent-facing surface is taught by the `excali-local` skill (`skills/excali-local/`); the CLI
   is the stable contract.
 
 ## Testing

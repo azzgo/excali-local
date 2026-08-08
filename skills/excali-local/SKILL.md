@@ -1,9 +1,9 @@
 ---
-name: excali-draw
+name: excali-local
 description: Draw, annotate, and iterate on Excalidraw diagrams inside the Excali Local editor (a local-first browser extension) by driving its agent bridge — a small Go daemon you invoke as a plain CLI. Covers canvas drawing (elements, scene, export), the local gallery (list/save/load/rename/delete/collections), and font configuration (system font list, slot assignment, custom-font install). No browser automation, no screenshots of the OS, no remote services — everything runs offline against a canvas the user has explicitly exposed to you.
 ---
 
-# Excali Draw — drive the Excali Local editor from a CLI
+# Excali Local — drive the editor from a CLI
 
 You (any coding agent) draw diagrams by running a tiny command-line program:
 `excali-bridge`. It talks to the **Excali Local** browser extension, which hosts

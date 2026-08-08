@@ -1,4 +1,4 @@
-# excali-draw — the Agent-agnostic drawing skill
+# excali-local — the Agent-agnostic drawing skill
 
 A self-contained skill that teaches any coding agent to drive the **Excali
 Local** editor (a local-first browser extension running Excalidraw fully
@@ -21,11 +21,11 @@ Install it with the [`skills`](https://github.com/vercel-labs/skills) CLI —
 npm package `skills`, maintained by **vercel-labs/skills** (not WorkOS):
 
 ```bash
-npx skills add azzgo/excali-local --skill excali-draw -y
+npx skills add azzgo/excali-local --skill excali-local -y
 ```
 
 Read-only discovery (`--list`) confirms the skill exists and is named
-`excali-draw` before installing:
+`excali-local` before installing:
 
 ```bash
 npx skills add azzgo/excali-local --list
@@ -102,4 +102,4 @@ version info"; it would re-introduce non-idempotent binaries that dirty every co
 
 ## Version
 
-`excali-draw` tracks the excali-local release version (currently `1.7.0`).
+This skill tracks the excali-local release version (currently `1.7.0`).

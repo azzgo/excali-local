@@ -41,7 +41,7 @@ jobs:
           pnpm run local:zip
           pnpm run local:tar
       - name: Pack skill
-        run: tar -czf skills-${{ github.ref_name }}.tar.gz -C skills/excali-draw .
+        run: tar -czf skills-${{ github.ref_name }}.tar.gz -C skills/excali-local .
       - name: Release
         env:
            GH_TOKEN: ${{ github.token }}
@@ -52,6 +52,6 @@ jobs:
             --draft \
             ./packages/excali-local/.output/*.zip \
             ./packages/excali-local/*.tar.gz \
-            ./excali-draw-${{ github.ref_name }}.tar.gz
+            ./skills-${{ github.ref_name }}.tar.gz
       - run: echo "🍏 This job's status is ${{ job.status }}."
 

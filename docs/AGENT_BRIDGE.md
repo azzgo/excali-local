@@ -40,13 +40,13 @@ The bridge is **off by default**. Enable it in this order:
 
 ## Part C — Build the skill & load it into your agent
 
-The agent-facing surface is the **excali-draw skill**: a `SKILL.md` + `references/` that
+The agent-facing surface is the **excali-local skill**: a `SKILL.md` + `references/` that
 bundles static, dependency-free daemon binaries.
 
 ### Pack the skill
 ```bash
 pnpm skill:pack
-# → skills/excali-draw/bin/            (4 platform binaries built in place, committed)
+# → skills/excali-local/bin/            (4 platform binaries built in place, committed)
 ```
 `skill-pack` cross-compiles 4 targets (`darwin-arm64`, `darwin-amd64`, `linux-amd64`,
 `windows-amd64`; CGO disabled, symbols stripped) and **static-verifies** each is dep-free
@@ -59,21 +59,21 @@ folder into wherever your agent reads skills:
 
 | Agent runtime | Skills directory |
 | --- | --- |
-| **pi** | `~/.pi/agent/skills/excali-draw/` |
-| **Claude Code** | `~/.claude/skills/excali-draw/` |
-| **Cursor** | `.cursor/skills/excali-draw/` (project) or `~/.cursor/skills/` |
-| **cross-agent standard** | `~/.agents/skills/excali-draw/` |
+| **pi** | `~/.pi/agent/skills/excali-local/` |
+| **Claude Code** | `~/.claude/skills/excali-local/` |
+| **Cursor** | `.cursor/skills/excali-local/` (project) or `~/.cursor/skills/` |
+| **cross-agent standard** | `~/.agents/skills/excali-local/` |
 
 ```bash
 # example: cross-agent home
 mkdir -p ~/.agents/skills
-cp -r skills/excali-draw ~/.agents/skills/
-chmod +x ~/.agents/skills/excali-draw/bin/excali-bridge-*
+cp -r skills/excali-local ~/.agents/skills/
+chmod +x ~/.agents/skills/excali-local/bin/excali-bridge-*
 ```
 
 ### Verify the binary runs (no extension needed for this)
 ```bash
-cd ~/.agents/skills/excali-draw     # or wherever you installed it
+cd ~/.agents/skills/excali-local     # or wherever you installed it
 BIN=bin/excali-bridge-darwin-arm64  # Apple Silicon Mac; use -darwin-amd64 on Intel,
                                     # -linux-amd64 on Linux, -windows-amd64.exe on Windows
 chmod +x $BIN
@@ -116,7 +116,7 @@ a blocking op (gallery delete, font install/clear) was declined on the confirm m
 > **Render→view→fix loop:** this is the skill's core workflow. "Render" = emit elements via
 > the CLI; "view" = `scene.exportPng` (save the base64, open the PNG) or `scene.bounds`
 > (catches clipped text/overlaps); "fix" = adjust coords and re-emit. See
-> `skills/excali-draw/references/workflows/draw-a-diagram.md`.
+> `skills/excali-local/references/workflows/draw-a-diagram.md`.
 
 ---
 
@@ -130,7 +130,7 @@ a blocking op (gallery delete, font install/clear) was declined on the confirm m
   (`test/features/editor/lib/element-templates-roundtrip.test.ts`). Notable: `elements.add`
   **regenerates ids** (your id is a binding hint only); text defaults `fontSize 20`/
   `fontFamily 5`/left/top — **be explicit**; `roughness` defaults to **1** (set `0` for clean).
-  See `skills/excali-draw/references/element-templates.md`.
+  See `skills/excali-local/references/element-templates.md`.
 - **Fonts need a reload + a fontFamily set.** `fonts.install`/`fonts.assign` return
   `requiresReload:true` (fonts inject once at boot). After reloading, set the canvas
   `appState.fontFamily` (1/2/3 = handwriting/normal/code) for the change to render. Hot-swap
@@ -154,5 +154,5 @@ tsx scripts/agent-bridge/driver-skill.ts   # smoke-test the source skill binary
 pkill -f 'excali-bridge serve'; pkill -f 'bin/excali-bridge'; rm -f ~/.excali-local/bridge.pid
 ```
 
-The agent-facing contract is `skills/excali-draw/SKILL.md` + `references/`; deeper context in
+The agent-facing contract is `skills/excali-local/SKILL.md` + `references/`; deeper context in
 [`docs/ARCHITECTURE.md`](ARCHITECTURE.md).
