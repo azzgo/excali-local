@@ -117,7 +117,7 @@
     "message": "Setup needed"
   },
   "AgentNoDaemonMeta": {
-    "message": "no daemon connected"
+    "message": "no daemon — run the skill once to start it"
   },
   "AgentPaired": {
     "message": "Paired"

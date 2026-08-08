@@ -26,6 +26,13 @@ The bridge is **off by default**. Enable it in this order:
 2. **Pair a connection (Gate 1):** click the toolbar icon to open the **popup** → click
    **"Open a paired connection"**. (Only visible after step 1.) This allows *your* local agent
    to connect. A paired connection gates **all** agent control.
+   > **Daemon prerequisite:** pairing is only offered once a daemon answers on
+   > `127.0.0.1:[17331..17335]`. **Installing the skill does not start it** — the daemon
+   > spawns lazily the first time the skill is *invoked*. So: install the skill (Part C),
+   > then have your agent start it — e.g. tell it **"Use the excali-local skill: run
+   > excali-bridge ping"** (or run `$BIN ping` yourself, Part C "Verify the binary runs"),
+   > *then* pair. If the popup shows "Setup needed / no daemon", the skill has not been
+   > invoked yet.
 3. **Activate a canvas (Gate 2):** in the **Local editor** tab, use the
    **agent-activation control** in the top-right toolbar to **activate** the current canvas.
    (Quick editor never activates.) Activation is an *additional* gate for canvas-bound ops +
@@ -72,6 +79,7 @@ chmod +x ~/.agents/skills/excali-local/bin/excali-bridge-*
 ```
 
 ### Verify the binary runs (no extension needed for this)
+Running the skill once is what **starts the daemon** — the actual pairing prerequisite.
 ```bash
 cd ~/.agents/skills/excali-local     # or wherever you installed it
 BIN=bin/excali-bridge-darwin-arm64  # Apple Silicon Mac; use -darwin-amd64 on Intel,
@@ -81,7 +89,9 @@ $BIN ping                # → "pong"  (spawns the daemon lazily on first use)
 $BIN commands.list       # → the 33-method inventory
 ```
 If `ping` returns `"pong"`, the daemon + CLI are healthy. (The daemon binds `127.0.0.1`
-on the first free port in `[17331..17335]`; nothing to configure, nothing to open.)
+on the first free port in `[17331..17335]`; nothing to configure, nothing to open.) This
+invocation is what the extension's "daemon detected" probe looks for — pair from the popup
+/ canvas button **after** this step, not before.
 
 ---
 

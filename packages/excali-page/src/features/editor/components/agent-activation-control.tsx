@@ -80,7 +80,7 @@ const AgentActivationControl = ({
   // Quick-enable modal + inline coach-install card (component-local UI state).
   const [showEnable, setShowEnable] = useState(false);
   const [coachOpen, setCoachOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
 
   // Options hide-toggle: the button hides ONLY while the feature is OFF, so an
   // active canvas is never left without a visible stop control (034 invariant).
@@ -136,15 +136,36 @@ const AgentActivationControl = ({
     bridge.quickEnableAgent();
     toast.success(t("AgentEnabledToast"));
   };
-  const handleCopyCommand = async () => {
+  const handleCopyCommand = async (key: string) => {
     try {
-      await navigator.clipboard.writeText(t("AgentCoachCommand"));
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
+      await navigator.clipboard.writeText(t(key));
+      setCopiedCmd(key);
+      setTimeout(() => setCopiedCmd((cur) => (cur === key ? null : cur)), 1500);
     } catch {
       /* clipboard unavailable — the command stays selectable for manual copy */
     }
   };
+
+  const renderCommandRow = (key: string) => (
+    <div className="flex items-center gap-2 rounded-md border border-border bg-muted px-2 py-1.5">
+      <code className="flex-1 overflow-x-auto font-mono text-[11px] whitespace-nowrap text-foreground select-all">
+        {t(key)}
+      </code>
+      <button
+        type="button"
+        aria-label={t("AgentCoachCopy")}
+        title={t("AgentCoachCopy")}
+        onClick={() => handleCopyCommand(key)}
+        className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+      >
+        {copiedCmd === key ? (
+          <IconCheck className="size-3.5" />
+        ) : (
+          <IconCopy className="size-3.5" />
+        )}
+      </button>
+    </div>
+  );
 
   // Non-blocking destructive-op flash (003/011): canvas/v1 destructive
   // subset (elements.clear / scene.reset / history.clear / files.add-overwrite)
@@ -245,25 +266,15 @@ const AgentActivationControl = ({
             <p className="mb-2 text-muted-foreground">
               {t("AgentCoachBody")}
             </p>
-            <div className="mb-2 flex items-center gap-2 rounded-md border border-border bg-muted px-2 py-1.5">
-              <code className="flex-1 overflow-x-auto font-mono text-[11px] whitespace-nowrap text-foreground select-all">
-                {t("AgentCoachCommand")}
-              </code>
-              <button
-                type="button"
-                aria-label={t("AgentCoachCopy")}
-                title={t("AgentCoachCopy")}
-                onClick={handleCopyCommand}
-                className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-              >
-                {copied ? (
-                  <IconCheck className="size-3.5" />
-                ) : (
-                  <IconCopy className="size-3.5" />
-                )}
-              </button>
+            <div className="mb-1 flex items-center gap-1.5 text-[10px] font-semibold tracking-wide text-muted-foreground">
+              {t("AgentCoachStep1")}
             </div>
-            <p className="text-[11px] text-muted-foreground">{t("AgentCoachFooter")}</p>
+            {renderCommandRow("AgentCoachCommand")}
+            <div className="mb-1 mt-1.5 flex items-center gap-1.5 text-[10px] font-semibold tracking-wide text-muted-foreground">
+              {t("AgentCoachStep2")}
+            </div>
+            {renderCommandRow("AgentCoachDaemonCommand")}
+            <p className="mt-2 text-[11px] text-muted-foreground">{t("AgentCoachFooter")}</p>
           </div>
         )}
       </div>

@@ -117,6 +117,10 @@ describe("AgentActivationControl", () => {
     expect(pairAgent).toHaveBeenCalled();
     expect(screen.getByTestId("agent-coach-card")).toBeTruthy();
     expect(screen.getByText("AgentCoachCommand")).toBeTruthy();
+    // Two-step guidance: install the skill, then invoke it to start the daemon.
+    expect(screen.getByText("AgentCoachStep1")).toBeTruthy();
+    expect(screen.getByText("AgentCoachStep2")).toBeTruthy();
+    expect(screen.getByText("AgentCoachDaemonCommand")).toBeTruthy();
     // ✕ closes the card
     act(() => {
       screen.getByLabelText("AgentDismiss").click();

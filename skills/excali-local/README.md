@@ -31,6 +31,15 @@ Read-only discovery (`--list`) confirms the skill exists and is named
 npx skills add azzgo/excali-local --list
 ```
 
+> **Installing is not enough — invoke the skill to start the daemon.**
+> The pairing condition is a **running daemon**, and the daemon only spawns
+ lazily on first use. After installing, ask your agent to start it — say
+ it in plain words: **"Use the excali-local skill: run excali-bridge ping"**
+ (or run `bin/excali-bridge-<your-platform> ping` yourself from the skill
+ folder — see "Picking your binary" below). Only then does the extension
+ detect the daemon and offer pairing
+> (popup: "Paired"; canvas button: ready → activate).
+
 ## Picking your binary
 
 | Platform | Binary |
@@ -40,7 +49,10 @@ npx skills add azzgo/excali-local --list
 | Linux (x86-64) | `bin/excali-bridge-linux-amd64` |
 | Windows (x86-64) | `bin/excali-bridge-windows-amd64.exe` |
 
-Verify: `bin/excali-bridge-<your-platform> ping` → prints `"pong"`.
+Verify: `bin/excali-bridge-<your-platform> ping` → prints `"pong"`. The
+human-facing way to start it is to tell your agent: **"Use the excali-local
+skill: run excali-bridge ping"** — the first invocation starts the daemon
+(lazy spawn), the actual pairing prerequisite.
 
 ## Built binaries (static, dependency-free)
 
