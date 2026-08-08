@@ -163,11 +163,14 @@ The binding-close input form uses `start`/`end` (linear-element style) —
 
 ## Liveliness toolbox (Sketch / Notebook / Cartoon — closed in Clean)
 
-The hand-drawn vocabulary the old skill never used. Schema-supported; not part
-of the round-trip fixture, so if you need the exact serialized form, read it
-back with `scene.get`. **Use where the diagram argues, not on everything** —
-an accent must underline a key term, circle a critical value, or point at the
-thing that matters. Decoration for its own sake (random sticky notes,
+The hand-drawn vocabulary the old skill never used. Schema-supported; the
+transform behavior is pinned in
+`test/features/editor/lib/element-templates-roundtrip.test.ts` (freedraw's
+groupIds/pressures omission + the page's normalize, curved-arrow
+`roundness {type:2}` + same-batch binding, dashed strokes, varied arrowheads
+— all verified live). **Use where the diagram argues, not on everything** —
+an accent must underline a key term, circle a critical value, or point at
+the thing that matters. Decoration for its own sake (random sticky notes,
 doodles) is noise, not liveliness.
 
 **Dashed / dotted connections** (semantic stroke style):

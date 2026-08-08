@@ -25,8 +25,8 @@ import {
  *   - text defaults are fontSize 20 / fontFamily 5 / align left / vertical
  *     top — NOT the skill's recommended 16 / 1|2|3 / center / middle, so
  *     templates must be explicit.
- *   - roughness defaults to 1 — the methodology's roughness:0 must be
- *     explicit on every element.
+ *   - roughness defaults to 1 — the skill's default (Sketch) leans into it;
+ *     roughness:0 is explicit only for the Clean preset.
  *   - line width/height are NOT derived from points (defaults 100×0); arrows
  *     ARE (getSizeFromPoints).
  *   - text-in-shape binds via the container's `label` property; a bare
@@ -117,7 +117,7 @@ describe("element-template round-trip through the real patched tgz", () => {
 
   test("rectangle: partial geometry normalizes; roughness defaults to 1 unless explicit", () => {
     const [implicit] = convert([{ type: "rectangle", x: 100, y: 100, width: 180, height: 90 }]);
-    expect(implicit.roughness).toBe(1); // the REAL default — the skill must set 0
+    expect(implicit.roughness).toBe(1); // the REAL default — Sketch leans into it (0 only for Clean)
 
     const [el] = convert([
       { type: "rectangle", x: 100, y: 100, width: 180, height: 90, strokeColor: "#020817", backgroundColor: "#f1f5f9", strokeWidth: 2, roughness: 0, opacity: 100 },
@@ -240,5 +240,47 @@ describe("element-template round-trip through the real patched tgz", () => {
     ]);
     const [x1, y1, x2, y2] = getCommonBounds(els as never);
     expect([x1, y1, x2, y2]).toEqual([0, 0, 280, 190]);
+  });
+});
+
+describe("liveliness toolbox templates (verified live on the canvas)", () => {
+  test("freedraw: points preserved; groupIds/pressures OMITTED by the transform (page normalizes)", () => {
+    const [fd] = convert([
+      { type: "freedraw", x: 60, y: 78, width: 270, height: 8, points: [[0, 4], [30, 0], [60, 7]], strokeColor: "#1e1e1e", strokeWidth: 2, roughness: 1, opacity: 100 },
+    ]);
+    expect(fd.type).toBe("freedraw");
+    expect(fd.points).toEqual([[0, 4], [30, 0], [60, 7]]);
+    expect(fd.roughness).toBe(1);
+    // Patched-tgz quirk (44bbf16): convertToExcalidrawElements omits groupIds
+    // and pressures on freedraw; the page's ensureRenderSafeDefaults fills
+    // them or the render loop crashes on e.groupIds.length. Pinning the
+    // omission here so a tgz upgrade that changes it forces a re-check of
+    // that normalize + the skill docs.
+    expect(fd.groupIds).toBeUndefined();
+    expect(fd.pressures).toBeUndefined();
+    expect(fd.simulatePressure).toBeUndefined();
+  });
+
+  test("curved arrow: roundness {type:2} survives; same-batch start/end still bind", () => {
+    const [from, to, arrow] = convert([
+      { type: "rectangle", id: "from", x: 0, y: 0, width: 100, height: 50, roughness: 0 },
+      { type: "rectangle", id: "to", x: 300, y: 0, width: 100, height: 50, roughness: 0 },
+      { type: "arrow", x: 100, y: 25, width: 200, height: 40, points: [[0, 0], [100, 40], [200, 0]], roughness: 0, roundness: { type: 2 }, start: { id: "from" }, end: { id: "to" } },
+    ]);
+    expect(arrow.roundness).toEqual({ type: 2 }); // curved rendering preserved
+    expect(asRecord(arrow.startBinding).elementId).toBe(from.id);
+    expect(asRecord(arrow.endBinding).elementId).toBe(to.id);
+    expect(arrow.endArrowhead).toBe("arrow");
+  });
+
+  test("liveliness strokes + arrowheads survive: strokeStyle/startArrowhead/endArrowhead", () => {
+    const [, , arrow] = convert([
+      { type: "rectangle", id: "from", x: 0, y: 0, width: 100, height: 50, roughness: 0 },
+      { type: "rectangle", id: "to", x: 300, y: 0, width: 100, height: 50, roughness: 0 },
+      { type: "arrow", x: 100, y: 25, width: 200, height: 0, points: [[0, 0], [200, 0]], roughness: 0, strokeStyle: "dashed", startArrowhead: "dot", endArrowhead: "triangle", start: { id: "from" }, end: { id: "to" } },
+    ]);
+    expect(arrow.strokeStyle).toBe("dashed");
+    expect(arrow.startArrowhead).toBe("dot");
+    expect(arrow.endArrowhead).toBe("triangle");
   });
 });
