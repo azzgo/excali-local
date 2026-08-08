@@ -12,7 +12,8 @@
  *   blue   = paired / ready     → click → per-canvas consent → activate
  *   solid  = controlling        → click deactivates (no consent needed to stop)
  *
- * While active a persistent "🤖 Agent controlling this canvas" pill shows.
+ * While active the button switches to "Controlling" — the single stop
+ * control (click to deactivate, no consent needed to stop).
  * The consent modal is asked ONCE per canvas (034 R1), then auto-confirmed for
  * that same canvas until unpair/re-pair.
  */
@@ -190,15 +191,6 @@ const AgentActivationControl = ({
 
   return (
     <>
-      {bridge.isActive && (
-	<div
-	  data-testid="agent-controlling-pill"
-	  className="flex items-center gap-1.5 rounded-full bg-blue-600 text-white text-xs font-medium px-3 py-1.5 shadow-sm"
-	  title={connectionLabel}
-	>
-	  <span>{t("AgentControllingCanvas")}</span>
-	</div>
-      )}
       {destructiveMethod && (
 	<div
 	  data-testid="agent-destructive-flash"

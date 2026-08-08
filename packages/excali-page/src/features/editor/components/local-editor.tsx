@@ -61,9 +61,12 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
     }
   }, [excalidrawAPI, runCleanupIfNeeded]);
 
-  const updateExcalidrawAPI = useCallback((api: ExcalidrawImperativeAPI) => {
-    setExcalidrawAPI(api);
-  }, []);
+  const updateExcalidrawAPI = useCallback(
+    (api: ExcalidrawImperativeAPI | null) => {
+      setExcalidrawAPI(api);
+    },
+    [],
+  );
 
   // bugs: initdata files not recogized by excalidraw sdk
   useEffect(() => {
@@ -118,7 +121,7 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
             aiEnabled={false}
             initialData={data}
             showDeprecatedFonts={false}
-            excalidrawAPI={(api) => updateExcalidrawAPI(api)}
+            onExcalidrawAPI={(api) => updateExcalidrawAPI(api)}
             onChange={debouncedHandleSave}
             onReset={() => setCurrentLoadedId(null)}
             onLibraryChange={debouncedHandleLibrarySave}

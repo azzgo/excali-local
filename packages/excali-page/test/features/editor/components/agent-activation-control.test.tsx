@@ -87,7 +87,8 @@ describe("AgentActivationControl", () => {
     renderControl();
     expect(screen.queryByTestId("agent-activation-toggle")).toBeNull();
     cleanup();
-    // An active canvas can never hide the button (034 invariant).
+    // An active canvas can never hide the stop control (034 invariant): the
+    // button IS the stop control and stays visible in every state.
     setOverrides({ ...ready, hideButton: true, isActive: true });
     renderControl();
     expect(screen.getByTestId("agent-activation-toggle")).toBeTruthy();
@@ -153,17 +154,16 @@ describe("AgentActivationControl", () => {
     expect(toggleActivation).toHaveBeenCalled();
   });
 
-  test("active: renders the persistent indicator pill + click deactivates", () => {
+  test("active: the Controlling button is the single control — no emoji pill, click deactivates", () => {
     const toggleActivation = vi.fn();
     setOverrides({ ...ready, isActive: true, connection: "connected", toggleActivation });
     renderControl();
-    const pill = screen.getByTestId("agent-controlling-pill");
-    expect(pill).toBeTruthy();
-    expect(screen.getByText("AgentControllingCanvas")).toBeTruthy();
-    // One robot affordance total: the button shows IconRobotOff while active;
-    // the pill itself must not render an svg (de-duped — goal feedback #3).
-    expect(pill.querySelector("svg")).toBeNull();
-    screen.getByTestId("agent-activation-toggle").click();
+    // The emoji pill is gone — the "Controlling" button is the one control.
+    expect(screen.queryByTestId("agent-controlling-pill")).toBeNull();
+    const toggle = screen.getByTestId("agent-activation-toggle");
+    expect(toggle).toBeTruthy();
+    expect(toggle.getAttribute("data-state")).toBe("active");
+    toggle.click();
     expect(toggleActivation).toHaveBeenCalled();
   });
 

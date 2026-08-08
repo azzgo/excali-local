@@ -23,9 +23,12 @@ const QuickMarkerEditor = ({ lang }: QuickMarkerEditorProps) => {
     useState<ExcalidrawImperativeAPI | null>(null);
   const { runCleanupIfNeeded } = useFileCleanup(excalidrawAPI);
 
-  const updateExcalidrawAPI = useCallback((api: ExcalidrawImperativeAPI) => {
-    setExcalidrawAPI(api);
-  }, []);
+  const updateExcalidrawAPI = useCallback(
+    (api: ExcalidrawImperativeAPI | null) => {
+      setExcalidrawAPI(api);
+    },
+    [],
+  );
 
   useMessageEvent({ excalidrawAPI });
   useMarkerEvent(excalidrawAPI);
@@ -53,7 +56,7 @@ const QuickMarkerEditor = ({ lang }: QuickMarkerEditorProps) => {
           aiEnabled={false}
           initialData={data}
           showDeprecatedFonts={false}
-          excalidrawAPI={(api) => updateExcalidrawAPI(api)}
+          onExcalidrawAPI={(api) => updateExcalidrawAPI(api)}
           onReset={() => setCurrentLoadedId(null)}
           renderTopRightUI={(isMobile) => (
             <TopRightToolbar
