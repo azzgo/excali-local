@@ -140,6 +140,30 @@ const invalidParams = (message: string): never => {
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
+/**
+ * Post-transform normalization for `elements.add` (bug fix): the patched
+ * tgz's `convertToExcalidrawElements` does not fill `groupIds` on freedraw
+ * elements, and the Excalidraw renderer reads `e.groupIds.length` on every
+ * visible element without a null check — so a freedraw added via
+ * `elements.add` crashed the page (the scene-restore path fills these; the
+ * add path does not). Normalize here so every added element is render-safe
+ * and matches the canonical serialized shape (`groupIds: []`, freedraw
+ * `pressures`/`simulatePressure`).
+ */
+export function ensureRenderSafeDefaults(elements: readonly unknown[]): void {
+  for (const el of elements) {
+    if (typeof el !== "object" || el === null) continue;
+    const e = el as Record<string, unknown>;
+    if (e.groupIds === undefined) e.groupIds = [];
+    if (e.type === "freedraw") {
+      if (e.simulatePressure === undefined) e.simulatePressure = true;
+      if (e.pressures === undefined && Array.isArray(e.points)) {
+        e.pressures = (e.points as unknown[]).map(() => 0.5);
+      }
+    }
+  }
+}
+
 /** Dispatch one canvas/v1 request; never throws (errors → error response). */
 export async function handleCanvasV1Request(
   req: CanvasV1Request,
@@ -253,6 +277,7 @@ async function dispatch(method: string, params: unknown, deps: CanvasV1Deps): Pr
       const p = asRecord(params);
       if (!Array.isArray(p.elements)) invalidParams("elements.add: elements must be an array");
       const normalized = helpers.convertToExcalidrawElements(p.elements as readonly unknown[]);
+      ensureRenderSafeDefaults(normalized);
       const existing = api.getSceneElements();
       api.updateScene({
         elements: [...existing, ...normalized],

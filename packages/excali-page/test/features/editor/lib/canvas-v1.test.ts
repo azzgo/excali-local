@@ -186,10 +186,25 @@ describe("canvas/v1 dispatcher — WRITE", () => {
     const { resp } = await call("elements.add", { elements: [partial] }, { api, helpers });
     expect(helpers.convertToExcalidrawElements).toHaveBeenCalledWith([partial]);
     expect(api.updateScene).toHaveBeenCalledWith({
-      elements: [...existing, ...normalized],
+      elements: [...existing, { id: "gen-1", groupIds: [], ...partial }], // render-safety normalize (freedraw crash fix)
       captureUpdate: "IMMEDIATELY",
     });
     expect(resp.result).toBeNull();
+  });
+
+  test("elements.add: normalizes groupIds-undefined output before updateScene (freedraw crash fix)", async () => {
+    const api = makeApi();
+    const raw = { type: "freedraw", id: "fd1", points: [[0, 0], [1, 1]] };
+    const helpers = makeHelpers({
+      convertToExcalidrawElements: vi.fn(() => [raw] as unknown[]),
+    });
+    const { resp } = await call("elements.add", { elements: [raw] }, { api, helpers });
+    expect(resp.result).toBeNull();
+    const pushed = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls[0][0].elements;
+    expect(pushed).toHaveLength(1);
+    expect(pushed[0].groupIds).toEqual([]);
+    expect(pushed[0].pressures).toEqual([0.5, 0.5]);
+    expect(pushed[0].simulatePressure).toBe(true);
   });
 
   test("elements.clear: wipes scene + fires onDestructive (non-blocking)", async () => {
