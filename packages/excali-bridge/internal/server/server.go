@@ -222,6 +222,10 @@ func (s *Server) serveConn(cl *client) {
 	for {
 		msg, err := c.ReadMessage()
 		if err != nil {
+			// Log the teardown reason (EOF vs read-deadline timeout vs protocol
+			// violation) so transient drops are diagnosable — without this every
+			// drop was silent and surfaced only as -32003 at the CLI.
+			s.log.Printf("conn %s: read error: %v", cl.identity, err)
 			return
 		}
 		var m map[string]any

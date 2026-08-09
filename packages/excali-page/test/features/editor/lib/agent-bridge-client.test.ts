@@ -358,4 +358,78 @@ describe("AgentBridgeSession", () => {
     await expect(pingPromise).resolves.toBe(true);
     session.stop();
   });
+
+  test("keepalive: periodic app-level ping while connected; pong keeps it alive", async () => {
+    const sockets: FakeWs[] = [];
+    const session = new AgentBridgeSession({
+      ports: [17331],
+      origin,
+      token,
+      wsFactory: socketsOf(sockets),
+      reconnectBaseMs: 10,
+      reconnectMaxMs: 10,
+      keepaliveMs: 30,
+      pingTimeoutMs: 500,
+      handshakeTimeoutMs: 50,
+    });
+    session.start();
+    await driveConnect(sockets);
+    await vi.waitFor(() => expect(session.currentStatus).toBe("connected"));
+    const live = sockets[1];
+
+    // app-level {type:"ping"} fires periodically (not a protocol frame)
+    await vi.waitFor(() =>
+      expect(live.sent.some((s) => s.includes('"type":"ping"'))).toBe(true),
+    );
+    // answer pings for a few cycles — the connection must survive
+    for (let i = 0; i < 4; i++) {
+      live.message(JSON.stringify({ type: "pong" }));
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    expect(sockets.length).toBe(2); // no reconnect sockets
+    expect(session.currentStatus).toBe("connected");
+    session.stop();
+  });
+
+  test("keepalive: an unanswered ping closes the half-dead connection and reconnects", async () => {
+    const sockets: FakeWs[] = [];
+    const session = new AgentBridgeSession({
+      ports: [17331],
+      origin,
+      token,
+      wsFactory: socketsOf(sockets),
+      reconnectBaseMs: 10,
+      reconnectMaxMs: 10,
+      keepaliveMs: 25,
+      pingTimeoutMs: 500,
+      handshakeTimeoutMs: 500,
+    });
+    session.start();
+    await driveConnect(sockets);
+    await vi.waitFor(() => expect(session.currentStatus).toBe("connected"));
+
+    // never answer the first connection's pings → keepalive detects the dead
+    // peer and closes the socket → the reconnect loop re-dials (probe + live)
+    await vi.waitFor(() => expect(sockets.length).toBeGreaterThanOrEqual(3));
+    sockets[2].open();
+    sockets[2].message(JSON.stringify({ type: "handshake_ok" }));
+    await vi.waitFor(() => expect(sockets.length).toBeGreaterThanOrEqual(4));
+    sockets[3].open();
+    sockets[3].message(JSON.stringify({ type: "handshake_ok" }));
+    await vi.waitFor(() => expect(session.currentStatus).toBe("connected"));
+
+    // answer keepalive pings on the NEW live connection so it stays up
+    const live2 = sockets[3];
+    await vi.waitFor(() =>
+      expect(live2.sent.some((s) => s.includes('"type":"ping"'))).toBe(true),
+    );
+    live2.message(JSON.stringify({ type: "pong" }));
+    for (let i = 0; i < 3; i++) {
+      live2.message(JSON.stringify({ type: "pong" }));
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    expect(session.currentStatus).toBe("connected");
+
+    session.stop();
+  });
 });

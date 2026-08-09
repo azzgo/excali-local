@@ -20,6 +20,7 @@ import {
   BRIDGE_PING_TIMEOUT_MS,
   BRIDGE_RECONNECT_BASE_MS,
   BRIDGE_RECONNECT_MAX_MS,
+  BRIDGE_KEEPALIVE_MS,
   WS_HANDSHAKE,
   WS_HANDSHAKE_OK,
   WS_HANDSHAKE_ERROR,
@@ -186,6 +187,11 @@ export class AgentBridgeClient {
       this.ws!.send(JSON.stringify({ type: WS_PING }));
     });
   }
+
+  /** A ping is in flight (sent, pong not yet received). */
+  hasPendingPing(): boolean {
+    return this.pongWait !== null;
+  }
   /** Send a JSON message over the live connection (canvas/v1 responses). */
   sendJSON(obj: unknown): void {
 	if (!this.isOpen || this.closed) return;
@@ -287,6 +293,7 @@ export interface AgentBridgeSessionOptions {
   pingTimeoutMs?: number;
   reconnectBaseMs?: number;
   reconnectMaxMs?: number;
+  keepaliveMs?: number;
   onStatus?: (
     status: BridgeConnectionStatus,
     info?: { port?: number; attempt?: number },
@@ -392,8 +399,29 @@ export class AgentBridgeSession {
       }
 
       this.setStatus("connected", { port });
+      // Proactive liveness: periodic app-level ping while connected. A JSON-RPC
+      // pong proves the daemon's message loop answers (the browser auto-pongs
+      // protocol-level pings without JS running, so those prove nothing about
+      // a responsive page). A failed ping means the connection is half-dead →
+      // close it so the reconnect loop re-dials (possibly a restarted daemon
+      // on a new port).
+      const keepaliveMs = this.opts.keepaliveMs ?? BRIDGE_KEEPALIVE_MS;
+      const keepalive = setInterval(() => {
+        // Never stack pings: a pending ping already covers this interval (a
+        // fresh ping would refresh the pong timeout and the failure detection
+        // could silently never fire when keepaliveMs < pingTimeoutMs).
+        if (client.hasPendingPing()) return;
+        void client.ping().then((ok) => {
+          if (!ok && this.client === client) {
+            client.close();
+          }
+        });
+      }, keepaliveMs);
       await new Promise<void>((resolveClose) => {
-        client.onClose = () => resolveClose();
+        client.onClose = () => {
+          clearInterval(keepalive);
+          resolveClose();
+        };
       });
       this.client = null;
       if (this.stopped) return;

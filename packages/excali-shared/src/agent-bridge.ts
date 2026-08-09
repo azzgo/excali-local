@@ -79,6 +79,9 @@ export const BRIDGE_RECONNECT_BASE_MS = 1000;
 
 export const BRIDGE_RECONNECT_MAX_MS = 15000;
 
+/** Page → daemon WS keepalive: periodic app-level ping while connected (proactive liveness; a failed ping closes the socket so the reconnect loop re-dials). */
+export const BRIDGE_KEEPALIVE_MS = 20000;
+
 /** Page → SW heartbeat interval while an activation is live (keeps SW + epoch alive). */
 export const AGENT_BRIDGE_HEARTBEAT_MS = 20000;
 
