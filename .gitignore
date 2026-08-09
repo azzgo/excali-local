@@ -25,3 +25,6 @@ packages/excali-bridge/bin/
 *.sln
 *.sw?
 .pi/
+
+# excali-local-test skill — generated scratch (pids, logs, materialized wxt config)
+.agents/skills/excali-local-test/.excali-test/
