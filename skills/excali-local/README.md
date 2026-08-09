@@ -115,4 +115,4 @@ version info"; it would re-introduce non-idempotent binaries that dirty every co
 
 ## Version
 
-This skill tracks the excali-local release version (currently `1.7.1`).
+This skill tracks the excali-local release version (currently `1.7.2`).
