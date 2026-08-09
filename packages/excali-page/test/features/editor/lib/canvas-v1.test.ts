@@ -20,7 +20,7 @@ function makeApi(overrides: Partial<CanvasV1Api> = {}): CanvasV1Api {
     updateScene: vi.fn(),
     addFiles: vi.fn(),
     setActiveTool: vi.fn(),
-    scrollToContent: vi.fn(),
+    setViewport: vi.fn(),
     resetScene: vi.fn(),
     history: { clear: vi.fn() },
     ...overrides,
@@ -262,10 +262,10 @@ describe("canvas/v1 dispatcher — WRITE", () => {
     const elements = [{ id: "a" }];
     const api = makeApi({ getSceneElements: () => elements });
     await call("view.scrollTo", { elements: [{ id: "b" }], fitToContent: true }, { api });
-    expect(api.scrollToContent).toHaveBeenCalledWith([{ id: "b" }], { fitToContent: true });
+    expect(api.setViewport).toHaveBeenCalledWith({ target: [{ id: "b" }], fit: "contain" });
 
     await call("view.scrollTo", null, { api });
-    expect(api.scrollToContent).toHaveBeenCalledWith(elements, { fitToContent: false });
+    expect(api.setViewport).toHaveBeenCalledWith({ target: elements, fit: "none" });
   });
 
   test("history.clear: clears undo stack + fires onDestructive", async () => {

@@ -68,7 +68,7 @@ describe("useMessageEvent", () => {
     });
     const excalidrawAPI = {
       updateScene: vi.fn(),
-      scrollToContent: vi.fn(),
+      setViewport: vi.fn(),
       addFiles: vi.fn(),
     } as any;
     renderHook(() => useMessageEvent({ excalidrawAPI }));
@@ -92,7 +92,7 @@ describe("useMessageEvent", () => {
           },
         ],
       });
-      expect(excalidrawAPI.scrollToContent).toHaveBeenCalled();
+      expect(excalidrawAPI.setViewport).toHaveBeenCalled();
     });
   });
 });

@@ -102,5 +102,5 @@ async function updateCanvasWithScreenshot(
   excalidrawAPI?.updateScene({
     elements: imageElements,
   });
-  excalidrawAPI?.scrollToContent(imageElements, { fitToContent: true });
+  excalidrawAPI?.setViewport({ target: imageElements, fit: "contain" });
 }

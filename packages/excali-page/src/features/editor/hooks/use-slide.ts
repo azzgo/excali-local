@@ -26,9 +26,10 @@ export const useSlide = (excalidrawAPI: ExcalidrawImperativeAPI | null) => {
         typeof targetSlide.index === "number"
           ? targetSlide.index
           : slides.findIndex((slide) => slide.id === targetSlide.id);
-      excalidrawAPI?.scrollToContent(slides[index].element, {
-        animate: true,
-        fitToContent: true,
+      excalidrawAPI?.setViewport({
+        target: slides[index].element,
+        fit: "contain",
+        animation: true,
       });
       updateSlideIndex(index);
     },

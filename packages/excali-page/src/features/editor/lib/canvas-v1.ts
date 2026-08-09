@@ -112,10 +112,7 @@ export interface CanvasV1Api {
   }): void;
   addFiles(files: readonly { id: string; mimeType?: string; dataURL?: string; created?: number }[]): void;
   setActiveTool(tool: { type: string; locked?: boolean }): void;
-  scrollToContent(
-    target?: unknown,
-    opts?: { fitToContent?: boolean },
-  ): void;
+  setViewport(opts: { target?: unknown; fit?: "scale-down" | "contain" | "none" }): void;
   resetScene(): void;
   history: { clear(): void };
 }
@@ -331,8 +328,9 @@ async function dispatch(method: string, params: unknown, deps: CanvasV1Deps): Pr
       const p = asRecord(params);
       const elements = p.elements ?? api.getSceneElements();
       if (!Array.isArray(elements)) invalidParams("view.scrollTo: elements must be an array");
-      api.scrollToContent(elements as readonly unknown[], {
-        fitToContent: p.fitToContent === true,
+      api.setViewport({
+        target: elements,
+        fit: p.fitToContent === true ? "contain" : "none",
       });
       return null;
     }

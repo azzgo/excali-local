@@ -15,7 +15,7 @@ import { orderAttributeLabel } from "@/features/editor/type";
 import { KeyForElements } from "@/features/editor/utils/local";
 
 interface FakeExcalidrawAPI {
-  scrollToContent: Mock;
+  setViewport: Mock;
   updateScene: Mock;
   getSceneElements: Mock;
 }
@@ -24,7 +24,7 @@ describe("useSlide", () => {
   let excalidrawAPI: FakeExcalidrawAPI;
   beforeEach(() => {
     excalidrawAPI = {
-      scrollToContent: vi.fn(),
+      setViewport: vi.fn(),
       updateScene: vi.fn(),
       getSceneElements: vi.fn(),
     };
