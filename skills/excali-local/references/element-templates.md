@@ -157,6 +157,25 @@ The binding-close input form uses `start`/`end` (linear-element style) —
   `scene.update` with serialized `startBinding`/`endBinding`
   (`{ elementId, mode: "orbit", fixedPoint: [x, y] }`) and append the arrow id
   to both endpoints' `boundElements` — verified to render and survive.
+  **`fixedPoint` is a NORMALIZED RATIO, not pixels**: the bound point is
+  `element.x + width·fx, element.y + height·fy` (clamped to [−10, 10]
+  internally) — verified against the csp.14 build's
+  `getGlobalFixedPointForBindableElement`. So bottom-center of a box is
+  `[0.5, 1]`, right-edge midpoint is `[1, 0.5]`.
+- **Bbox discipline for hand-serialized linear elements** (scene.update is
+  passthrough — no transform fixes your numbers): an arrow's `x`/`y` must be
+  the MIN point of its absolute path and `width`/`height` its extent. The
+  points are RELATIVE to `x`/`y`, so with a first point of `[0,0]` set
+  `x,y` = path start and `w,h` = max extent. A stale bbox (e.g. `y` set to
+  the path's start when the path goes UP) renders fine for bound arrows but
+  skews `scene.bounds`, hit-testing and export clipping — and it is exactly
+  the kind of thing the render→view→fix loop misses until you audit
+  absolute points.
+- **Route loop-backs with curves, not raw 90° elbows**: a long return arrow
+  drawn as two hard right-angle corners (right → up → left) reads as a stiff
+  zigzag. Give it 3+ points and `roundness: { type: 2 }` so the corners
+  curve, and keep a dedicated routing lane with ≥ 40 px gutter away from
+  captions.
 - **Default arrows are straight** (2 points, no `roundness`) — the structural
   spine stays reliable to bind and route. Curved arrows live in the liveliness
   toolbox below.

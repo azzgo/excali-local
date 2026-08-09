@@ -163,6 +163,30 @@ describe("canvas/v1 dispatcher — WRITE", () => {
     expect(resp.result).toBeNull();
   });
 
+  test("scene.update: passthrough preserves serialized arrow bindings (fixedPoint normalized ratios) + boundElements verbatim", async () => {
+    // The cross-batch binding path (skill: element-templates.md): re-emit a
+    // scene read from scene.get with a serialized arrow whose
+    // startBinding/endBinding carry NORMALIZED-ratio fixedPoints ([1,0.5] =
+    // right-edge midpoint), and whose endpoints' boundElements list the arrow.
+    // Passthrough must forward these unchanged — no id regen, no binding drop.
+    const boxA = { id: "A", type: "rectangle", x: 0, y: 0, width: 100, height: 50, boundElements: [{ type: "arrow", id: "a1" }] };
+    const boxB = { id: "B", type: "rectangle", x: 300, y: 0, width: 100, height: 50, boundElements: [{ type: "arrow", id: "a1" }] };
+    const arrow = {
+      id: "a1", type: "arrow", x: 100, y: 25, width: 200, height: 0,
+      points: [[0, 0], [200, 0]],
+      startBinding: { elementId: "A", fixedPoint: [1, 0.5], mode: "orbit" },
+      endBinding: { elementId: "B", fixedPoint: [0, 0.5], mode: "orbit" },
+      startArrowhead: null, endArrowhead: "arrow",
+    };
+    const api = makeApi();
+    const { resp } = await call("scene.update", { elements: [boxA, boxB, arrow] }, { api });
+    expect(api.updateScene).toHaveBeenCalledWith({
+      elements: [boxA, boxB, arrow],
+      captureUpdate: "NEVER",
+    });
+    expect(resp.result).toBeNull();
+  });
+
   test("scene.update: explicit captureUpdate honored; unknown captureUpdate rejected", async () => {
     const api = makeApi();
     await call("scene.update", { elements: [], captureUpdate: "IMMEDIATELY" }, { api });
