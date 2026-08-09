@@ -90,8 +90,12 @@ These methods write/read the live scene of the activated canvas.
 
 ### Writes
 
-- `scene.update` — **passthrough** replace: ids/versions are preserved
-  exactly (no id regeneration, no normalization). Params:
+- `scene.update` — **render-safe passthrough** replace: ids/versions/bindings
+  are preserved exactly (no id regeneration, no binding recompute). Array-typed
+  fields (`groupIds`, `boundElements`) that are `null`/missing/non-array are
+  coerced to `[]` (and non-record `boundElements` entries dropped) so a
+  malformed re-emit can never crash the renderer — but emit them correctly so
+  bindings survive. Params:
   `{ "elements"?: […], "appState"?: { viewBackgroundColor?, gridSize?, viewModeEnabled?, activeTool? }, "captureUpdate"?: "NEVER"|"IMMEDIATELY"|"EVENTUALLY" }`
   (at least one of elements/appState required; appState accepts ONLY the
   curated subset). **Use this to re-emit a scene read back from

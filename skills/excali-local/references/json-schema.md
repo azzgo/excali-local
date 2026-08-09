@@ -54,6 +54,32 @@ Add-input — only these matter to you:
 | `groupIds` / `frameId` / `locked` / `link` / `isDeleted` | omit | transform fills (`groupIds: []`, `frameId: null`, `locked: false`, `link: null`, `isDeleted: false`) |
 | `boundElements` | **output only** | read it from `scene.get`; never write it (label/start/end create it) |
 
+## Render-safety & re-emitting via `scene.update`
+
+`scene.update` is a **render-safe passthrough**: it preserves `id`/`version`/
+`versionNonce`/`seed`/`index`/`updated` and any `startBinding`/`endBinding`/
+`boundElements` closures exactly, but coerces array-typed fields so a malformed
+re-emit can't crash the renderer.
+
+**How to re-emit (lowest failure rate):** echo each element EXACTLY as
+`scene.get` / `scene.elements` returned it, changing only the field you intend
+to change. Do NOT strip `version`/`versionNonce`/`seed`/`index`/`updated`
+(Excalidraw uses them for history/diff). You don't need to know which fields
+are droppable — just echo + modify one field.
+
+**Array-typed fields must be arrays, never `null`:** `groupIds`, `boundElements`,
+`points`, `pressures`. The renderer reads `.length` / iterates them without
+null-checks. As a safety net the page coerces `null`/missing/non-array
+`groupIds`/`boundElements` to `[]` and drops non-record `boundElements`
+entries — but emit them correctly so bindings survive:
+
+- `groupIds`: `string[]` (usually `[]`).
+- `boundElements`: array of `{ "type": "text"|"arrow", "id": "<element-id>" }`.
+
+If you edit an arrow's bindings via `scene.update`, keep the arrow's
+`startBinding`/`endBinding` consistent with both endpoints' `boundElements`
+(append `{ "type": "arrow", "id": "<arrow-id>" }` to each endpoint).
+
 ## Text properties
 
 | Key | Add-input | Notes |

@@ -201,6 +201,47 @@ describe("canvas/v1 dispatcher — WRITE", () => {
     expect(resp.error?.code).toBe(-32602);
   });
 
+  test("scene.update: render-safe — null/missing groupIds & boundElements coerced to [] (crash fix)", async () => {
+    const api = makeApi();
+    // An LLM re-emitting a serialized scene commonly drops array fields or
+    // writes null; the Excalidraw renderer reads .length on these without a
+    // null-check and crashes the page (→ WS drop → -32003).
+    const malformed = [
+      { id: "a", type: "rectangle", x: 0, y: 0, width: 10, height: 10, groupIds: null, boundElements: null },
+      { id: "b", type: "arrow", x: 0, y: 0, width: 5, height: 0, points: [[0, 0], [5, 0]] },
+    ];
+    const { resp } = await call("scene.update", { elements: malformed }, { api });
+    expect(resp.result).toBeNull();
+    const pushed = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls[0][0].elements;
+    expect(pushed[0].groupIds).toEqual([]);
+    expect(pushed[0].boundElements).toEqual([]);
+    expect(pushed[1].groupIds).toEqual([]);
+    expect(pushed[1].boundElements).toEqual([]);
+  });
+
+  test("scene.update: render-safe — non-record boundElements entries filtered (crash fix)", async () => {
+    const api = makeApi();
+    const el = { id: "a", type: "rectangle", boundElements: [{ type: "arrow", id: "x" }, null, "bad", 5] };
+    await call("scene.update", { elements: [el] }, { api });
+    const pushed = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls[0][0].elements;
+    expect(pushed[0].boundElements).toEqual([{ type: "arrow", id: "x" }]);
+  });
+
+  test("scene.update: render-safe — valid serialized bindings preserved verbatim", async () => {
+    const api = makeApi();
+    const box = { id: "A", type: "rectangle", boundElements: [{ type: "arrow", id: "a1" }] };
+    const arrow = {
+      id: "a1", type: "arrow", points: [[0, 0], [10, 0]],
+      startBinding: { elementId: "A", fixedPoint: [1, 0.5], mode: "orbit" },
+      endBinding: { elementId: "B", fixedPoint: [0, 0.5], mode: "orbit" },
+    };
+    await call("scene.update", { elements: [box, arrow] }, { api });
+    const pushed = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls[0][0].elements;
+    expect(pushed[0].boundElements).toEqual([{ type: "arrow", id: "a1" }]);
+    expect(pushed[1].startBinding).toEqual({ elementId: "A", fixedPoint: [1, 0.5], mode: "orbit" });
+    expect(pushed[1].endBinding).toEqual({ elementId: "B", fixedPoint: [0, 0.5], mode: "orbit" });
+  });
+
   test("elements.add: converts partials then concats with captureUpdate IMMEDIATELY", async () => {
     const existing = [{ id: "existing" }];
     const partial = { type: "rectangle", x: 0, y: 0, width: 10, height: 10 };
@@ -210,7 +251,7 @@ describe("canvas/v1 dispatcher — WRITE", () => {
     const { resp } = await call("elements.add", { elements: [partial] }, { api, helpers });
     expect(helpers.convertToExcalidrawElements).toHaveBeenCalledWith([partial]);
     expect(api.updateScene).toHaveBeenCalledWith({
-      elements: [...existing, { id: "gen-1", groupIds: [], ...partial }], // render-safety normalize (freedraw crash fix)
+      elements: [...existing, { id: "gen-1", groupIds: [], boundElements: [], ...partial }], // render-safety normalize (freedraw crash fix)
       captureUpdate: "IMMEDIATELY",
     });
     expect(resp.result).toBeNull();

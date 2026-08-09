@@ -156,7 +156,10 @@ The binding-close input form uses `start`/`end` (linear-element style) —
   To bind an arrow to elements already on the canvas, push it via
   `scene.update` with serialized `startBinding`/`endBinding`
   (`{ elementId, mode: "orbit", fixedPoint: [x, y] }`) and append the arrow id
-  to both endpoints' `boundElements` — verified to render and survive.
+  to both endpoints' `boundElements` as `{ "type": "arrow", "id": "<arrow-id>" }`
+  — an ARRAY of records, never `null` (the page coerces null→[] as a safety
+  net, but a missing entry means the binding won't survive) — verified to
+  render and survive.
   **`fixedPoint` is a NORMALIZED RATIO, not pixels**: the bound point is
   `element.x + width·fx, element.y + height·fy` (clamped to [−10, 10]
   internally) — verified against the csp.14 build's

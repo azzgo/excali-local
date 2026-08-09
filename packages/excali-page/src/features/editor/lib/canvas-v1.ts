@@ -13,8 +13,9 @@
  *          files.add / tool.setActive / view.scrollTo / history.clear
  *   (META commands.list / protocol.version resolve daemon-side)
  *
- * Semantics: scene.update passthrough (no id-merge, ids/versions preserved,
- * default captureUpdate NEVER); elements.add = convertToExcalidrawElements
+ * Semantics: scene.update is a render-safe passthrough (ids/versions/bindings
+ * preserved; null/missing array fields coerced to [] so a malformed re-emit
+ * can't crash the renderer; default captureUpdate NEVER); elements.add = convertToExcalidrawElements
  * then concat (captureUpdate IMMEDIATELY); appState write accepts ONLY the
  * curated subset {viewBackgroundColor, gridSize, viewModeEnabled, activeTool};
  * binary (exportPng/exportSvg output, files.add input) travels as base64.
@@ -138,24 +139,50 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
 /**
- * Post-transform normalization for `elements.add` (bug fix): the patched
- * tgz's `convertToExcalidrawElements` does not fill `groupIds` on freedraw
- * elements, and the Excalidraw renderer reads `e.groupIds.length` on every
- * visible element without a null check — so a freedraw added via
- * `elements.add` crashed the page (the scene-restore path fills these; the
- * add path does not). Normalize here so every added element is render-safe
- * and matches the canonical serialized shape (`groupIds: []`, freedraw
- * `pressures`/`simulatePressure`).
+ * Render-safety normalization for element arrays, applied to BOTH
+ * `elements.add` (post-transform) and `scene.update` (pre-passthrough).
+ *
+ * Why scene.update needs it too: scene.update is a passthrough into
+ * `updateScene`, but Excalidraw's RENDERER (React render cycle, which runs
+ * AFTER updateScene returns and is NOT covered by the dispatcher's try/catch)
+ * reads `e.groupIds.length`, iterates `e.boundElements`, and reads
+ * `e.pressures.length` on freedraw — all WITHOUT null-checks. An element
+ * re-emitted from `scene.get`/`scene.elements` with a `null`/missing array
+ * field (a common LLM-constructed-payload failure) therefore throws an
+ * uncaught TypeError, killing the page and dropping the WS connection
+ * (surfaces as rpc -32003). Coercing non-arrays to `[]` here makes every
+ * element render-safe while preserving ids/versions/bindings exactly.
+ *
+ * Deliberately minimal: it only guarantees the renderer won't crash on
+ * array-typed fields. It does NOT validate binding shapes (an arrow's
+ * startBinding/endBinding consistency with endpoint boundElements is the
+ * caller's responsibility — documented in the skill).
  */
 export function ensureRenderSafeDefaults(elements: readonly unknown[]): void {
   for (const el of elements) {
     if (typeof el !== "object" || el === null) continue;
     const e = el as Record<string, unknown>;
-    if (e.groupIds === undefined) e.groupIds = [];
+    // groupIds: renderer reads .length on every visible element.
+    if (!Array.isArray(e.groupIds)) {
+      e.groupIds = [];
+    } else {
+      e.groupIds = (e.groupIds as unknown[]).filter((g) => typeof g === "string");
+    }
+    // boundElements: renderer iterates and reads .type/.id per entry; a null
+    // entry or non-array crashes it. Coerce to [] and keep only records.
+    if (!Array.isArray(e.boundElements)) {
+      e.boundElements = [];
+    } else {
+      e.boundElements = (e.boundElements as unknown[]).filter(
+        (b) => typeof b === "object" && b !== null,
+      );
+    }
     if (e.type === "freedraw") {
       if (e.simulatePressure === undefined) e.simulatePressure = true;
-      if (e.pressures === undefined && Array.isArray(e.points)) {
+      if (!Array.isArray(e.pressures) && Array.isArray(e.points)) {
         e.pressures = (e.points as unknown[]).map(() => 0.5);
+      } else if (!Array.isArray(e.pressures)) {
+        e.pressures = [];
       }
     }
   }
@@ -251,6 +278,12 @@ async function dispatch(method: string, params: unknown, deps: CanvasV1Deps): Pr
       const patch: { elements?: readonly unknown[]; appState?: Record<string, unknown>; captureUpdate?: string } = {};
       if (p.elements !== undefined) {
         if (!Array.isArray(p.elements)) invalidParams("scene.update: elements must be an array");
+        // Render-safety (see ensureRenderSafeDefaults): the renderer reads
+        // array-typed fields without null-checks, so a null groupIds/
+        // boundElements on a re-emitted element kills the page (→ WS drop →
+        // -32003). Coerce before the passthrough so a malformed re-emit can
+        // never crash the page; ids/versions/bindings stay untouched.
+        ensureRenderSafeDefaults(p.elements as readonly unknown[]);
         patch.elements = p.elements as readonly unknown[];
       }
       if (p.appState !== undefined) {

@@ -51,5 +51,8 @@ describe("add-path render safety (freedraw groupIds crash)", () => {
     expect(el.groupIds).toEqual(["g1"]);
     expect(el.pressures).toEqual([1, 0]);
     expect(el.simulatePressure).toBe(false);
+    // boundElements coercion (scene.update render-safety): a missing/non-array
+    // boundElements becomes [] so the renderer's iteration never crashes.
+    expect(el.boundElements).toEqual([]);
   });
 });
