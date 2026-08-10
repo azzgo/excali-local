@@ -32,13 +32,13 @@ Excalidraw. "Stroke" is `strokeColor`, "fill" is `backgroundColor`; pair with
 
 | Role | Fill | Stroke | Used for |
 | --- | --- | --- | --- |
-| Neutral container | `transparent` | `#1e1e1e` | default boxes — ink stroke, no fill (color earns its place) |
+| Neutral container | `#fff9db` | `#1e1e1e` | default boxes — shallow warm fill by default (浅奶油暖底; `#1e1e1e` ink keeps contrast) |
 | Primary emphasis | `#ffec99` | `#1e1e1e` | the thing the diagram argues FOR (warm yellow — Excalidraw's signature) |
 | Positive / success | `#b2f2bb` | `#2f9e44` | positive flows, "yes" paths |
 | Negative / risk | `#ffc9c9` | `#e03131` | negative flows, "no" paths, risks |
 | Info / secondary | `#a5d8ff` | `#1971c2` | secondary emphasis, neutral highlight |
 | Warm secondary | `#ffd8a8` | `#f08c00` | secondary emphasis (peach) |
-| Accent | `#d0bfff` | `#ae3ec9` | the one accent — use sparingly |
+| Accent | `#d0bfff` | `#ae3ec9` | accent / emphasis — colored titles, hero text, highlighted values; may combine with other roles on one canvas |
 | Highlight / note | `#ffec99` | `#1e1e1e` | the yellow highlighter marker |
 | Evidence / code (inverted) | `#1e1e1e` | `#ffffff` | code/evidence artifacts — inverted, Excalidraw ink |
 | Destructive | `#ffc9c9` | `#e03131` | errors, blocked states (stronger stroke) |
@@ -52,7 +52,7 @@ visually next to the product. Pair with `roughness: 0`, `roundness: null`,
 
 | Role | Fill | Stroke | Used for |
 | --- | --- | --- | --- |
-| Neutral container | `#f1f5f9` | `#020817` | default boxes |
+| Neutral container | `#f1f5f9` | `#020817` | default boxes — consistent light base |
 | Brand / primary emphasis | `#e8c468` | `#020817` | the thing the diagram argues FOR |
 | Teal / success-ish | `#2a9d90` | `#020817` | positive flows, "yes" paths |
 | Coral / warn | `#e76e50` | `#020817` | negative flows, "no" paths, risks |
@@ -62,38 +62,39 @@ visually next to the product. Pair with `roughness: 0`, `roundness: null`,
 | Destructive / danger | `#ef4444` | `#020817` | errors, blocked states |
 
 ## Text hierarchy
+> 标题/hero/caption 文字用色板上色，正文/标签保墨色 — titles/hero/caption take accent colors; body/labels keep ink (可读优先 — readability first).
 
 | Level | fontFamily | fontSize | strokeColor | Use |
 | --- | --- | --- | --- | --- |
 | **Warm (Sketch/Notebook/Cartoon)** | | | | |
-| Title / hero | `5` (handwriting) | 20–24 | Warm ink | section titles, the hero |
-| Body / label | `5` (handwriting) | 16 | Warm ink | labels, annotations |
+| Title / hero | `5` (handwriting) | 20–24 | Warm accent — `#f08c00` or `#ae3ec9` (`#1e1e1e` on the `#ffec99` hero fill) | section titles, the hero |
+| Body / label | `5` (handwriting) | 16 | Warm ink `#1e1e1e` | labels, annotations — readability first |
 | Caption | `5` (handwriting) | 12–14 | `#868e96` | timestamps, ids, marginal notes |
 | Code / evidence | `8` (code) | 12–14 | `#ffffff` (on inverted) / Warm ink | **only** real code, JSON, event names |
 | **Slate (Clean)** | | | | |
-| Title / hero | `6` (normal) or `8` | 20–24 | Slate ink | section titles, the hero |
+| Title / hero | `6` (normal) or `8` | 20–24 | Slate ink or a Slate accent | section titles, the hero |
 | Body | `6` (normal) | 16 | Slate ink | labels, annotations |
 | Caption / evidence | `8` (code) | 12–14 | `#64748b` | code snippets, timestamps, ids |
 
 > `fontFamily` slots: `5` = handwriting, `6` = normal, `8` = code
 > (see [`workflows/install-and-use-a-font.md`](workflows/install-and-use-a-font.md)).
-> Unconfigured slots fall back to Excalidraw's built-in font for that id, so a
+> Unconfigured slots fall back to Excalidraw's built-in fonts, so a
 > handwriting primary still renders hand-drawn with zero config.
 
 ## Usage rules
 
 1. **Match the palette to the preset.** Warm for Sketch/Notebook/Cartoon, Slate
    for Clean. Don't mix palettes in one diagram.
-2. **Default to ink-on-paper.** A neutral container is an ink stroke with no
-   fill; color must earn its place.
-3. **One accent at a time.** Whether it's Warm's `#d0bfff` or Slate's brand
-   yellow, a diagram that paints everything the accent color argues nothing.
-4. **Fill carries semantics; stroke carries structure.** Keep strokes at the
+2. **Default to role-based fill.** A neutral container defaults to the light-warm
+   fill `#fff9db` (Warm) / `#f1f5f9` (Slate); emphasis / positive / negative /
+   info / secondary boxes take their role's fill. Multiple roles may share one
+   diagram — a colorful canvas is the default, not a violation.
+3. **Fill carries semantics; stroke carries structure.** Keep strokes at the
    palette's ink except on inverted (evidence) fills where white strokes read
    better.
-5. **Evidence artifacts** (code, JSON, event names) always get the inverted
+4. **Evidence artifacts** (code, JSON, event names) always get the inverted
    treatment: Warm `#1e1e1e` fill / `#ffffff` stroke or Slate `#274754` /
    `#ffffff`, with `fontFamily: 8`. Never put hachure behind code.
-6. **Dark-mode canvases:** set `viewBackgroundColor` via `scene.update`, but keep
+5. **Dark-mode canvases:** set `viewBackgroundColor` via `scene.update`, but keep
    the same semantic pairs — they are chosen for contrast on both `#ffffff` and
    a dark background.
