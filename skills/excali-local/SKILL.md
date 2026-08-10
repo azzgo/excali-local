@@ -143,7 +143,9 @@ to the live-canvas delivery model**. The complete methodology is in
    - Fix: adjust coordinates/sizes/points and re-emit; re-render.
 6. **Aesthetics — a default hand-drawn style.** The skill defaults to the
    **Sketch** preset (`roughness: 1`, soft rounded corners, Warm palette,
-   handwriting font primary); Clean/Notebook/Cartoon are opt-in. `strokeWidth`
+   handwriting font primary, neutral boxes default to the light-warm fill
+   `#fff9db`, role-based multi-color, liveliness toolbox default-on);
+   Clean/Notebook/Cartoon are opt-in. `strokeWidth`
    1/2/3 and `opacity: 100` always; `fontFamily`/`fontSize` always explicit
    (canvas defaults are roughness 1 / fontFamily 5 / fontSize 20 — see
    `element-templates.md`). Presets live in
@@ -157,9 +159,9 @@ own binaries instead of fetching anything at runtime.
 ## Visual style — presets (pick one before drawing)
 
 The skill ships a small set of named visual presets; the default is **Sketch**
-(Excalidraw's hand-drawn, warm look). The others are opt-in:
+(Excalidraw's rich, colorful, lively hand-drawn look). The others are opt-in:
 
-- **Sketch** *(default)* — hand-drawn, warm, lively.
+- **Sketch** *(default)* — **rich, colorful, lively hand-drawn** (浅暖填充 + 多色 + 工具箱默认开).
 - **Clean** / Technical — crisp, schematic, cool.
 - **Notebook** / Whiteboard — loose sketch, hachure warmth, doodled accents.
 - **Cartoon** *(optional)* — bold, very rough, playful.

@@ -23,6 +23,10 @@ under each template are the verified behavior, not theory.
 >   defaults are `fontFamily: 5` and `fontSize: 20` with left/top alignment; the
 >   skill default is `fontSize: 16`, `textAlign: "center"`,
 >   `verticalAlign: "middle"`.
+> - **Default neutral boxes carry the light-warm fill `#fff9db`** (Warm
+>   palette) — see [`color-palette.md`](color-palette.md). Plain neutral
+>   containers take `backgroundColor: "#fff9db"`; role boxes take their
+>   role's fill.
 > - **Ids are input-hints, not output.** You may set ids (they let arrows
 >   bind and text bind to containers), but the emitted elements will carry
 >   fresh random ids. Never rely on an id surviving `elements.add`.
@@ -79,7 +83,7 @@ under each template are the verified behavior, not theory.
 
 ```json
 { "type": "rectangle", "x": 100, "y": 100, "width": 180, "height": 90,
-  "strokeColor": "#1e1e1e",
+  "strokeColor": "#1e1e1e", "backgroundColor": "#fff9db",
   "fillStyle": "solid", "strokeWidth": 2, "roughness": 1, "opacity": 100,
   "roundness": { "type": 3 } }
 ```
@@ -88,9 +92,10 @@ under each template are the verified behavior, not theory.
 - Verified: geometry preserved; defaults filled (`fillStyle: "solid"`,
   `angle: 0`, `boundElements: null`). **`roundness` omitted → `null` (sharp
   corners)**; setting `{ "type": 3 }` produces the soft rounded corners that are
-  the Sketch default. No `backgroundColor` above = transparent neutral (ink
-  outline box); add a Warm fill from `color-palette.md` when the box carries
-  meaning.
+  the Sketch default. `backgroundColor: "#fff9db"` above is the Sketch
+  neutral default (浅暖奶油底 — every default box carries a shallow warm
+  fill); role/emphasis boxes swap it for their role's fill from
+  `color-palette.md`.
 
 ## Text-in-shape (bound label)
 
@@ -191,7 +196,7 @@ The binding-close input form uses `start`/`end` (linear-element style) —
   spine stays reliable to bind and route. Curved arrows live in the liveliness
   toolbox below.
 
-## Liveliness toolbox (Sketch / Notebook / Cartoon — closed in Clean)
+## Liveliness toolbox (Sketch / Notebook / Cartoon — closed in Clean; **default-on** in Sketch)
 
 The hand-drawn vocabulary the old skill never used. Schema-supported; the
 transform behavior is pinned in

@@ -11,7 +11,7 @@ Prerequisites: a **paired connection** and an **activated canvas** (see
 
 ## 0. Plan before you touch the canvas
 
-0. **Pick a visual style preset** (default **Sketch** — hand-drawn, warm).
+0. **Pick a visual style preset** (default **Sketch** — rich, colorful, lively hand-drawn).
    Infer from the user's words: "技术 / 架构 / 示意 / clean / technical" →
    Clean; "草稿 / 白板 / 头脑风暴 / draft / whiteboard" → Notebook;
    "卡通 / playful" → Cartoon; unstated → Sketch. Say in one line which
@@ -154,6 +154,11 @@ These follow the preset you picked in step 0 (see
   every text element (canvas defaults are 5/20 — see `element-templates.md`).
 - Colors from `color-palette.md` only — **Warm** for Sketch/Notebook/Cartoon,
   **Slate** for Clean.
+- Neutral boxes default to the light-warm fill `#fff9db` (浅暖奶油底); roles
+  use the full Warm palette (多色同框允许) — see `color-palette.md`.
+- Liveliness toolbox **default-on** in Sketch: curved routes for non-spine
+  connections, freedraw underline/circle accents on key terms, hachure on
+  non-text regions, semantically varied arrowheads.
 
 ## 5. What NOT to do
 
@@ -175,7 +180,7 @@ Goal: a two-box flow — "input" → "pipeline" — with one arrow and a caption
 ```bash
 $BIN elements.add '{"elements":[
   {"type":"rectangle","id":"input","x":100,"y":200,"width":180,"height":90,
-   "strokeColor":"#1e1e1e","fillStyle":"solid",
+   "strokeColor":"#1e1e1e","backgroundColor":"#fff9db","fillStyle":"solid",
    "strokeWidth":2,"roughness":1,"opacity":100,"roundness":{"type":3},
    "label":{"text":"Input","fontFamily":5,"fontSize":16,
             "textAlign":"center","verticalAlign":"middle"}},

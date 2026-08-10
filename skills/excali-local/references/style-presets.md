@@ -21,21 +21,24 @@ canvas; it steers the whole drawing.
 
 | Preset | One-liner | Palette | Primary font | When |
 | --- | --- | --- | --- | --- |
-| **Sketch** *(default)* | Excalidraw's signature hand-drawn, warm, lively | Warm | handwriting (5) | anything without a style qualifier |
+| **Sketch** *(default)* | Excalidraw's rich, colorful, lively hand-drawn look (多彩活泼手绘) | Warm | handwriting (5) | anything without a style qualifier |
 | **Clean** / Technical | crisp, schematic, cool, readable | Slate | normal (6) | "技术 / 架构 / 示意图 / clean / technical / schematic" |
 | **Notebook** / Whiteboard | loose sketch, hachure warmth, doodled accents | Warm | handwriting (5) | "草稿 / 白板 / 头脑风暴 / draft / whiteboard / brainstorm" |
 | **Cartoon** *(optional)* | bold, very rough, saturated, playful | Warm (saturated) | handwriting (5), larger | "卡通 / 可爱 / 活泼夸张 / cartoon / playful" |
 
 ## Sketch (the default)
 
-The Excalidraw look. This is what the canvas produces unless the user signals
-otherwise.
+The Excalidraw look — rich, colorful, and lively: every default box carries a
+shallow warm fill, roles use the full Warm palette, titles/hero/caption take
+accent colors, and the liveliness toolbox is on. This is what the canvas
+produces unless the user signals otherwise.
 
 | Knob | Default | Notes |
 | --- | --- | --- |
 | `roughness` | `1` | hand-drawn, organic |
 | `roundness` | `{ "type": 3 }` | soft rounded corners on shapes |
 | `fillStyle` | `"solid"` | `"hachure"` allowed as optional warmth on **light** fills; dark/inverted fills stay `"solid"` |
+| neutral-container `backgroundColor` | `#fff9db` (浅暖奶油底) | every default box gets a shallow warm fill; role fills on top — see `color-palette.md` |
 | `strokeWidth` | `2` | `1` hairlines, `3` hero/emphasis |
 | `opacity` | `100` | always |
 | ink / text `strokeColor` | Warm ink (see `color-palette.md`) | `#1e1e1e`, warm-neutral near-black |
@@ -44,8 +47,10 @@ otherwise.
 - **Font hierarchy:** handwriting slot (`fontFamily: 5`) is the primary face for
   titles, labels, and body. Code slot (`fontFamily: 8`) is reserved for actual
   code / evidence snippets only.
-- **Liveliness toolbox:** full (see appendix) — use as the diagram argues, not
-  on everything.
+- **Liveliness toolbox:** **default-on** — curved connections for non-spine
+  routes, freedraw underline/circle accents on key terms, hachure on non-text
+  regions, semantically varied arrowheads. Every accent must still argue (no
+  decoration for its own sake).
 
 ## Clean / Technical
 
@@ -116,8 +121,8 @@ it.
    - "卡通 / 可爱 / 活泼夸张 / cartoon / playful" → **Cartoon**
    - anything else / unstated → **Sketch**
 3. **Say it out loud.** Before drawing, state in one line which preset you're
-   using and why ("I'll use Sketch — warm hand-drawn, since you didn't ask for a
-   schematic"). This lets the user correct you cheaply. Don't bury it.
+   using and why ("I'll use Sketch — rich colorful hand-drawn, since you didn't
+   ask for a schematic"). This lets the user correct you cheaply. Don't bury it.
 4. **A preset is a starting point, not a cage.** Override an individual knob
    when a specific element argues for it (e.g., a hachure highlight inside an
    otherwise-solid Sketch diagram). The appendix below is the menu of every knob
@@ -139,6 +144,9 @@ are the only style knobs Excalidraw exposes; nothing else affects character.
 | `fontFamily` | `5` handwriting · `6` normal · `8` code | `5` primary in Sketch/Notebook/Cartoon; `6` primary in Clean; `8` only for real code |
 
 ### Liveliness toolbox (Sketch / Notebook / Cartoon; closed in Clean)
+> **In Sketch this toolbox is default-on** — curved routes, freedraw accents,
+> hachure regions, and varied arrowheads are the Sketch default; accents still
+> argue, decoration is noise. Notebook leans in further; Cartoon is maximal.
 
 - **Arrowhead variety** — encode semantics in the head itself (dot = origin,
   bar = terminate, triangle = strong direction).
