@@ -49,13 +49,30 @@ class FakeWs implements BridgeWs {
   lastSentJson(): Record<string, unknown> {
     return JSON.parse(this.sent[this.sent.length - 1]);
   }
-  private emit(type: string, event?: unknown) {
+  protected emit(type: string, event?: unknown) {
     for (const l of [...this.listeners[type]]) l(event);
+  }
+}
+
+/**
+ * FakeWs whose close() does NOT fire the close event until the test drives it
+ * (readyState sits at CLOSING) — lets a test hold a socket in the exact
+ * "close frame in flight" state the drain gate must wait out.
+ */
+class FakeWsDeferredClose extends FakeWs {
+  override close(): void {
+    this.readyState = 2; // CLOSING — close event deferred
+  }
+  fireClose(): void {
+    this.readyState = 3;
+    this.emit("close");
   }
 }
 
 const origin = "chrome-extension://test-extension-id";
 const token = "a".repeat(64); // 256-bit hex
+const profileIdA = "11111111-2222-4333-8444-555555555555";
+const profileIdB = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 const FAST = { handshakeTimeoutMs: 50, pingTimeoutMs: 50 };
 
 const socketsOf = (sockets: FakeWs[]) => (url: string): BridgeWs => {
@@ -431,5 +448,105 @@ describe("AgentBridgeSession", () => {
     expect(session.currentStatus).toBe("connected");
 
     session.stop();
+  });
+
+  /** Drive probe + live sockets for the deferred-close factory (each socket's
+   * close event must be fired manually to release the drain gate). */
+  const deferredConnect = async (sockets: FakeWs[], from: number) => {
+    await vi.waitFor(() => expect(sockets.length).toBeGreaterThan(from));
+    sockets[from].open();
+    sockets[from].message(JSON.stringify({ type: "handshake_ok" }));
+    (sockets[from] as FakeWsDeferredClose).fireClose(); // probe close → drain → live dial
+    await vi.waitFor(() => expect(sockets.length).toBeGreaterThan(from + 1));
+    sockets[from + 1].open();
+    sockets[from + 1].message(JSON.stringify({ type: "handshake_ok" }));
+  };
+
+  test("drain gate: a same-profile re-dial waits for the previous socket's close event (stop→start)", async () => {
+    const sockets: FakeWs[] = [];
+    const wsFactory = (url: string): BridgeWs => {
+      const ws = new FakeWsDeferredClose();
+      sockets.push(ws);
+      return ws;
+    };
+    const opts = {
+      ports: [17331],
+      origin,
+      token,
+      profileId: profileIdA,
+      wsFactory,
+      reconnectBaseMs: 5,
+      reconnectMaxMs: 5,
+      ...FAST,
+    };
+
+    // Session 1 connects (probe s0 + live s1).
+    const s1 = new AgentBridgeSession(opts);
+    s1.start();
+    await deferredConnect(sockets, 0);
+    await vi.waitFor(() => expect(s1.currentStatus).toBe("connected"));
+
+    // Drop s1's live socket: it enters CLOSING but its close event has NOT
+    // fired yet (close frame in flight). stop() registers the drain gate for
+    // the profile.
+    sockets[1].close();
+    s1.stop();
+
+    // Session 2 (SAME profile) starts immediately — its first dial must wait
+    // for the previous socket's close event. No new socket may appear.
+    const s2 = new AgentBridgeSession(opts);
+    s2.start();
+    await new Promise((r) => setTimeout(r, 40));
+    expect(sockets.length).toBe(2); // gate holds: no probe before CLOSED
+
+    // Old socket reaches CLOSED → gate releases → session 2 dials (probe + live).
+    (sockets[1] as FakeWsDeferredClose).fireClose();
+    await vi.waitFor(() => expect(sockets.length).toBeGreaterThanOrEqual(3));
+    sockets[2].open();
+    sockets[2].message(JSON.stringify({ type: "handshake_ok" }));
+    (sockets[2] as FakeWsDeferredClose).fireClose(); // probe close → drain → live
+    await vi.waitFor(() => expect(sockets.length).toBeGreaterThanOrEqual(4));
+    sockets[3].open();
+    sockets[3].message(JSON.stringify({ type: "handshake_ok" }));
+    await vi.waitFor(() => expect(s2.currentStatus).toBe("connected"));
+
+    s1.stop();
+    s2.stop();
+  });
+
+  test("drain gate: a DIFFERENT profile's dial is not gated (genuine displacement unaffected)", async () => {
+    const sockets: FakeWs[] = [];
+    const wsFactory = (url: string): BridgeWs => {
+      const ws = new FakeWsDeferredClose();
+      sockets.push(ws);
+      return ws;
+    };
+    const base = {
+      ports: [17331],
+      origin,
+      token,
+      wsFactory,
+      reconnectBaseMs: 5,
+      reconnectMaxMs: 5,
+      ...FAST,
+    };
+
+    const s1 = new AgentBridgeSession({ ...base, profileId: profileIdA });
+    s1.start();
+    await deferredConnect(sockets, 0);
+    await vi.waitFor(() => expect(s1.currentStatus).toBe("connected"));
+
+    // s1's live socket enters CLOSING (close event deferred).
+    sockets[1].close();
+
+    // A second session for a DIFFERENT profile dials immediately — no gate
+    // for profileIdB, so genuine same/different-profile displacement still works.
+    const s2 = new AgentBridgeSession({ ...base, profileId: profileIdB });
+    s2.start();
+    await vi.waitFor(() => expect(sockets.length).toBeGreaterThanOrEqual(3));
+    expect(s2.currentStatus).toBe("connecting");
+
+    s1.stop();
+    s2.stop();
   });
 });

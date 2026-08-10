@@ -25,6 +25,8 @@
  */
 
 import { join } from "node:path";
+import { homedir } from "node:os";
+import { readFileSync, statSync } from "node:fs";
 import { mintBridgeToken } from "excali-shared";
 import { run, hereDir } from "../_run";
 import {
@@ -34,9 +36,9 @@ import {
 } from "../../packages/excali-page/src/features/editor/lib/agent-bridge-client";
 
 const origin = process.env.ORIGIN ?? "chrome-extension://abcdabcdabcdabcdabcdabcdabcdabcd";
-// Per-profile identity uuids (goal 3) — REQUIRED by the daemon for page roles.
 const profileA = "11111111-2222-4333-8444-555555555555";
 const profileB = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+const profileStorm = "dddddddd-eeee-4fff-8000-111111111111";
 const bin =
   process.env.EXCALI_BRIDGE_BIN ??
   join(hereDir(import.meta.url), "../../packages/excali-bridge/bin/excali-bridge");
@@ -198,6 +200,111 @@ if (a.currentStatus !== "stopped") {
 const okB = await b.ping();
 b.stop();
 
+// --- Phase 3: CONTROL-role reconnect storm — no self-displacement ----------
+// A control-page session for ONE profile is dropped and re-dialed rapidly.
+// Two shapes of the same race: the NEW handshake arriving while the daemon is
+// still processing the OLD socket's close frame. registerControl (server.go:325)
+// then treats the re-dial as a same-profile takeover and logs "displacing prior
+// control page (same profile)" + sends a spurious `displaced` — self-inflicted.
+//   3a stop → immediate re-start cycles: each new session dials with the old
+//      close frame still in flight (the exact drop → re-dial window);
+//   3b forced drops inside one session: run()'s drop → re-dial loop.
+// The daemon log delta over both must contain ZERO displacement lines, and the
+// session must settle healthy (pings round-trip).
+const logPath = join(homedir(), ".excali-local", "bridge.log");
+const logBefore = statSync(logPath).size;
+const STORM_CYCLES = 30;
+
+// --- 3a: stop → immediate re-start cycles (same profile) -------------------
+let stopStartCycles = 0;
+for (let i = 0; i < STORM_CYCLES; i++) {
+  await withTimeout(
+    new Promise<void>((resolve) => {
+      const s = new AgentBridgeSession({
+        origin,
+        token: mintBridgeToken(),
+        profileId: profileStorm,
+        role: "control-page",
+        wsFactory,
+        reconnectBaseMs: 0,
+        reconnectMaxMs: 0,
+        handshakeTimeoutMs: 500,
+        onStatus: (status) => {
+          if (status === "connected") {
+            stopStartCycles += 1;
+            s.stop(); // close frame in flight — the next cycle dials immediately
+            resolve();
+          }
+        },
+      });
+      s.start();
+    }),
+    TIMEOUT_MS,
+    `storm-3a cycle ${i}`,
+  );
+}
+console.log(`[driver] storm 3a: ${stopStartCycles} stop→re-dial cycles (same profile)`);
+
+// --- 3b: forced-drop reconnects inside one session -------------------------
+let stormConnects = 0;
+let stormDone = false;
+const stormSockets: BridgeWs[] = [];
+const stormWsFactory = (url: string): BridgeWs => {
+  const ws = new WebSocket(url, {
+    headers: { Origin: origin },
+  }) as unknown as BridgeWs;
+  stormSockets.push(ws);
+  return ws;
+};
+const storm = new AgentBridgeSession({
+  origin,
+  token: mintBridgeToken(),
+  profileId: profileStorm,
+  role: "control-page",
+  wsFactory: stormWsFactory,
+  reconnectBaseMs: 0,
+  reconnectMaxMs: 0,
+  handshakeTimeoutMs: 500,
+  onStatus: (status) => {
+    if (status === "connected" && !stormDone) {
+      stormConnects += 1;
+      // Force an immediate drop: run() re-dials right away, exercising the
+      // drop → re-dial race against the real daemon (the daemon answers app
+      // pings, so keepalive alone can't drop a healthy connection).
+      const live = [...stormSockets].reverse().find((s) => s.readyState === 1);
+      live?.close();
+    }
+  },
+});
+storm.start();
+await withTimeout(
+  waitFor(() => stormConnects >= STORM_CYCLES, 20000, "storm 3b rapid reconnects"),
+  TIMEOUT_MS + 10000,
+  "storm-3b",
+);
+stormDone = true;
+await withTimeout(
+  waitFor(() => storm.currentStatus === "connected", 8000, "storm 3b settles connected"),
+  TIMEOUT_MS,
+  "storm-3b settle",
+);
+const stormPings: boolean[] = [];
+for (let i = 0; i < 3; i++) stormPings.push((await storm.ping()) ?? false);
+storm.stop();
+
+const logDelta = readFileSync(logPath, "utf8").slice(logBefore);
+const selfDisplacements = (logDelta.match(/displacing prior control page/g) ?? []).length;
+console.log(
+  `[driver] storm: ${stopStartCycles} stop→re-dial + ${stormConnects} forced-drop reconnects, ${selfDisplacements} self-displacement line(s) in daemon log delta`,
+);
+if (selfDisplacements > 0) {
+  fail(`storm: daemon logged ${selfDisplacements} self-inflicted control displacement(s)`);
+}
+if (stormPings.some((p) => !p)) {
+  fail("storm: pings did not round-trip after the storm settled");
+} else {
+  console.log("[driver] storm: pings round-trip after the storm ✔");
+}
 // --- verdict ----------------------------------------------------------------
 console.log(
   ok1

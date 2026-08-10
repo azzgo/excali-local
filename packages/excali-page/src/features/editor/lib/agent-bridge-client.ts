@@ -47,9 +47,65 @@ export const defaultWsFactory: WsFactory = (url) => new WebSocket(url);
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
+// ---------------------------------------------------------------------------
+// Per-profile close-drain gate (goal 1, task 008)
+// ---------------------------------------------------------------------------
+// The daemon unregisters a profile's control connection only after its read
+// loop processes the close frame. A re-dial for the SAME profile that wins that
+// race makes the daemon treat the fresh handshake as a takeover of the OLD
+// (already-closing) connection — registerControl logs "displacing prior control
+// page (same profile)" and sends a spurious `displaced` (server.go). The gate
+// below serializes dials per profile: a new dial waits for the previous socket
+// to reach CLOSED (bounded, so a dead socket can never wedge reconnects) plus a
+// small drain delay, guaranteeing the daemon has already processed the old
+// close frame. Purely client-side timing — zero protocol change.
+
+/** Extra wait after a socket reaches CLOSED before a replacement dial for the
+ * same profile (loopback close-frame processing is microseconds-to-a-few-ms). */
+export const BRIDGE_CLOSE_DRAIN_MS = 10;
+
+/** Cap on waiting for the previous socket's close event. On loopback the close
+ * handshake completes in µs; the cap only matters for a half-dead socket whose
+ * close event may never fire — future dials must not block on it forever. */
+const BRIDGE_CLOSE_DRAIN_CAP_MS = 250;
+
+const profileDrains = new Map<string, Promise<void>>();
+
+/** Resolve once `socket` has reached CLOSED (close event fired) or the cap elapsed. */
+function waitSocketClosed(socket: BridgeWs, capMs: number): Promise<void> {
+  if (socket.readyState === WS_CLOSED) return Promise.resolve();
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, capMs);
+    const onClose = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    socket.addEventListener("close", onClose);
+  });
+}
+
+/** Record that a socket for `profileId` is closing — later dials must drain it. */
+function registerProfileDrain(profileId: string | undefined, socket: BridgeWs | null): void {
+  if (!profileId || !socket) return;
+  const drain = waitSocketClosed(socket, BRIDGE_CLOSE_DRAIN_CAP_MS).then(() =>
+    sleep(BRIDGE_CLOSE_DRAIN_MS),
+  );
+  profileDrains.set(profileId, drain);
+  void drain.then(() => {
+    // Clear only if still the latest gate (a newer close supersedes it).
+    if (profileDrains.get(profileId) === drain) profileDrains.delete(profileId);
+  });
+}
+
+/** Await the previous socket for `profileId` reaching CLOSED + the drain delay. */
+async function awaitProfileDrain(profileId: string | undefined): Promise<void> {
+  const drain = profileId ? profileDrains.get(profileId) : undefined;
+  if (drain) await drain;
+}
+
 // WebSocket readyState values (numeric — avoids depending on the global's constant)
 const WS_OPEN = 1;
-
+const WS_CLOSED = 3;
 // ---------------------------------------------------------------------------
 // Single connection + token handshake
 // ---------------------------------------------------------------------------
@@ -154,6 +210,9 @@ export class AgentBridgeClient {
       const onClose = () => {
         this.closed = true;
         finish(false);
+        // Any close (ours or the daemon's) must be drained before a same-profile
+        // re-dial — see the drain-gate block above.
+        registerProfileDrain(this.opts.profileId, ws);
         this.onClose?.();
       };
 
@@ -199,7 +258,7 @@ export class AgentBridgeClient {
   }
 
   close(): void {
-	this.closed = true;
+    this.closed = true;
     if (this.pongWait) {
       clearTimeout(this.pongWait.timer);
       const w = this.pongWait;
@@ -209,12 +268,17 @@ export class AgentBridgeClient {
     const resolve = this.connectResolve;
     this.connectResolve = null;
     if (resolve) resolve(false);
+    const ws = this.ws;
     try {
-      this.ws?.close();
+      ws?.close();
     } catch {
       /* already closed */
     }
-    this.ws = null;
+    // Retain this.ws (the client is single-use): the drain gate observes the
+    // socket actually reaching CLOSED before a replacement dial for this
+    // profile. isOpen/sendJSON/ping all guard on this.closed, so a retained
+    // closed socket is inert.
+    registerProfileDrain(this.opts.profileId, ws);
   }
 }
 
@@ -357,6 +421,13 @@ export class AgentBridgeSession {
         attempt,
       });
 
+      // Drain the previous socket for this profile before ANY new dial: the
+      // daemon unregisters a profile's control connection only after its read
+      // loop processes the close frame, so a re-dial that wins that race would
+      // be treated as a same-profile takeover ("displacing prior control page")
+      // — self-inflicted displacement. Bounded, so a dead socket can never
+      // wedge the reconnect loop.
+      await awaitProfileDrain(this.opts.profileId);
       const port = await findBridgePort({
         ports: this.opts.ports,
         origin: this.opts.origin,
@@ -378,6 +449,9 @@ export class AgentBridgeSession {
       }
 
       this.preferredPort = port;
+      // The scan probe just registered + closed a socket for this profile
+      // inside findBridgePort — drain it before the live dial (same race).
+      await awaitProfileDrain(this.opts.profileId);
       const client = new AgentBridgeClient({
         url: `ws://127.0.0.1:${port}`,
         origin: this.opts.origin,
@@ -392,6 +466,9 @@ export class AgentBridgeSession {
       client.onInbound = (msg) => this.opts.onInbound?.(msg);
       const ok = await client.connect();
       if (!ok) {
+        // Never registered (no handshake_ok) — but close the socket anyway so
+        // the drain gate covers it and the daemon does not hold a zombie conn.
+        client.close();
         this.client = null;
         attempt += 1;
         await sleep(this.backoff(attempt));
