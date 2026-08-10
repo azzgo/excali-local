@@ -241,32 +241,86 @@ export async function findBridgePort(
   opts: FindBridgePortOptions,
 ): Promise<number | null> {
   const ports = opts.ports ?? BRIDGE_PORTS;
-  const order =
-    opts.preferredPort != null
-      ? [opts.preferredPort, ...ports.filter((p) => p !== opts.preferredPort)]
-      : [...ports];
-  for (const port of order) {
-    if (opts.signal?.aborted) return null;
-    const client = new AgentBridgeClient({
-      url: `ws://127.0.0.1:${port}`,
-      origin: opts.origin,
-      token: opts.token,
-      role: opts.role,
-      profileId: opts.profileId,
-      wsFactory: opts.wsFactory,
-      handshakeTimeoutMs: opts.handshakeTimeoutMs,
+  const preferred = opts.preferredPort;
+
+  /**
+   * Probe `targets` in parallel: fire one connect() per port at once, settle
+   * on the first successful handshake (caller order breaks same-tick ties),
+   * close every probe client (winner included — callers dial their own live
+   * socket), and resolve null when all probes fail or the signal aborts.
+   */
+  const race = async (targets: readonly number[]): Promise<number | null> => {
+    if (targets.length === 0 || opts.signal?.aborted) return null;
+
+    const probes: Array<{ port: number; result: Promise<boolean> }> = [];
+    const clients: AgentBridgeClient[] = [];
+    for (const port of targets) {
+      const client = new AgentBridgeClient({
+        url: `ws://127.0.0.1:${port}`,
+        origin: opts.origin,
+        token: opts.token,
+        role: opts.role,
+        profileId: opts.profileId,
+        wsFactory: opts.wsFactory,
+        handshakeTimeoutMs: opts.handshakeTimeoutMs,
+      });
+      clients.push(client);
+      probes.push({ port, result: client.connect() });
+    }
+
+    let settle: (port: number | null) => void = () => {};
+    const settled = new Promise<number | null>((resolve) => {
+      settle = resolve;
     });
-    const ok = await client.connect();
-    if (opts.signal?.aborted) {
-      client.close();
-      return null;
+
+    const onAbort = () => {
+      for (const c of clients) c.close();
+      settle(null);
+    };
+    opts.signal?.addEventListener("abort", onAbort, { once: true });
+
+    // Ports that answered handshake_ok so far (any order).
+    const resolved: number[] = [];
+    // Deferred decision: queued a microtask after a success so that sibling
+    // successes in the same tick are accounted for — the first port in caller
+    // order wins ties.
+    const decide = () => {
+      for (const port of targets) {
+        if (resolved.includes(port)) {
+          settle(port);
+          return;
+        }
+      }
+    };
+
+    let pending = probes.length;
+    for (const { port, result } of probes) {
+      void result.then((ok) => {
+        pending -= 1;
+        if (ok) {
+          resolved.push(port);
+          void Promise.resolve().then(decide);
+        } else if (pending === 0) {
+          settle(null);
+        }
+      });
     }
-    if (ok) {
-      client.close();
-      return port;
-    }
+
+    const winner = await settled;
+    opts.signal?.removeEventListener("abort", onAbort);
+    for (const c of clients) c.close();
+    return winner;
+  };
+
+  // Cached path: probe the preferred port alone; fall through on failure.
+  if (preferred != null && ports.includes(preferred)) {
+    const hit = await race([preferred]);
+    if (hit !== null) return hit;
   }
-  return null;
+
+  const rest =
+    preferred != null ? ports.filter((p) => p !== preferred) : [...ports];
+  return race(rest);
 }
 
 // ---------------------------------------------------------------------------
