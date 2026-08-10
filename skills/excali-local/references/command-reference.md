@@ -184,11 +184,11 @@ editor page reloads — every page-side font write returns
 2. **Ask the user to reload the editor page** (or do it via the editor's own
    reload affordance — you have no reload command). Fonts now inject.
 3. Set the per-element `fontFamily` on text elements you emit — the slots map
-   to Excalidraw fontFamily ids: `handwriting → 1`, `normal → 2`, `code → 3`
+   to Excalidraw fontFamily ids: `handwriting → 5`, `normal → 6`, `code → 8`
    (element templates carry `fontFamily` explicitly). The canvas's appState
    default font is NOT sufficient — set it on each text element.
    Which slot is the default depends on the preset — Sketch/Notebook/Cartoon
-   use handwriting `1` as the primary face; Clean uses normal `2`; see
+   use handwriting `5` as the primary face; Clean uses normal `6`; see
    [`style-presets.md`](style-presets.md).
 
 Hot font-swap without a reload is out of scope for this skill — do not

@@ -23,7 +23,7 @@ import {
  *     remapping, never preserved in the output. scene.update (passthrough)
  *     is the id-preserving path.
  *   - text defaults are fontSize 20 / fontFamily 5 / align left / vertical
- *     top — NOT the skill's recommended 16 / 1|2|3 / center / middle, so
+ *     top — NOT the skill's recommended 16 / 5 / center / middle, so
  *     templates must be explicit.
  *   - roughness defaults to 1 — the skill's default (Sketch) leans into it;
  *     roughness:0 is explicit only for the Clean preset.

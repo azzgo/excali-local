@@ -66,16 +66,16 @@ visually next to the product. Pair with `roughness: 0`, `roundness: null`,
 | Level | fontFamily | fontSize | strokeColor | Use |
 | --- | --- | --- | --- | --- |
 | **Warm (Sketch/Notebook/Cartoon)** | | | | |
-| Title / hero | `1` (handwriting) | 20–24 | Warm ink | section titles, the hero |
-| Body / label | `1` (handwriting) | 16 | Warm ink | labels, annotations |
-| Caption | `1` (handwriting) | 12–14 | `#868e96` | timestamps, ids, marginal notes |
-| Code / evidence | `3` (code) | 12–14 | `#ffffff` (on inverted) / Warm ink | **only** real code, JSON, event names |
+| Title / hero | `5` (handwriting) | 20–24 | Warm ink | section titles, the hero |
+| Body / label | `5` (handwriting) | 16 | Warm ink | labels, annotations |
+| Caption | `5` (handwriting) | 12–14 | `#868e96` | timestamps, ids, marginal notes |
+| Code / evidence | `8` (code) | 12–14 | `#ffffff` (on inverted) / Warm ink | **only** real code, JSON, event names |
 | **Slate (Clean)** | | | | |
-| Title / hero | `2` (normal) or `3` | 20–24 | Slate ink | section titles, the hero |
-| Body | `2` (normal) | 16 | Slate ink | labels, annotations |
-| Caption / evidence | `3` (code) | 12–14 | `#64748b` | code snippets, timestamps, ids |
+| Title / hero | `6` (normal) or `8` | 20–24 | Slate ink | section titles, the hero |
+| Body | `6` (normal) | 16 | Slate ink | labels, annotations |
+| Caption / evidence | `8` (code) | 12–14 | `#64748b` | code snippets, timestamps, ids |
 
-> `fontFamily` slots: `1` = handwriting, `2` = normal, `3` = code
+> `fontFamily` slots: `5` = handwriting, `6` = normal, `8` = code
 > (see [`workflows/install-and-use-a-font.md`](workflows/install-and-use-a-font.md)).
 > Unconfigured slots fall back to Excalidraw's built-in font for that id, so a
 > handwriting primary still renders hand-drawn with zero config.
@@ -93,7 +93,7 @@ visually next to the product. Pair with `roughness: 0`, `roundness: null`,
    better.
 5. **Evidence artifacts** (code, JSON, event names) always get the inverted
    treatment: Warm `#1e1e1e` fill / `#ffffff` stroke or Slate `#274754` /
-   `#ffffff`, with `fontFamily: 3`. Never put hachure behind code.
+   `#ffffff`, with `fontFamily: 8`. Never put hachure behind code.
 6. **Dark-mode canvases:** set `viewBackgroundColor` via `scene.update`, but keep
    the same semantic pairs — they are chosen for contrast on both `#ffffff` and
    a dark background.

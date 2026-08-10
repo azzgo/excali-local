@@ -21,10 +21,10 @@ canvas; it steers the whole drawing.
 
 | Preset | One-liner | Palette | Primary font | When |
 | --- | --- | --- | --- | --- |
-| **Sketch** *(default)* | Excalidraw's signature hand-drawn, warm, lively | Warm | handwriting (1) | anything without a style qualifier |
-| **Clean** / Technical | crisp, schematic, cool, readable | Slate | normal (2) | "技术 / 架构 / 示意图 / clean / technical / schematic" |
-| **Notebook** / Whiteboard | loose sketch, hachure warmth, doodled accents | Warm | handwriting (1) | "草稿 / 白板 / 头脑风暴 / draft / whiteboard / brainstorm" |
-| **Cartoon** *(optional)* | bold, very rough, saturated, playful | Warm (saturated) | handwriting (1), larger | "卡通 / 可爱 / 活泼夸张 / cartoon / playful" |
+| **Sketch** *(default)* | Excalidraw's signature hand-drawn, warm, lively | Warm | handwriting (5) | anything without a style qualifier |
+| **Clean** / Technical | crisp, schematic, cool, readable | Slate | normal (6) | "技术 / 架构 / 示意图 / clean / technical / schematic" |
+| **Notebook** / Whiteboard | loose sketch, hachure warmth, doodled accents | Warm | handwriting (5) | "草稿 / 白板 / 头脑风暴 / draft / whiteboard / brainstorm" |
+| **Cartoon** *(optional)* | bold, very rough, saturated, playful | Warm (saturated) | handwriting (5), larger | "卡通 / 可爱 / 活泼夸张 / cartoon / playful" |
 
 ## Sketch (the default)
 
@@ -41,8 +41,8 @@ otherwise.
 | ink / text `strokeColor` | Warm ink (see `color-palette.md`) | `#1e1e1e`, warm-neutral near-black |
 
 - **Palette:** Warm.
-- **Font hierarchy:** handwriting slot (`fontFamily: 1`) is the primary face for
-  titles, labels, and body. Code slot (`fontFamily: 3`) is reserved for actual
+- **Font hierarchy:** handwriting slot (`fontFamily: 5`) is the primary face for
+  titles, labels, and body. Code slot (`fontFamily: 8`) is reserved for actual
   code / evidence snippets only.
 - **Liveliness toolbox:** full (see appendix) — use as the diagram argues, not
   on everything.
@@ -63,8 +63,8 @@ when the user wants a schematic, an architecture doc, or explicitly "clean."
 
 - **Palette:** Slate (the one derived from the product's UI tokens — only here
   does "diagrams sit next to the product" still apply).
-- **Font hierarchy:** normal slot (`fontFamily: 2`) is primary; code slot
-  (`fontFamily: 3`) for evidence. Readability over warmth.
+- **Font hierarchy:** normal slot (`fontFamily: 6`) is primary; code slot
+  (`fontFamily: 8`) for evidence. Readability over warmth.
 - **Liveliness toolbox:** closed. Straight arrows, single `arrow` arrowhead,
   `solid` strokes only. No freedraw accents.
 
@@ -136,7 +136,7 @@ are the only style knobs Excalidraw exposes; nothing else affects character.
 | `strokeWidth` | `1` hairline · `2` structure · `3` hero/emphasis | |
 | `strokeStyle` | `solid` · `dashed` (optional/weak link) · `dotted` (tentative/inferred) | second channel of meaning, not decoration |
 | arrowheads | `arrow` (default) · `dot`/`circle` (start marker) · `triangle` · `bar` (terminate) | set `startArrowhead`/`endArrowhead` independently |
-| `fontFamily` | `1` handwriting · `2` normal · `3` code | `1` primary in Sketch/Notebook/Cartoon; `2` primary in Clean; `3` only for real code |
+| `fontFamily` | `5` handwriting · `6` normal · `8` code | `5` primary in Sketch/Notebook/Cartoon; `6` primary in Clean; `8` only for real code |
 
 ### Liveliness toolbox (Sketch / Notebook / Cartoon; closed in Clean)
 

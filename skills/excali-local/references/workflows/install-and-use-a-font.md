@@ -5,9 +5,12 @@ Excalidraw's per-element `fontFamily` ids:
 
 | Slot | fontFamily | Role |
 | --- | --- | --- |
-| `handwriting` | `1` | handwritten-style font |
-| `normal` | `2` | body/regular font |
-| `code` | `3` | monospace/code font |
+| `handwriting` | `5` | handwritten-style font |
+| `normal` | `6` | body/regular font |
+| `code` | `8` | monospace/code font |
+> **Legacy compat:** old ids `1`/`2`/`3` (Virgil/Helvetica/Cascadia) are
+> deprecated in csp.14; only Excalifont (`5`) carries the CJK hand-drawn
+> fallback, so Chinese renders hand-written via `5`.
 
 **The fog to know about:** fonts inject **once at page boot**. Every
 page-side font write returns `{ config, requiresReload: true }` — the change
@@ -61,7 +64,7 @@ appState default font is NOT sufficient — every text element carries its own
 
 ```json
 { "type": "text", "text": "const x = 1;",
-  "fontFamily": 3, "fontSize": 14,          // 3 = the code slot you configured
+  "fontFamily": 8, "fontSize": 14,          // 8 = the code slot you configured
   "textAlign": "left", "verticalAlign": "top",
   "strokeColor": "#64748b", "strokeWidth": 2, "roughness": 1, "opacity": 100 }
 ```

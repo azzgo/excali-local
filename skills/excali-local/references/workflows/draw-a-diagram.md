@@ -149,8 +149,8 @@ These follow the preset you picked in step 0 (see
 - `strokeWidth` 1/2/3 — never arbitrary; use 1 for hairlines, 2 for
   structure, 3 for the hero/emphasis.
 - `opacity: 100` always.
-- `fontFamily` 1 (handwriting) primary for Sketch/Notebook/Cartoon; `2` (normal)
-  for Clean; `3` (code) **only for real code/evidence**. `fontSize` explicit on
+- `fontFamily` 5 (handwriting) primary for Sketch/Notebook/Cartoon; `6` (normal)
+  for Clean; `8` (code) **only for real code/evidence**. `fontSize` explicit on
   every text element (canvas defaults are 5/20 — see `element-templates.md`).
 - Colors from `color-palette.md` only — **Warm** for Sketch/Notebook/Cartoon,
   **Slate** for Clean.
@@ -177,18 +177,18 @@ $BIN elements.add '{"elements":[
   {"type":"rectangle","id":"input","x":100,"y":200,"width":180,"height":90,
    "strokeColor":"#1e1e1e","fillStyle":"solid",
    "strokeWidth":2,"roughness":1,"opacity":100,"roundness":{"type":3},
-   "label":{"text":"Input","fontFamily":1,"fontSize":16,
+   "label":{"text":"Input","fontFamily":5,"fontSize":16,
             "textAlign":"center","verticalAlign":"middle"}},
   {"type":"rectangle","id":"pipeline","x":420,"y":200,"width":180,"height":90,
    "strokeColor":"#1e1e1e","backgroundColor":"#ffec99","fillStyle":"solid",
    "strokeWidth":2,"roughness":1,"opacity":100,"roundness":{"type":3},
-   "label":{"text":"Pipeline","fontFamily":1,"fontSize":16,
+   "label":{"text":"Pipeline","fontFamily":5,"fontSize":16,
             "textAlign":"center","verticalAlign":"middle"}},
   {"type":"arrow","x":280,"y":245,"width":140,"height":0,
    "points":[[0,0],[140,0]],
    "strokeColor":"#1e1e1e","strokeWidth":2,"roughness":1,"opacity":100,
    "start":{"id":"input"},"end":{"id":"pipeline"}},
-  {"type":"text","x":280,"y":270,"text":"feeds","fontFamily":1,"fontSize":14,
+  {"type":"text","x":280,"y":270,"text":"feeds","fontFamily":5,"fontSize":14,
    "textAlign":"center","verticalAlign":"middle",
    "strokeColor":"#868e96","strokeWidth":2,"roughness":1,"opacity":100}
 ]}'

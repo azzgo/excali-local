@@ -17,8 +17,8 @@ under each template are the verified behavior, not theory.
 > - **Default `roundness: { "type": 3 }`** on shapes — soft rounded corners.
 >   Omit it (→ `null`, sharp corners) for the Clean preset.
 > - **Always set `strokeWidth`** (1/2/3 per the methodology) and `opacity: 100`.
-> - **Default text font is `fontFamily: 1` (handwriting)** for
->   Sketch/Notebook/Cartoon; `2` (normal) for Clean; `3` (code) **only for real
+> - **Default text font is `fontFamily: 5` (handwriting)** for
+>   Sketch/Notebook/Cartoon; `6` (normal) for Clean; `8` (code) **only for real
 >   code/evidence**. Always set `fontFamily` and `fontSize` — the transform's
 >   defaults are `fontFamily: 5` and `fontSize: 20` with left/top alignment; the
 >   skill default is `fontSize: 16`, `textAlign: "center"`,
@@ -36,7 +36,7 @@ under each template are the verified behavior, not theory.
 
 ```json
 { "type": "text", "x": 0, "y": 0, "text": "Hello",
-  "fontFamily": 1, "fontSize": 16,
+  "fontFamily": 5, "fontSize": 16,
   "textAlign": "center", "verticalAlign": "middle",
   "strokeColor": "#1e1e1e", "strokeWidth": 2, "roughness": 1, "opacity": 100 }
 ```
@@ -44,7 +44,7 @@ under each template are the verified behavior, not theory.
 - Verified: normalizes with id, `originalText` = text, `containerId: null`,
   `autoResize: true`, width/height computed from the text metrics, JSON
   round-trip stable (style + geometry survive re-normalization).
-- `fontFamily` 1 = handwriting slot, 2 = normal slot, 3 = code slot — see
+- `fontFamily` 5 = handwriting slot, 6 = normal slot, 8 = code slot — see
   [`workflows/install-and-use-a-font.md`](workflows/install-and-use-a-font.md).
   An unconfigured slot falls back to Excalidraw's built-in font for that id, so
   a handwriting primary renders hand-drawn with zero font setup.
@@ -102,7 +102,7 @@ NOT a `containerId` on a separate text element:
   "strokeColor": "#1e1e1e", "backgroundColor": "#ffec99",
   "fillStyle": "solid", "strokeWidth": 2, "roughness": 1, "opacity": 100,
   "roundness": { "type": 3 },
-  "label": { "text": "Title", "fontFamily": 1, "fontSize": 16,
+  "label": { "text": "Title", "fontFamily": 5, "fontSize": 16,
              "textAlign": "center", "verticalAlign": "middle" } }
 ```
 

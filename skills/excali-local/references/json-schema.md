@@ -85,7 +85,7 @@ If you edit an arrow's bindings via `scene.update`, keep the arrow's
 | Key | Add-input | Notes |
 | --- | --- | --- |
 | `text` | **required** | the readable words; `originalText` is derived |
-| `fontFamily` | **required** | `1` handwriting, `2` normal, `3` code (see fonts workflow); Sketch/Notebook/Cartoon default `1` (handwriting primary), Clean defaults `2`; `3` **only for real code**; **canvas default is 5** — always set it |
+| `fontFamily` | **required** | `5` handwriting, `6` normal, `8` code (see fonts workflow); Sketch/Notebook/Cartoon default `5` (handwriting primary), Clean defaults `6`; `8` **only for real code**; **canvas default is 5** — always set it |
 | `fontSize` | **required** | methodology default `16`; **canvas default is 20** — always set it |
 | `textAlign` | recommended | `left` | `center` | `right`; canvas default `left` — set `center` for labels |
 | `verticalAlign` | recommended | `top` | `middle` | `bottom`; canvas default `top` — set `middle` for labels |
