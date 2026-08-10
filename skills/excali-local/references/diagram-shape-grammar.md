@@ -20,8 +20,9 @@ gaps; this file just stops them from drawing a decision as a rectangle.
   `diamond`.
 - Connect with bound `arrow`s; default direction top→down or left→right, one
   direction per diagram.
-- Reserve one accent color (a Warm/Slate semantic pair) for the happy path or
-  the pivotal decision — everything else neutral.
+- Reserve the accent pair (a Warm/Slate emphasis role) for the happy path or
+  the pivotal decision — it carries the strongest color on the canvas; other
+  roles still take their role fills (role-based multi-color, see color-palette.md).
 
 ## Architecture
 
