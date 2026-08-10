@@ -2,7 +2,7 @@
   "name": "excali-local",
   "description": "manifest.json description",
   "private": true,
-  "version": "1.7.2",
+  "version": "1.7.3",
   "type": "module",
   "scripts": {
     "dev": "wxt",
