@@ -176,7 +176,7 @@ describe("AgentBridgeClient", () => {
 });
 
 describe("findBridgePort", () => {
-  test("scans the range in order and returns the first port with a successful handshake", async () => {
+  test("races all ports in parallel and returns the first port with a successful handshake", async () => {
     const sockets: FakeWs[] = [];
     const promise = findBridgePort({
       ports: [17331, 17332, 17333],
@@ -185,38 +185,112 @@ describe("findBridgePort", () => {
       wsFactory: socketsOf(sockets),
       ...FAST,
     });
-    await vi.waitFor(() => expect(sockets.length).toBeGreaterThan(0));
+    // All probes are created in the same tick — no per-port waiting.
+    await vi.waitFor(() => expect(sockets.length).toBe(3));
     sockets[0].open();
     sockets[0].message(JSON.stringify({ type: "handshake_error" }));
-    await vi.waitFor(() => expect(sockets.length).toBeGreaterThan(1));
-    sockets[1].open();
-    sockets[1].message(JSON.stringify({ type: "handshake_ok" }));
-    await expect(promise).resolves.toBe(17332);
+    sockets[2].open();
+    sockets[2].message(JSON.stringify({ type: "handshake_ok" }));
+    // sockets[1] (17332) stalls and never answers — 17333 wins anyway.
+    await expect(promise).resolves.toBe(17333);
+    // Every probe ends closed: winner probe by findBridgePort itself, the
+    // losers (including the never-opened one) by the cleanup sweep.
+    expect(sockets.every((s) => s.readyState === 3)).toBe(true);
   });
 
-  test("preferred (cached) port is tried first", async () => {
-    const order: string[] = [];
-    const abort = new AbortController();
+  test("several ports answer in the same tick — the first in caller order wins", async () => {
+    const sockets: FakeWs[] = [];
     const promise = findBridgePort({
-      ports: [17331, 17332],
+      ports: [17331, 17332, 17333],
+      origin,
+      token,
+      wsFactory: socketsOf(sockets),
+      ...FAST,
+    });
+    await vi.waitFor(() => expect(sockets.length).toBe(3));
+    for (const s of sockets) s.open();
+    // Drive handshake_ok in REVERSE order within the same tick — the race
+    // must still settle on 17331 (caller port order breaks ties).
+    sockets[2].message(JSON.stringify({ type: "handshake_ok" }));
+    sockets[1].message(JSON.stringify({ type: "handshake_ok" }));
+    sockets[0].message(JSON.stringify({ type: "handshake_ok" }));
+    await expect(promise).resolves.toBe(17331);
+    expect(sockets.every((s) => s.readyState === 3)).toBe(true);
+  });
+
+  test("preferred port short-circuits: answers ok → returned, no other sockets created", async () => {
+    const sockets: FakeWs[] = [];
+    const promise = findBridgePort({
+      ports: [17331, 17332, 17333],
       origin,
       token,
       preferredPort: 17332,
-      wsFactory: (url) => {
-        const ws = new FakeWs();
-        order.push(url);
-        return ws;
-      },
+      wsFactory: socketsOf(sockets),
+      ...FAST,
+    });
+    await vi.waitFor(() => expect(sockets.length).toBe(1));
+    sockets[0].open();
+    expect(sockets[0].lastSentJson()).toEqual({ type: "handshake", token, origin });
+    sockets[0].message(JSON.stringify({ type: "handshake_ok" }));
+    await expect(promise).resolves.toBe(17332);
+    expect(sockets.length).toBe(1); // the parallel scan never started
+  });
+
+  test("preferred port fails → falls through to the full parallel race", async () => {
+    const sockets: FakeWs[] = [];
+    const promise = findBridgePort({
+      ports: [17331, 17332, 17333],
+      origin,
+      token,
+      preferredPort: 17332,
+      wsFactory: socketsOf(sockets),
+      ...FAST,
+    });
+    await vi.waitFor(() => expect(sockets.length).toBe(1));
+    sockets[0].open();
+    sockets[0].message(JSON.stringify({ type: "handshake_error" }));
+    // preferred failed → the remaining ports race in parallel
+    await vi.waitFor(() => expect(sockets.length).toBe(3));
+    sockets[1].open(); // 17331
+    sockets[1].message(JSON.stringify({ type: "handshake_ok" }));
+    await expect(promise).resolves.toBe(17331);
+    expect(sockets[2].readyState).toBe(3); // 17333 loser closed mid-handshake
+  });
+
+  test("aborting mid-race closes every probe and resolves null", async () => {
+    const abort = new AbortController();
+    const sockets: FakeWs[] = [];
+    const promise = findBridgePort({
+      ports: [17331, 17332, 17333],
+      origin,
+      token,
+      wsFactory: socketsOf(sockets),
       signal: abort.signal,
       ...FAST,
     });
-    await vi.waitFor(() => expect(order.length).toBeGreaterThan(0));
-    expect(order[0]).toContain(":17332");
+    await vi.waitFor(() => expect(sockets.length).toBe(3));
     abort.abort();
     await expect(promise).resolves.toBeNull();
+    expect(sockets.every((s) => s.readyState === 3)).toBe(true);
   });
 
-  test("returns null when no port answers", async () => {
+  test("a pre-aborted signal returns null without creating any sockets", async () => {
+    const abort = new AbortController();
+    abort.abort();
+    const sockets: FakeWs[] = [];
+    const port = await findBridgePort({
+      ports: [17331, 17332],
+      origin,
+      token,
+      wsFactory: socketsOf(sockets),
+      signal: abort.signal,
+      ...FAST,
+    });
+    expect(port).toBeNull();
+    expect(sockets.length).toBe(0);
+  });
+
+  test("returns null when no port answers (all probes time out)", async () => {
     const sockets: FakeWs[] = [];
     const promise = findBridgePort({
       ports: [17331, 17332],
@@ -225,25 +299,12 @@ describe("findBridgePort", () => {
       wsFactory: socketsOf(sockets),
       ...FAST,
     });
-    // sockets[0] opens but server never replies → handshake timeout per port
-    await vi.waitFor(() => expect(sockets.length).toBeGreaterThan(0));
+    await vi.waitFor(() => expect(sockets.length).toBe(2));
     sockets[0].open();
-    await vi.waitFor(() => expect(sockets.length).toBeGreaterThan(1));
     sockets[1].open();
+    // Neither daemon replies → both handshake timers (FAST) fire → null.
     await expect(promise).resolves.toBeNull();
-  });
-
-  test("aborts the scan and returns null", async () => {
-    const abort = new AbortController();
-    abort.abort();
-    const port = await findBridgePort({
-      ports: [17331, 17332],
-      origin,
-      token,
-      wsFactory: () => new FakeWs(),
-      signal: abort.signal,
-    });
-    expect(port).toBeNull();
+    expect(sockets.every((s) => s.readyState === 3)).toBe(true);
   });
 });
 
