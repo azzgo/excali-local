@@ -13,7 +13,7 @@
  *     fonts.system.list (OS font enumeration)
  *
  * Semantics:
- *   - slot ∈ {handwriting, normal, code} = Excalidraw fontFamily 1/2/3.
+ *   - slot ∈ {handwriting, normal, code} = Excalidraw fontFamily 5/6/8 (csp.14).
  *   - fonts.get returns the TRIMMED FontConfig: custom slots serialize as
  *     {type:'custom', family} — NO bytes; system/null as-is.
  *   - fonts.assign (non-blocking): {slot, postscriptName} → system source.
