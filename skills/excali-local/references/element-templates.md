@@ -116,9 +116,17 @@ NOT a `containerId` on a separate text element:
   *returns* the containerId form — that is the serialized shape, not the
   add-input shape.)
 - **Re-emitting serialized scene content**: if you read `scene.get` and want
-  to push the same scene back, use `scene.update` (passthrough — ids and
+  to push the same scene back, use `scene.update` (render-safe passthrough — ids and
   bindings preserved), **not** `elements.add` (which regenerates ids and
   leaves `containerId`/`startBinding`/`endBinding` pointing at stale ids).
+- **`scene.update` is full-replace per element**: a container's `boundElements`
+  holds its bindings — the label's `{type:"text",id}` plus any
+  `{type:"arrow",id}` for glued arrows. Re-emitting a container with `[]`,
+  `null`, or a partial `boundElements` detaches the label (and drops glued
+  arrows' reverse-link). Echo the element exactly as `scene.get` returned it
+  and change only the target field — the page's `null`→`[]` coercion is a
+  render-safety net, not binding recovery. (Arrows: keep
+  `startBinding`/`endBinding` likewise.)
 
 ## Arrow with bindings
 
