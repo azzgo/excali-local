@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
   AgentBridgeClient,
   AgentBridgeSession,
@@ -79,6 +79,26 @@ const socketsOf = (sockets: FakeWs[]) => (url: string): BridgeWs => {
   const ws = new FakeWs();
   sockets.push(ws);
   return ws;
+};
+
+/**
+ * Stub global fetch as the daemon /health endpoint. `healthy` maps port → up
+ * (a Set of up ports, or a predicate). Down ports REJECT like ECONNREFUSED —
+ * exactly how a dead loopback port behaves for the real fetch. Returns the
+ * mock so tests can assert call counts/URLs.
+ */
+const stubHealth = (
+  healthy: ReadonlySet<number> | ((port: number) => boolean),
+): ReturnType<typeof vi.fn> => {
+  const mock = vi.fn(async (input: string | URL | Request) => {
+    const url = typeof input === "string" ? input : String(input);
+    const port = Number(/127\.0\.0\.1:(\d+)/.exec(url)?.[1]);
+    const up = typeof healthy === "function" ? healthy(port) : healthy.has(port);
+    if (!up) throw new Error(`connect ECONNREFUSED 127.0.0.1:${port}`);
+    return { ok: true, json: async () => ({ ok: true, port }) };
+  });
+  vi.stubGlobal("fetch", mock);
+  return mock;
 };
 
 describe("AgentBridgeClient", () => {
@@ -193,8 +213,11 @@ describe("AgentBridgeClient", () => {
 });
 
 describe("findBridgePort", () => {
-  test("races all ports in parallel and returns the first port with a successful handshake", async () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  test("races all health-ok ports in parallel and returns the first port with a successful handshake", async () => {
     const sockets: FakeWs[] = [];
+    stubHealth(new Set([17331, 17332, 17333]));
     const promise = findBridgePort({
       ports: [17331, 17332, 17333],
       origin,
@@ -202,7 +225,7 @@ describe("findBridgePort", () => {
       wsFactory: socketsOf(sockets),
       ...FAST,
     });
-    // All probes are created in the same tick — no per-port waiting.
+    // All probes are created in one tick after the /health sweep — no per-port waiting.
     await vi.waitFor(() => expect(sockets.length).toBe(3));
     sockets[0].open();
     sockets[0].message(JSON.stringify({ type: "handshake_error" }));
@@ -217,6 +240,7 @@ describe("findBridgePort", () => {
 
   test("several ports answer in the same tick — the first in caller order wins", async () => {
     const sockets: FakeWs[] = [];
+    stubHealth(new Set([17331, 17332, 17333]));
     const promise = findBridgePort({
       ports: [17331, 17332, 17333],
       origin,
@@ -235,8 +259,9 @@ describe("findBridgePort", () => {
     expect(sockets.every((s) => s.readyState === 3)).toBe(true);
   });
 
-  test("preferred port short-circuits: answers ok → returned, no other sockets created", async () => {
+  test("preferred port short-circuits: health-ok preferred → handshake only there", async () => {
     const sockets: FakeWs[] = [];
+    const fetchMock = stubHealth(new Set([17332]));
     const promise = findBridgePort({
       ports: [17331, 17332, 17333],
       origin,
@@ -251,10 +276,13 @@ describe("findBridgePort", () => {
     sockets[0].message(JSON.stringify({ type: "handshake_ok" }));
     await expect(promise).resolves.toBe(17332);
     expect(sockets.length).toBe(1); // the parallel scan never started
+    expect(fetchMock).toHaveBeenCalledTimes(1); // /health probed ONLY for 17332
+    expect(String(fetchMock.mock.calls[0][0])).toContain("17332");
   });
 
-  test("preferred port fails → falls through to the full parallel race", async () => {
+  test("preferred port fails /health → falls through to the parallel race over the rest", async () => {
     const sockets: FakeWs[] = [];
+    const fetchMock = stubHealth(new Set([17331, 17333])); // 17332 down
     const promise = findBridgePort({
       ports: [17331, 17332, 17333],
       origin,
@@ -263,20 +291,103 @@ describe("findBridgePort", () => {
       wsFactory: socketsOf(sockets),
       ...FAST,
     });
-    await vi.waitFor(() => expect(sockets.length).toBe(1));
-    sockets[0].open();
+    // preferred (17332) refused /health instantly → no socket for it; the rest race
+    await vi.waitFor(() => expect(sockets.length).toBe(2));
+    sockets[0].open(); // 17331
     sockets[0].message(JSON.stringify({ type: "handshake_error" }));
-    // preferred failed → the remaining ports race in parallel
-    await vi.waitFor(() => expect(sockets.length).toBe(3));
-    sockets[1].open(); // 17331
+    sockets[1].open(); // 17333
     sockets[1].message(JSON.stringify({ type: "handshake_ok" }));
-    await expect(promise).resolves.toBe(17331);
-    expect(sockets[2].readyState).toBe(3); // 17333 loser closed mid-handshake
+    await expect(promise).resolves.toBe(17333);
+    expect(sockets.every((s) => s.readyState === 3)).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(3); // preferred probe + the two rest ports
+  });
+
+  test("health pre-probe: only health-ok ports get a WS handshake; winner returned, losers closed", async () => {
+    const created: Array<{ url: string; ws: FakeWs }> = [];
+    const wsFactory = (url: string): BridgeWs => {
+      const ws = new FakeWs();
+      created.push({ url, ws });
+      return ws;
+    };
+    const fetchMock = stubHealth(new Set([17333])); // only 17333 answers /health
+    const promise = findBridgePort({
+      ports: [17331, 17332, 17333],
+      origin,
+      token,
+      wsFactory,
+      ...FAST,
+    });
+    await vi.waitFor(() => expect(created.length).toBe(1));
+    // dead ports were health-probed (rejected instantly) but never touched the WS layer
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(created[0].url).toBe("ws://127.0.0.1:17333");
+    created[0].ws.open();
+    created[0].ws.message(JSON.stringify({ type: "handshake_ok" }));
+    await expect(promise).resolves.toBe(17333);
+    expect(created[0].ws.readyState).toBe(3); // winner probe closed by findBridgePort
+  });
+
+  test("all ports unhealthy (health fetch rejects) → null fast, no WS handshake ever", async () => {
+    const sockets: FakeWs[] = [];
+    stubHealth(new Set()); // every port refuses the connection
+    const t0 = Date.now();
+    const port = await findBridgePort({
+      ports: [17331, 17332, 17333],
+      origin,
+      token,
+      wsFactory: socketsOf(sockets),
+      ...FAST,
+    });
+    expect(port).toBeNull();
+    expect(sockets.length).toBe(0); // no handshake timeout ever spent
+    expect(Date.now() - t0).toBeLessThan(1000); // fast-fail, not 3s × ports
+  });
+
+  test("a /health response with ok:false is treated as unhealthy (no WS dial)", async () => {
+    const sockets: FakeWs[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      const port = Number(/127\.0\.0\.1:(\d+)/.exec(url)?.[1]);
+      if (port === 17331) return { ok: true, json: async () => ({ ok: false, reason: "stopping" }) };
+      if (port === 17332) return { ok: true, json: async () => ({ ok: true }) };
+      throw new Error("connect ECONNREFUSED");
+    }));
+    const promise = findBridgePort({
+      ports: [17331, 17332, 17333],
+      origin,
+      token,
+      wsFactory: socketsOf(sockets),
+      ...FAST,
+    });
+    await vi.waitFor(() => expect(sockets.length).toBe(1)); // only 17332 dials
+    sockets[0].open();
+    sockets[0].message(JSON.stringify({ type: "handshake_ok" }));
+    await expect(promise).resolves.toBe(17332);
+    expect(sockets[0].readyState).toBe(3);
+  });
+
+  test("a health-ok port whose handshake fails falls through to the next health-ok port", async () => {
+    const sockets: FakeWs[] = [];
+    stubHealth(new Set([17331, 17332]));
+    const promise = findBridgePort({
+      ports: [17331, 17332],
+      origin,
+      token,
+      wsFactory: socketsOf(sockets),
+      ...FAST,
+    });
+    await vi.waitFor(() => expect(sockets.length).toBe(2));
+    sockets[0].open();
+    sockets[0].message(JSON.stringify({ type: "handshake_error" })); // 17331 rejects (origin/token)
+    sockets[1].open();
+    sockets[1].message(JSON.stringify({ type: "handshake_ok" })); // 17332 wins
+    await expect(promise).resolves.toBe(17332);
+    expect(sockets.every((s) => s.readyState === 3)).toBe(true);
   });
 
   test("aborting mid-race closes every probe and resolves null", async () => {
     const abort = new AbortController();
     const sockets: FakeWs[] = [];
+    stubHealth(new Set([17331, 17332, 17333]));
     const promise = findBridgePort({
       ports: [17331, 17332, 17333],
       origin,
@@ -291,10 +402,36 @@ describe("findBridgePort", () => {
     expect(sockets.every((s) => s.readyState === 3)).toBe(true);
   });
 
+  test("aborting during the health pre-probe resolves null, no WS sockets created", async () => {
+    const abort = new AbortController();
+    const sockets: FakeWs[] = [];
+    // health fetch that never settles on its own — only the abort signal releases it
+    vi.stubGlobal("fetch", vi.fn((_url: string, init?: { signal?: AbortSignal }) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () =>
+          reject(new DOMException("aborted", "AbortError")),
+        );
+      }),
+    ));
+    const promise = findBridgePort({
+      ports: [17331, 17332],
+      origin,
+      token,
+      wsFactory: socketsOf(sockets),
+      signal: abort.signal,
+      ...FAST,
+    });
+    await new Promise((r) => setTimeout(r, 20)); // let the health fetches start
+    abort.abort();
+    await expect(promise).resolves.toBeNull();
+    expect(sockets.length).toBe(0); // the WS phase never started
+  });
+
   test("a pre-aborted signal returns null without creating any sockets", async () => {
     const abort = new AbortController();
     abort.abort();
     const sockets: FakeWs[] = [];
+    const fetchMock = stubHealth(new Set([17331, 17332]));
     const port = await findBridgePort({
       ports: [17331, 17332],
       origin,
@@ -305,10 +442,12 @@ describe("findBridgePort", () => {
     });
     expect(port).toBeNull();
     expect(sockets.length).toBe(0);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  test("returns null when no port answers (all probes time out)", async () => {
+  test("returns null when no health-ok port completes a handshake (all probes time out)", async () => {
     const sockets: FakeWs[] = [];
+    stubHealth(new Set([17331, 17332]));
     const promise = findBridgePort({
       ports: [17331, 17332],
       origin,
@@ -326,6 +465,17 @@ describe("findBridgePort", () => {
 });
 
 describe("AgentBridgeSession", () => {
+  // The session uses the REAL findBridgePort → /health pre-probe. Keep the
+  // daemon "up" for every existing test (they drive the WS layer with FakeWs);
+  // the cold-start test below overrides with a fetch that turns healthy later.
+  beforeEach(() => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      const port = Number(/127\.0\.0\.1:(\d+)/.exec(url)?.[1]);
+      return { ok: true, json: async () => ({ ok: true, port }) };
+    }));
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
   /** Drive scan probe + live connection sockets to reach "connected". */
   const driveConnect = async (sockets: FakeWs[]) => {
     // sockets[i]   = scan probe (findBridgePort closes it after ok)
@@ -609,5 +759,44 @@ describe("AgentBridgeSession", () => {
 
     s1.stop();
     s2.stop();
+  });
+
+  test("cold-start: a down daemon is re-probed after the short first backoff (~200ms), not the exponential one", async () => {
+    let healthy = false;
+    const fetchMock = vi.fn(async () => {
+      if (!healthy) throw new Error("connect ECONNREFUSED");
+      return { ok: true, json: async () => ({ ok: true }) };
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const sockets: FakeWs[] = [];
+    const session = new AgentBridgeSession({
+      ports: [17331],
+      origin,
+      token,
+      wsFactory: socketsOf(sockets),
+      reconnectBaseMs: 5, // contrast: the pre-007 backoff(1) would sleep only 10ms
+      reconnectMaxMs: 5,
+      ...FAST,
+    });
+    session.start();
+    const t0 = Date.now();
+    // Round 1's /health fails → no WS socket. Flip the daemon up before the
+    // 200ms first backoff elapses so round 2 (~t+200ms) connects immediately.
+    setTimeout(() => {
+      healthy = true;
+    }, 100);
+    await vi.waitFor(() => expect(sockets.length).toBeGreaterThan(0), { timeout: 2000 });
+    const firstProbeAt = Date.now() - t0;
+    expect(firstProbeAt).toBeGreaterThanOrEqual(150); // the ~200ms first backoff actually slept
+    expect(firstProbeAt).toBeLessThan(1000); // ...and nowhere near backoff(1) with the default 1000ms base
+
+    // Daemon is up: drive the probe + live sockets to "connected".
+    sockets[0].open();
+    sockets[0].message(JSON.stringify({ type: "handshake_ok" }));
+    await vi.waitFor(() => expect(sockets.length).toBeGreaterThan(1));
+    sockets[1].open();
+    sockets[1].message(JSON.stringify({ type: "handshake_ok" }));
+    await vi.waitFor(() => expect(session.currentStatus).toBe("connected"));
+    session.stop();
   });
 });

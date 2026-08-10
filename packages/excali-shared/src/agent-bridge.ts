@@ -77,6 +77,13 @@ export const BRIDGE_PING_TIMEOUT_MS = 3000;
 
 export const BRIDGE_RECONNECT_BASE_MS = 1000;
 
+/** First-round (attempt 0) retry sleep when the scan round finds no daemon: the
+ * cold-start window re-probes quickly (a freshly started daemon is detected +
+ * auto-activated within ~5s) instead of paying the full exponential backoff.
+ * Attempts >= 1 keep BRIDGE_RECONNECT_BASE_MS * 2**attempt capped at MAX.
+ * Page-side only — the Go daemon does not mirror this constant. */
+export const BRIDGE_RECONNECT_FIRST_MS = 200;
+
 export const BRIDGE_RECONNECT_MAX_MS = 15000;
 
 /** Page → daemon WS keepalive: periodic app-level ping while connected (proactive liveness; a failed ping closes the socket so the reconnect loop re-dials). */

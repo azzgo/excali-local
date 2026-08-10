@@ -20,6 +20,7 @@ import {
   BRIDGE_PING_TIMEOUT_MS,
   BRIDGE_RECONNECT_BASE_MS,
   BRIDGE_RECONNECT_MAX_MS,
+  BRIDGE_RECONNECT_FIRST_MS,
   BRIDGE_KEEPALIVE_MS,
   WS_HANDSHAKE,
   WS_HANDSHAKE_OK,
@@ -308,14 +309,48 @@ export async function findBridgePort(
   const preferred = opts.preferredPort;
 
   /**
-   * Probe `targets` in parallel: fire one connect() per port at once, settle
-   * on the first successful handshake (caller order breaks same-tick ties),
-   * close every probe client (winner included — callers dial their own live
-   * socket), and resolve null when all probes fail or the signal aborts.
+   * Probe `targets` in two phases:
+   *   1. HTTP /health pre-probe — parallel `GET http://127.0.0.1:<port>/health`
+   *      with the abort signal. Dead loopback ports refuse the connection
+   *      instantly, so NO per-port WS handshake timeout (up to
+   *      BRIDGE_HANDSHAKE_TIMEOUT_MS) is ever spent on them. A port is
+   *      health-ok when the fetch resolves and the JSON body has `ok === true`
+   *      (the daemon's handleHealth — server.go).
+   *   2. Parallel WS handshake race over the health-ok ports ONLY: fire one
+   *      connect() per port, settle on the first successful handshake (caller
+   *      order breaks same-tick ties), close every probe client (winner
+   *      included — callers dial their own live socket). A health-ok port
+   *      whose handshake fails (bad origin/token — /health guarantees nothing
+   *      about acceptance) falls through to the remaining health-ok ports
+   *      because they are all in flight simultaneously.
+   *
+   * No health-ok port → resolve null fast (straight into backoff). Abort →
+   * close everything, resolve null.
    */
   const race = async (targets: readonly number[]): Promise<number | null> => {
     if (targets.length === 0 || opts.signal?.aborted) return null;
 
+    // Phase 1 — /health pre-probe (parallel; dead ports fail in ms, not 3s).
+    const healthResults = await Promise.all(
+      targets.map(async (port) => {
+        try {
+          const res = await fetch(`http://127.0.0.1:${port}/health`, {
+            signal: opts.signal,
+          });
+          if (!res.ok) return false;
+          const body = (await res.json()) as { ok?: unknown };
+          return body?.ok === true;
+        } catch {
+          return false; // connection refused, non-JSON body, or aborted fetch
+        }
+      }),
+    );
+    if (opts.signal?.aborted) return null;
+    const healthy = targets.filter((_, i) => healthResults[i]);
+    if (healthy.length === 0) return null; // no daemon anywhere — fast-fail
+    targets = healthy;
+
+    // Phase 2 — the 006 parallel handshake race, now only over health-ok ports.
     const probes: Array<{ port: number; result: Promise<boolean> }> = [];
     const clients: AgentBridgeClient[] = [];
     for (const port of targets) {
@@ -496,9 +531,13 @@ export class AgentBridgeSession {
       if (this.stopped || this.abort.signal.aborted) return;
 
       if (port === null) {
-        // No daemon up yet (lazy-daemon window) — wait and re-scan.
+        // No daemon up yet (lazy-daemon window) — wait and re-scan. The very
+        // first scan (attempt 0) is the cold-start window: sleep a short fixed
+        // beat so a freshly started daemon is re-detected + auto-activated
+        // within ~5s; later rounds keep the capped exponential backoff.
+        const first = attempt === 0;
         attempt += 1;
-        await sleep(this.backoff(attempt));
+        await sleep(first ? BRIDGE_RECONNECT_FIRST_MS : this.backoff(attempt));
         continue;
       }
 
@@ -524,8 +563,9 @@ export class AgentBridgeSession {
         // the drain gate covers it and the daemon does not hold a zombie conn.
         client.close();
         this.client = null;
+        const first = attempt === 0;
         attempt += 1;
-        await sleep(this.backoff(attempt));
+        await sleep(first ? BRIDGE_RECONNECT_FIRST_MS : this.backoff(attempt));
         continue;
       }
 
