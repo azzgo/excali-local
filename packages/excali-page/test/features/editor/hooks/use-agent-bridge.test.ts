@@ -434,7 +434,50 @@ describe("useAgentBridge", () => {
     await waitFor(() => expect(window.excaliAPI).toBeUndefined());
   });
 
-  test("SW restart: registry wiped → page offers one-click re-activate, never silent", async () => {
+  test("SW restart (same consented canvas): silent re-claim — WS session survives, no offer", async () => {
+    setConsent(true, true);
+    const api = { updateScene: vi.fn() };
+    const { result } = renderLocal(api);
+    await waitFor(() => expect(result.current.canActivate).toBe(true));
+    act(() => result.current.toggleActivation());
+    act(() => result.current.confirmActivation());
+    await waitFor(() =>
+      expect(harness.swState.sendMessages.some((m: any) => m.type === AB_ACTIVATE)).toBe(
+        true,
+      ),
+    );
+    broadcast({ swInstanceId: "sw-1", activeTabId: 1, isActive: true });
+    await waitFor(() => expect(result.current.isActive).toBe(true));
+    expect(result.current.swRestartOffer).toBe(false);
+    expect(window.excaliAPI).toBeDefined();
+
+    // New SW instance boots: registry wiped, broadcasts inactive. This canvas
+    // was already consented this pairing (034 R1) → the hook re-claims the
+    // slot SILENTLY (task 005): no offer banner, isActive NOT flipped false,
+    // and the page<->daemon WS data session survives untouched.
+    harness.swState.swInstanceId = "sw-2";
+    broadcast({ swInstanceId: "sw-2", activeTabId: null, isActive: false });
+    await waitFor(() =>
+      expect(
+        harness.swState.sendMessages.filter((m: any) => m.type === AB_ACTIVATE).length,
+      ).toBe(2),
+    );
+    expect(result.current.swRestartOffer).toBe(false);
+    expect(result.current.isActive).toBe(true);
+    expect(activeSession()!.stopped).toBe(false);
+    expect(window.excaliAPI?.excalidrawAPI).toBe(api);
+
+    // The new SW grants + broadcasts STATE(active) → still active, no ghost
+    // DEACTIVATE self-heal (the session was claimed before the broadcast).
+    broadcast({ swInstanceId: "sw-2", activeTabId: 1, isActive: true });
+    expect(result.current.isActive).toBe(true);
+    expect(
+      harness.swState.sendMessages.some((m: any) => m.type === AB_DEACTIVATE),
+    ).toBe(false);
+    expect(activeSession()!.stopped).toBe(false);
+  });
+
+  test("SW restart (different / un-consented canvas): offer re-activate, never silent", async () => {
     setConsent(true, true);
     const { result } = renderLocal({});
     await waitFor(() => expect(result.current.canActivate).toBe(true));
@@ -447,19 +490,29 @@ describe("useAgentBridge", () => {
     );
     broadcast({ swInstanceId: "sw-1", activeTabId: 1, isActive: true });
     await waitFor(() => expect(result.current.isActive).toBe(true));
-    expect(result.current.swRestartOffer).toBe(false);
+    expect(window.excaliAPI).toBeDefined();
 
-    // new SW instance boots: registry wiped, broadcasts inactive
+    // The active drawing switched to a NOT-yet-consented canvas → a SW restart
+    // must NOT silently activate it: old offer + teardown behavior (isActive
+    // flips false, WS session stops) — no silent AB_ACTIVATE.
+    act(() => getDefaultStore().set(currentLoadedDrawingIdAtom, "drawing-b"));
+    harness.swState.swInstanceId = "sw-2";
     broadcast({ swInstanceId: "sw-2", activeTabId: null, isActive: false });
     await waitFor(() => expect(result.current.swRestartOffer).toBe(true));
     await waitFor(() => expect(result.current.isActive).toBe(false));
+    expect(activeSession()!.stopped).toBe(true);
+    await waitFor(() => expect(window.excaliAPI).toBeUndefined());
+    expect(
+      harness.swState.sendMessages.filter((m: any) => m.type === AB_ACTIVATE).length,
+    ).toBe(1); // only the original activation — nothing silent
 
-    // one-click re-activate
+    // The offer is still actionable: one-click re-activate clears it and
+    // sends a fresh ACTIVATE.
     act(() => result.current.acceptReconnect());
     await waitFor(() => expect(result.current.swRestartOffer).toBe(false));
     expect(
-      harness.swState.sendMessages.some((m: any) => m.type === AB_ACTIVATE),
-    ).toBe(true);
+      harness.swState.sendMessages.filter((m: any) => m.type === AB_ACTIVATE).length,
+    ).toBe(2);
   });
 
   test("stale activation after page reload: SW points at this tab but no session → DEACTIVATE", async () => {

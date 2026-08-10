@@ -8,7 +8,9 @@
  *  - while active: mints a ≥128-bit token, dials ws://127.0.0.1:<port>, completes
  *    the token handshake, and exposes `window.excaliAPI`
  *  - teardown: close WS + drop window.excaliAPI on deactivate / master-off /
- *    unpair / SW-restart-offer (never silently re-activates)
+ *    unpair / SW-restart-offer (task 005: a consented canvas re-claims its
+ *    slot SILENTLY after a SW restart — the WS data session survives; only
+ *    an un-consented canvas gets the offer, never silent activation)
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -128,7 +130,11 @@ export interface UseAgentBridgeResult {
    * detection signal for the redesigned canvas button (Wayfinder 034).
    */
   controlConnection: AgentBridgeConnection;
-  /** true when the SW restarted while this canvas was active → offer re-activate. */
+  /**
+   * true when the SW restarted while this canvas was active AND it cannot be
+   * re-claimed silently (different / un-consented canvas) → offer one-click
+   * re-activate. A consented canvas re-claims silently instead (task 005).
+   */
   swRestartOffer: boolean;
   /**
    * true (transient) when the daemon displaced this canvas — a newer
@@ -227,6 +233,10 @@ export function useAgentBridge({
   consentKeyRef.current = drawingId ?? "unsaved";
   const onActivateErrorRef = useRef(onActivateError);
   onActivateErrorRef.current = onActivateError;
+  // requestActivation is declared below reconcile — route through a ref so
+  // reconcile can silently re-claim after a SW restart (task 005) while both
+  // useCallbacks keep stable, minimal deps.
+  const requestActivationRef = useRef<(() => void) | null>(null);
   const excalidrawAPIRef = useRef(excalidrawAPI);
   excalidrawAPIRef.current = excalidrawAPI;
   // canvas/v1 real helpers — built once per page session (tgz exports).
@@ -311,8 +321,19 @@ export function useAgentBridge({
       setActiveTabId(state.activeTabId);
 
       if (instanceChanged && wasActiveRef.current && !state.isActive) {
-        // SW restarted → ephemeral registry wiped → offer one-click re-activate
-        // (never silent). WS data path is unaffected (page owns it).
+        if (confirmShownRef.current[consentKeyRef.current]) {
+          // SW restarted → its ephemeral registry was wiped, but THIS canvas
+          // was already consented this pairing (034 R1). Re-claim the slot
+          // SILENTLY so the healthy page<->daemon WS data session survives
+          // (task 005): no offer banner, no teardown — isActive stays true
+          // (session ownership lives in sessionActiveRef + WS health).
+          requestActivationRef.current?.();
+          return;
+        }
+        // SW restarted and the active canvas is NOT consented (a new canvas,
+        // or never confirmed) → offer one-click re-activate, never silent.
+        // Falls through to the generic teardown below (session stops,
+        // isActive flips false).
         setSwRestartOffer(true);
       }
 
@@ -427,6 +448,7 @@ export function useAgentBridge({
 	  onActivateErrorRef.current?.(reason);
 	});
   }, [isLocal, sendToSW]);
+  requestActivationRef.current = requestActivation;
 
   const toggleActivation = useCallback(() => {
     if (!isLocal) return;
