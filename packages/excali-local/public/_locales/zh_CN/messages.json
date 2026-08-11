@@ -157,5 +157,35 @@
   },
   "AgentStopDaemonFailed": {
     "message": "无法停止守护进程：$1"
+  },
+  "AgentEnabledLabel": {
+    "message": "已启用"
+  },
+  "AgentEnabledOnHint": {
+    "message": "开启——在你允许后，外部客户端可接入"
+  },
+  "AgentEnabledOffHint": {
+    "message": "关闭——所有 Agent 控制均禁用"
+  },
+  "AgentSubtitleWsDaemon": {
+    "message": "总开关 + 守护进程状态"
+  },
+  "AgentSubtitleWebmcp": {
+    "message": "总开关"
+  },
+  "AgentRouteTitle": {
+    "message": "控制通道"
+  },
+  "AgentRouteDefault": {
+    "message": "默认"
+  },
+  "AgentRouteWsDaemon": {
+    "message": "ws + daemon"
+  },
+  "AgentRouteWebmcp": {
+    "message": "WebMCP"
+  },
+  "AgentRouteUnsupported": {
+    "message": "需要启用 WebMCP 的 Chrome"
   }
 }

@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import AgentActivationControl from "@/features/editor/components/agent-activation-control";
 import type { UseAgentBridgeResult } from "@/features/editor/hooks/use-agent-bridge";
@@ -25,6 +25,7 @@ const bridgeMock = vi.hoisted(() => {
 	  cancelGallery: vi.fn(),
 	  showConfirm: false,
 	  canActivate: true,
+	  mode: "ws+daemon",
 	  quickEnableAgent: vi.fn(),
 	  pairAgent: vi.fn(),
 	  toggleActivation: vi.fn(),
@@ -33,6 +34,9 @@ const bridgeMock = vi.hoisted(() => {
 	  cancelConfirm: vi.fn(),
 	  acceptReconnect: vi.fn(),
 	  dismissReconnect: vi.fn(),
+	  webmcpRegistered: false,
+	  registerWebmcp: vi.fn(async () => true),
+	  unregisterWebmcp: vi.fn(async () => {}),
 	  ...overrides,
 	});
 	return { base };
@@ -207,5 +211,84 @@ describe("AgentActivationControl", () => {
 	expect(confirmGallery).toHaveBeenCalled();
 	screen.getByTestId("agent-gallery-cancel").click();
 	expect(cancelGallery).toHaveBeenCalled();
+  });
+
+  // ------------------------------------------------------------------
+  // Wayfinder 043 — WebMCP-mode 2-state canvas button
+  // ------------------------------------------------------------------
+
+  test("WebMCP mode: unregistered → grey Register; click registers (click IS the consent)", async () => {
+	const registerWebmcp = vi.fn(async () => true);
+	const unregisterWebmcp = vi.fn(async () => {});
+	setOverrides({
+	  ...ready,
+	  mode: "webmcp",
+	  webmcpRegistered: false,
+	  registerWebmcp,
+	  unregisterWebmcp,
+	});
+	renderControl();
+	const btn = screen.getByTestId("agent-activation-toggle");
+	expect(btn.dataset.state).toBe("unregistered");
+	expect(screen.getByText("AgentButtonRegister")).toBeTruthy();
+	btn.click();
+	expect(registerWebmcp).toHaveBeenCalledTimes(1);
+	expect(unregisterWebmcp).not.toHaveBeenCalled();
+	// No modal on the register path — the click IS the per-page exposure consent.
+	expect(screen.queryByText("AgentEnableTitle")).toBeNull();
+  });
+
+  test("WebMCP mode: registered → accent Unregister; click withdraws", async () => {
+	const registerWebmcp = vi.fn(async () => true);
+	const unregisterWebmcp = vi.fn(async () => {});
+	setOverrides({
+	  ...ready,
+	  mode: "webmcp",
+	  webmcpRegistered: true,
+	  registerWebmcp,
+	  unregisterWebmcp,
+	});
+	renderControl();
+	const btn = screen.getByTestId("agent-activation-toggle");
+	expect(btn.dataset.state).toBe("registered");
+	expect(screen.getByText("AgentButtonUnregister")).toBeTruthy();
+	btn.click();
+	expect(unregisterWebmcp).toHaveBeenCalledTimes(1);
+	expect(registerWebmcp).not.toHaveBeenCalled();
+  });
+
+  test("WebMCP mode: register failure → toast.error, stays unregistered (no third state)", async () => {
+	const registerWebmcp = vi.fn(async () => false);
+	setOverrides({
+	  ...ready,
+	  mode: "webmcp",
+	  webmcpRegistered: false,
+	  registerWebmcp,
+	});
+	renderControl();
+	screen.getByTestId("agent-activation-toggle").click();
+	await waitFor(() =>
+	  expect(toastMock.error).toHaveBeenCalledWith("AgentWebmcpRegisterFailed"),
+	);
+  });
+
+  test("WebMCP mode: master OFF → the button is the off state (kill-switch)", async () => {
+	setOverrides({
+	  ...ready,
+	  mode: "webmcp",
+	  webmcpRegistered: true,
+	  masterOn: false,
+	  paired: false,
+	  canActivate: false,
+	});
+	renderControl();
+	const btn = screen.getByTestId("agent-activation-toggle");
+	expect(btn.dataset.state).toBe("off");
+	// Kill-switch: the registered state is impossible with master OFF; the
+	// hook's effect already unregistered (component just renders the off state).
+	act(() => {
+	  btn.click();
+	});
+	expect(screen.getByText("AgentEnableTitle")).toBeTruthy(); // quick-enable modal
   });
 });

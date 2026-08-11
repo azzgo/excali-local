@@ -157,5 +157,35 @@
   },
   "AgentStopDaemonFailed": {
     "message": "Could not stop the daemon: $1"
+  },
+  "AgentEnabledLabel": {
+    "message": "Enabled"
+  },
+  "AgentEnabledOnHint": {
+    "message": "On — external clients may attach when you allow it"
+  },
+  "AgentEnabledOffHint": {
+    "message": "Off — all agent controls disabled"
+  },
+  "AgentSubtitleWsDaemon": {
+    "message": "Master switch + daemon status"
+  },
+  "AgentSubtitleWebmcp": {
+    "message": "Master switch"
+  },
+  "AgentRouteTitle": {
+    "message": "Active control route"
+  },
+  "AgentRouteDefault": {
+    "message": "Default"
+  },
+  "AgentRouteWsDaemon": {
+    "message": "ws + daemon"
+  },
+  "AgentRouteWebmcp": {
+    "message": "WebMCP"
+  },
+  "AgentRouteUnsupported": {
+    "message": "Requires Chrome with WebMCP enabled"
   }
 }

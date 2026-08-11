@@ -49,6 +49,10 @@ function genManifest(env: ConfigEnv) {
     },
     permissions: ["activeTab", "scripting", "storage"],
     optional_host_permissions: ["file:///*.excalidraw"],
+    // WebMCP origin trial (Wayfinder 043/044): paste the Chrome Origin Trials
+    // token here before a release targeting Chrome 157+ (dev builds use the
+    // --enable-webmcp-testing flag instead; Firefox ignores trial_tokens).
+    trial_tokens: [],
   };
 
   if (env.browser === "firefox") {

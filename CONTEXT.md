@@ -13,6 +13,16 @@ to canvas-bound operations and the single-active-canvas invariant; activated on 
 page that owns that canvas.
 _Avoid_: active canvas, controlled canvas, open canvas
 
+**Registered canvas** (WebMCP mode only):
+An editor page whose canvas tools have been explicitly exposed via `document.modelContext`
+registration — the WebMCP-mode per-page exposure consent. Replaces the ws+daemon WS dial as
+the exposure mechanism; there is no daemon, no pairing, and no single-active-canvas invariant
+(each registered editor page exposes its own canvas; consumer topology is the consumer's concern).
+Consent is per-canvas and dynamic: the user performs an explicit register act, and unregister
+withdraws exposure immediately.
+_Avoid_: activated canvas (a ws+daemon term bound to the single-active-canvas invariant), exposed
+page, opened session
+
 **Paired connection**:
 A bridge connection the user has explicitly allowed (first-use pairing). The
 connection-level consent; independent of any canvas and of any specific agent

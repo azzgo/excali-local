@@ -9,8 +9,10 @@ import {
 	AB_STATE_QUERY,
 	AB_CANVAS_NAME,
 	AB_BRIDGE_STOP_REQUEST,
+	AB_MODE_CHANGED,
   AGENT_BRIDGE_STORAGE_KEY,
   AGENT_BRIDGE_DEFAULT_STORAGE,
+  AGENT_BRIDGE_MODE_WS,
   type AgentBridgeStorage,
   type AgentBridgeStatePayload,
 } from "excali-shared";
@@ -280,8 +282,14 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 // Kill-switch (Layer 0 OFF) / unpair (Gate 1 OFF) → tear all control down.
+// Mode switch (Wayfinder 043/044): the Active control route changed → every
+// editor tab tears its current route's exposure down; switching AWAY from
+// ws+daemon clears the activation registry (the WS data path is dead).
 browser.storage.onChanged.addListener((changes, area) => {
   if (area !== "local" || !changes[AGENT_BRIDGE_STORAGE_KEY]) return;
+  const prev = changes[AGENT_BRIDGE_STORAGE_KEY].oldValue as
+    | AgentBridgeStorage
+    | undefined;
   const next = changes[AGENT_BRIDGE_STORAGE_KEY].newValue as
     | AgentBridgeStorage
     | undefined;
@@ -289,6 +297,25 @@ browser.storage.onChanged.addListener((changes, area) => {
   if ((!consent.master || !consent.pairing) && activeTabId != null) {
     activeTabId = null;
     broadcastState();
+  }
+  // Live mode switch (only when `mode` actually changed): teardown the old
+  // route NOW — switching away from ws+daemon clears the activation registry
+  // — and broadcast so open pages unregister/drop sessions without polling.
+  // The new route never auto-engages (043: exposure is always the user's next
+  // explicit per-canvas act).
+  const modeChanged = prev?.mode !== consent.mode;
+  if (modeChanged) {
+    if (consent.mode !== AGENT_BRIDGE_MODE_WS && activeTabId != null) {
+      activeTabId = null;
+      broadcastState();
+    }
+    for (const tabId of [...editorTabs]) {
+      browser.tabs
+        .sendMessage(tabId, { type: AB_MODE_CHANGED, mode: consent.mode })
+        .catch(() => {
+          editorTabs.delete(tabId);
+        });
+    }
   }
 });
 

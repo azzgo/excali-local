@@ -40,9 +40,14 @@ import {
 	WS_ROLE_CONTROL_PAGE,
 	AB_BRIDGE_STOP_REQUEST,
 	BRIDGE_STOP_METHOD,
+	AB_MODE_CHANGED,
+	AGENT_BRIDGE_MODE_WS,
+	AGENT_BRIDGE_MODE_WEBMCP,
+	CANVAS_V1_METHODS,
 	mintBridgeToken,
 	type AgentBridgeStorage,
 	type AgentBridgeStatePayload,
+	type AgentBridgeMode,
 } from "excali-shared";
 import { getBrowser } from "@/lib/utils";
 import {
@@ -86,6 +91,65 @@ import {
 import { loadDrawingToScene } from "@/features/editor/utils/excalidraw-api.helper";
 import { useThumbnail } from "@/features/gallery/hooks/use-thumbnail";
 import { useGallery } from "@/features/gallery/hooks/use-gallery";
+
+
+// ---------------------------------------------------------------------------
+// WebMCP exposure (Wayfinder 043/044) — Chrome's built-in AI can call the
+// canvas/v1 commands via document.modelContext.registerTool. ONE tool with a
+// method enum (MCP tool names forbid dots, so per-method names like
+// `scene.get` are impossible); the agent picks the method + params.
+// ---------------------------------------------------------------------------
+const WEBMCP_TOOL_NAME = "excali_canvas";
+
+/** canvas/v1 methods the page can actually serve. commands.list and
+ * protocol.version are daemon-local META methods (resolved daemon-side in
+ * ws+daemon); WebMCP has no daemon, so they are excluded. */
+const WEBMCP_METHODS = CANVAS_V1_METHODS.filter(
+  (m) => m !== "commands.list" && m !== "protocol.version",
+);
+
+const WEBMCP_INPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    method: {
+      type: "string",
+      enum: [...WEBMCP_METHODS],
+      description: "canvas/v1 method to execute",
+    },
+    params: {
+      type: "object",
+      description: "method params (default {})",
+    },
+  },
+  required: ["method"],
+} as const;
+
+/** Minimal shape of the WebMCP imperative API (Chrome 157+). */
+interface WebMCPToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  execute: (input: Record<string, unknown>) => Promise<unknown>;
+}
+
+interface WebMCPModelContext {
+  registerTool?: (def: WebMCPToolDefinition) => Promise<void>;
+  unregisterTool?: (name: string) => Promise<void>;
+}
+
+function getModelContext(): WebMCPModelContext | null {
+  try {
+    const doc = (document ?? undefined) as unknown as {
+      modelContext?: WebMCPModelContext;
+    } | undefined;
+    const nav = (navigator ?? undefined) as unknown as {
+      modelContext?: WebMCPModelContext;
+    } | undefined;
+    return doc?.modelContext ?? nav?.modelContext ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export interface ExcaliAPI {
   /** The live Excalidraw imperative API — reachable from the page console. */
@@ -154,6 +218,18 @@ export interface UseAgentBridgeResult {
   /** Reject the pending gallery confirm → the op returns -32005. */
   cancelGallery(): void;
   showConfirm: boolean;
+  /**
+   * Active control route (043/044): "ws+daemon" (default) or "webmcp".
+   * WebMCP mode has no daemon — the canvas button becomes the 2-state
+   * Register/Unregister machine and no WS session is dialed.
+   */
+  mode: AgentBridgeMode;
+  /** true when this canvas's WebMCP tool is registered (per-page exposure). */
+  webmcpRegistered: boolean;
+  /** Register the WebMCP tool (click IS the per-page exposure consent — no modal). */
+  registerWebmcp(): Promise<boolean>;
+  /** Withdraw the WebMCP tool (immediate; kill-switch does this automatically). */
+  unregisterWebmcp(): Promise<void>;
   /** The activation toggle may be shown (master ON + paired + Local editor). */
   canActivate: boolean;
   /** Quick-enable (Wayfinder 034): master ON from the canvas button, no nav. */
@@ -206,6 +282,10 @@ export function useAgentBridge({
   const [masterOn, setMasterOn] = useState(false);
   const [paired, setPaired] = useState(false);
   const [hideButton, setHideButton] = useState(false);
+  // --- active control route (043/044): ws+daemon (default) | webmcp --------
+  const [mode, setMode] = useState<AgentBridgeMode>("ws+daemon");
+  // true when this canvas's WebMCP tools are registered (per-page exposure).
+  const [webmcpRegistered, setWebmcpRegistered] = useState(false);
   // --- per-profile identity (goal 3): minted once, persisted ----------------
   const [profileId, setProfileId] = useState<string | null>(null);
 
@@ -227,6 +307,9 @@ export function useAgentBridge({
   const sessionActiveRef = useRef(false);
   const lastSwIdRef = useRef<string | null>(null);
   const wasActiveRef = useRef(false);
+  // WebMCP registration mirror (read from the async register/unregister
+  // callbacks — avoids stale closures in the kill-switch effect).
+  const webmcpRegRef = useRef(false);
   // The LIVE active-slot session (created inside the WS effect) — the SW
   // relay for bridge.stop (045) needs it from the runtime-message listener.
   const activeSessionRef = useRef<AgentBridgeSession | null>(null);
@@ -277,6 +360,7 @@ export function useAgentBridge({
         setMasterOn(consent.master);
         setPaired(consent.pairing);
         setHideButton(!!consent.hideButton);
+        setMode(consent.mode ?? AGENT_BRIDGE_MODE_WS);
         prevPairingRef.current = consent.pairing;
       })
       .catch(() => {});
@@ -291,6 +375,7 @@ export function useAgentBridge({
         setMasterOn(consent.master);
         setPaired(consent.pairing);
         setHideButton(!!consent.hideButton);
+        setMode(consent.mode ?? AGENT_BRIDGE_MODE_WS);
         // a NEW paired connection (false→true) resets the per-canvas confirms
         // (034 R1: ask once per canvas until unpair/re-pair).
         if (consent.pairing && !prevPairingRef.current) {
@@ -394,6 +479,14 @@ export function useAgentBridge({
           sendResponse({ name: name ?? t("New Drawing") });
         })();
         return true;
+      } else if (m?.type === AB_MODE_CHANGED) {
+        // SW relay (043/044): the Active control route changed. The storage
+        // onChange already mirrors `mode`; this is the same signal without
+        // polling — the unregister/drop effects react to the mode state.
+        const nextMode = (m as { mode?: AgentBridgeMode }).mode;
+        if (nextMode === AGENT_BRIDGE_MODE_WS || nextMode === AGENT_BRIDGE_MODE_WEBMCP) {
+          setMode(nextMode);
+        }
       } else if (m?.type === AB_BRIDGE_STOP_REQUEST) {
         // Options → SW → this page (045): relay the daemon-local `bridge.stop`
         // over the LIVE active-slot WS. The daemon replies {stopped:true} and
@@ -688,8 +781,11 @@ export function useAgentBridge({
   useEffect(() => {
     if (!isLocal || !profileId) return;
     const api = excalidrawAPIRef.current;
-    const controlShouldDial = masterOn && paired; // Gate 1 only — no activation
-    const activeShouldDial = masterOn && paired && isActive && !!api; // Gate 2
+    // WebMCP mode (043/044) has NO daemon: no WS dials at all. Switching the
+    // route tears the sessions down via this effect's cleanup (mode in deps).
+    const wsMode = mode === AGENT_BRIDGE_MODE_WS;
+    const controlShouldDial = wsMode && masterOn && paired; // Gate 1 only
+    const activeShouldDial = wsMode && masterOn && paired && isActive && !!api; // Gate 2
     if (!controlShouldDial && !activeShouldDial) return;
 
     let controlSession: AgentBridgeSession | null = null;
@@ -802,7 +898,7 @@ export function useAgentBridge({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLocal, masterOn, paired, isActive, profileId, excalidrawAPI]);
+  }, [isLocal, masterOn, paired, isActive, profileId, excalidrawAPI, mode]);
 
   // keep connection state sane when not dialing
   useEffect(() => {
@@ -814,6 +910,75 @@ export function useAgentBridge({
       setControlConnection("idle");
     }
   }, [isLocal, masterOn, paired, isActive]);
+
+  // --- WebMCP exposure (043/044): per-page register/unregister -------------
+  // The canvas button's click IS the consent — this hook never auto-registers.
+  // It only AUTO-WITHDRAWS (kill-switch / unpair / route switch away).
+  const registerWebmcp = useCallback(async (): Promise<boolean> => {
+    const mc = getModelContext();
+    if (!mc?.registerTool || webmcpRegRef.current) return false;
+    const api = excalidrawAPIRef.current;
+    if (!api) return false;
+    try {
+      await mc.registerTool({
+        name: WEBMCP_TOOL_NAME,
+        description: t("AgentWebmcpToolDescription"),
+        inputSchema: WEBMCP_INPUT_SCHEMA as unknown as Record<string, unknown>,
+        execute: async (input) => {
+          // Resolve api/helpers at CALL time (never stale), same dispatch as
+          // the ws+daemon inbound path (canvas-v1.ts).
+          const method = (input as { method?: string })?.method;
+          const params = (input as { params?: Record<string, unknown> })?.params ?? {};
+          if (!method || !WEBMCP_METHODS.includes(method as never)) {
+            throw new Error(`unknown canvas method: ${method ?? "(none)"}`);
+          }
+          const liveApi = excalidrawAPIRef.current;
+          if (!liveApi) throw new Error("canvas not ready");
+          const resp = await handleCanvasV1Request(
+            { jsonrpc: "2.0", id: 1, method, params } as CanvasV1Request,
+            {
+              api: liveApi as never,
+              helpers: canvasV1HelpersRef.current!,
+              onDestructive: (m) =>
+                toast.warning(t("AgentDestructiveOp", { method: m })),
+            },
+          );
+          if (resp.error) {
+            throw new Error(`${resp.error.code}: ${resp.error.message}`);
+          }
+          return resp.result;
+        },
+      });
+      webmcpRegRef.current = true;
+      setWebmcpRegistered(true);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [t]);
+
+  const unregisterWebmcp = useCallback(async (): Promise<void> => {
+    const mc = getModelContext();
+    webmcpRegRef.current = false;
+    setWebmcpRegistered(false);
+    try {
+      await mc?.unregisterTool?.(WEBMCP_TOOL_NAME);
+    } catch {
+      /* best-effort withdrawal */
+    }
+  }, []);
+
+  // Kill-switch / route switch: the moment WebMCP exposure is no longer
+  // allowed (master OFF, unpair, or mode switched away), withdraw immediately.
+  // No exceptions (043: master-OFF unregisters at once).
+  useEffect(() => {
+    if (!isLocal) return;
+    const allowed =
+      mode === AGENT_BRIDGE_MODE_WEBMCP && masterOn && paired;
+    if (!allowed && webmcpRegRef.current) {
+      void unregisterWebmcp();
+    }
+  }, [isLocal, mode, masterOn, paired, unregisterWebmcp]);
 
   return {
     masterOn,
@@ -832,6 +997,10 @@ export function useAgentBridge({
     cancelGallery,
     showConfirm,
     canActivate: isLocal && masterOn && paired,
+    mode,
+    webmcpRegistered,
+    registerWebmcp,
+    unregisterWebmcp,
     quickEnableAgent,
     pairAgent,
     toggleActivation,

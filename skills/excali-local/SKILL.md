@@ -59,6 +59,15 @@ proceed normally:
 You cannot tell (and need not care) who started it. `$BIN bridge.status` tells
 you whether a daemon is up and which canvas/profiles are connected.
 
+> **Active control route (Wayfinder 043/044).** The extension has two
+> mutually-exclusive routes: **ws + daemon** (the default — everything in this
+> skill) and **WebMCP** (the canvas exposes its commands to Chrome's built-in
+> AI via `document.modelContext.registerTool`; no daemon exists at all). When
+> the user switches the options route to WebMCP, the CLI is not used: there is
+> no daemon to ping, and `commands.list` returns no daemon tools. If your
+> commands stop answering, ask the user which route is active, or check the
+> Options page — switching back to ws + daemon restores this skill's surface.
+
 ## Consent model — the two gates (read before touching anything)
 
 The user controls you through two consent gates. Respect them exactly; they

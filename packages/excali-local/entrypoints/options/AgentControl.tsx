@@ -4,41 +4,56 @@ import {
   AB_BRIDGE_STOP_REQUEST,
   AB_STATE,
   AB_STATE_QUERY,
+  AGENT_BRIDGE_MODE_WS,
   AGENT_BRIDGE_STORAGE_KEY,
   AGENT_BRIDGE_DEFAULT_STORAGE,
+  type AgentBridgeMode,
   type AgentBridgeStorage,
   type AgentBridgeStatePayload,
 } from "excali-shared";
 import { toast } from "sonner";
 import { probeDaemonHealth } from "../lib/bridge-probe";
 
+/** Feature-detect WebMCP (Wayfinder 043): Chrome 157+ exposes
+ * document.modelContext; navigator.modelContext is the deprecated alias.
+ * Extension pages may lack it entirely → the WebMCP segment greys out. */
+function webmcpAvailable(): boolean {
+  try {
+    return !!(
+      (document as unknown as { modelContext?: unknown })?.modelContext ??
+      (navigator as unknown as { modelContext?: unknown })?.modelContext
+    );
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Layer 0 — "Agent control" master switch + hide-button toggle (Options),
- * plus the daemon-stop pill (Wayfinder 040/045).
+ * Layer 0 — "Enabled" master switch + hide-button toggle (Options), the
+ * Active control route segmented control (Wayfinder 043/044 Variant B), and
+ * the ws+daemon daemon-stop pill (Wayfinder 040/045).
  *
  * Persisted via chrome.storage.local, DEFAULT OFF. OFF is a kill-switch: it hides
  * all agent UI in the popup + editor and tears down any pairing/activation (the
  * background SW reacts to the same storage change and clears its registry).
  *
- * "Hide the AI button on canvas" (Wayfinder 034 locked invariant) is adjustable
- * ONLY while the master is OFF: an active canvas must always have a visible stop
- * control, so turning master ON forces the canvas button visible.
+ * Layout (044 Variant B, top → bottom):
+ *   header (title + mode subtitle + optional daemon pill)
+ *   → "Enabled" row (kill-switch; master OFF disables everything below
+ *     except the hide-button toggle)
+ *   → "Hide the AI button on canvas" row (adjustable ONLY while master is OFF)
+ *   → dashed divider "Active control route"
+ *   → segmented control: `● Default · ws + daemon` | WebMCP (feature-gated)
  *
- * Daemon-stop pill (040/045): a small dot pinned right in the header.
- *   - Green pulsing dot + hover-expand "Stop daemon" when /health is OK AND the
- *     SW has an activeTabId (the active page is the stop authority).
- *   - Grey non-interactive dot when the daemon is down (title: "Daemon not
- *     running") or running but no canvas is active (title: "Stop needs an
- *     active canvas").
- *   - No pill at all until a connection has occurred at least once (040
- *     gating): health never OK and never seen → plain header.
- * Click → confirm modal → SW relays AB_BRIDGE_STOP_REQUEST to the active tab →
- * the page sends `bridge.stop` over its live WS → daemon replies + shuts down.
+ * The daemon-stop pill renders only in ws+daemon mode. Master OFF hides the
+ * pill (no active session) and greys the route control.
  */
 const AgentControl = () => {
   const [isOn, setIsOn] = useState(false);
   const [hideButton, setHideButton] = useState(false);
+  const [mode, setMode] = useState<AgentBridgeMode>("ws+daemon");
   const [isLoading, setIsLoading] = useState(true);
+  const [webmcpOk] = useState(webmcpAvailable);
 
   // --- daemon-stop pill state (040/045) ------------------------------------
   const [health, setHealth] = useState<{ ok: boolean; port: number | null }>({
@@ -104,6 +119,7 @@ const AgentControl = () => {
         const current = stored ?? AGENT_BRIDGE_DEFAULT_STORAGE;
         setIsOn(current.master);
         setHideButton(current.hideButton);
+        setMode(current.mode ?? AGENT_BRIDGE_MODE_WS);
       })
       .finally(() => setIsLoading(false));
   }, []);
@@ -121,6 +137,15 @@ const AgentControl = () => {
     const next = !hideButton;
     setHideButton(next);
     writeStorage({ hideButton: next });
+  };
+
+  const handleModeChange = (next: AgentBridgeMode) => {
+    if (!isOn || next === mode) return; // kill-switch: master OFF → no mode switch
+    if (next !== AGENT_BRIDGE_MODE_WS && !webmcpOk) return; // feature-gated
+    setMode(next);
+    // The storage write propagates via chrome.storage.onChanged: the SW clears
+    // the ws+daemon registry / broadcasts AB_MODE_CHANGED to open editor tabs.
+    writeStorage({ mode: next });
   };
 
   // --- daemon-stop flow (045) ----------------------------------------------
@@ -162,8 +187,9 @@ const AgentControl = () => {
     </span>
   );
 
-  // --- pill derivation (#040 states + #045 gating) -------------------------
-  const pillVisible = seenDaemon || health.ok;
+  // --- daemon-stop pill (ws+daemon mode only; 040 states + 045 gating) ------
+  const pillVisible =
+    mode === AGENT_BRIDGE_MODE_WS && (seenDaemon || health.ok);
   const pillStoppable = health.ok && activeTabId != null;
   const pillTitle = health.ok
     ? activeTabId != null
@@ -201,6 +227,61 @@ const AgentControl = () => {
     </button>
   ) : null;
 
+  // --- mode segmented control (044 Variant B) -------------------------------
+  const segBase =
+    "inline-flex flex-1 items-center justify-center gap-1.5 border-0 px-3 py-2 text-xs font-medium transition-colors";
+  const modeControl = (
+    <div className="mt-2 inline-flex w-full overflow-hidden rounded-lg border border-gray-300 dark:border-gray-600">
+      <button
+        type="button"
+        role="radio"
+        aria-checked={mode === "ws+daemon"}
+        disabled={isLoading || !isOn}
+        onClick={() => handleModeChange("ws+daemon")}
+        className={`${segBase} ${
+          mode === "ws+daemon"
+            ? "bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400"
+            : "bg-transparent text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+        } ${!isOn ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
+      >
+        <span
+          title={t("AgentRouteDefault")}
+          className="flex size-3.5 items-center justify-center rounded-full bg-gray-300 text-white dark:bg-gray-500"
+        >
+          <svg
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.4"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="size-2"
+          >
+            <polyline points="3 8 7 12 13 4" />
+          </svg>
+        </span>
+        <span className="whitespace-nowrap">
+          {t("AgentRouteDefault")} · {t("AgentRouteWsDaemon")}
+        </span>
+      </button>
+      <button
+        type="button"
+        role="radio"
+        aria-checked={mode === "webmcp"}
+        disabled={isLoading || !isOn || !webmcpOk}
+        onClick={() => handleModeChange("webmcp")}
+        title={webmcpOk ? "" : t("AgentRouteUnsupported")}
+        className={`${segBase} border-l border-gray-300 dark:border-gray-600 ${
+          mode === "webmcp"
+            ? "bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400"
+            : "bg-transparent text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+        } ${!isOn || !webmcpOk ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
+      >
+        <span className="whitespace-nowrap">{t("AgentRouteWebmcp")}</span>
+      </button>
+    </div>
+  );
+
   return (
     <div className="mb-4">
       <header className="mb-3 flex items-start justify-between gap-2">
@@ -208,12 +289,16 @@ const AgentControl = () => {
           <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">
             {t("AgentControl")}
           </h2>
-          <p className="text-xs text-gray-500">{t("AgentControlDescription")}</p>
+          <p className="text-xs text-gray-500">
+            {mode === "webmcp"
+              ? t("AgentSubtitleWebmcp")
+              : t("AgentSubtitleWsDaemon")}
+          </p>
         </div>
         {pill}
       </header>
 
-      {/* Layer 0 — master kill-switch */}
+      {/* Layer 0 — Enabled master kill-switch */}
       <button
         type="button"
         role="switch"
@@ -229,10 +314,10 @@ const AgentControl = () => {
         {switchKnob(isOn)}
         <span className="flex flex-col text-left">
           <span className="text-sm font-medium text-gray-900 dark:text-white">
-            {isOn ? t("AgentControlOn") : t("AgentControlOff")}
+            {t("AgentEnabledLabel")}
           </span>
           <span className="text-xs text-gray-500">
-            {isOn ? t("AgentControlEnabledHint") : t("AgentControlDisabledHint")}
+            {isOn ? t("AgentEnabledOnHint") : t("AgentEnabledOffHint")}
           </span>
         </span>
       </button>
@@ -260,6 +345,14 @@ const AgentControl = () => {
           </span>
         </span>
       </button>
+
+      {/* Active control route — dashed divider + segmented control (044 B) */}
+      <div className="mt-3 border-t border-dashed border-gray-300 pt-3 dark:border-gray-600">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+          {t("AgentRouteTitle")}
+        </span>
+        {modeControl}
+      </div>
 
       {/* Confirm modal (#040): no instant stop — the user must confirm. */}
       {showStopModal && (

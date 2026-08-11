@@ -53,12 +53,27 @@ export interface AgentBridgeStorage {
    * visible stop control (Wayfinder 034 locked invariant).
    */
   hideButton: boolean;
+  /**
+   * Active control route (Wayfinder 043/044): "ws+daemon" (default — the Go
+   * bridge daemon over loopback WS) or "webmcp" (expose canvas commands to
+   * Chrome's built-in AI via document.modelContext.registerTool; no daemon).
+   * Mutually exclusive: switching away tears that route's exposure down
+   * immediately; the new route never auto-engages — exposure is always the
+   * user's next explicit per-canvas act.
+   */
+  mode: AgentBridgeMode;
 }
+
+export type AgentBridgeMode = "ws+daemon" | "webmcp";
+
+export const AGENT_BRIDGE_MODE_WS = "ws+daemon" as const;
+export const AGENT_BRIDGE_MODE_WEBMCP = "webmcp" as const;
 
 export const AGENT_BRIDGE_DEFAULT_STORAGE: AgentBridgeStorage = {
   master: false,
   pairing: false,
   hideButton: false,
+  mode: "ws+daemon",
 };
 
 // ---------------------------------------------------------------------------
@@ -154,6 +169,14 @@ export const AB_HEARTBEAT = "AGENT_BRIDGE_HEARTBEAT";
 export const AB_STATE_QUERY = "AGENT_BRIDGE_STATE_QUERY";
 /** SW → active editor tab: what is the current canvas name? (popup indicator.) */
 export const AB_CANVAS_NAME = "AGENT_BRIDGE_CANVAS_NAME";
+
+/**
+ * SW → every editor tab (Wayfinder 043/044): the Active control route
+ * (AgentBridgeStorage.mode) changed. The page tears its current route's
+ * exposure down immediately (WS sessions / WebMCP registration); the new
+ * route never auto-engages.
+ */
+export const AB_MODE_CHANGED = "AGENT_BRIDGE_MODE_CHANGED";
 
 /**
  * Options → SW → active editor page: user clicked "Stop daemon" (045). The SW

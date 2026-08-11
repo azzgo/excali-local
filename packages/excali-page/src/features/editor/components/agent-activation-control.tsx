@@ -24,7 +24,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { IconCheck, IconCopy, IconRobot, IconRobotOff, IconX } from "@tabler/icons-react";
+import {
+  IconCheck,
+  IconCopy,
+  IconPlug,
+  IconPlugConnectedX,
+  IconRobot,
+  IconRobotOff,
+  IconX,
+} from "@tabler/icons-react";
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -98,18 +106,40 @@ const AgentActivationControl = ({
   // "Daemon detected" = the control WS (or the active-slot WS) is connected.
   const daemonDetected =
     bridge.controlConnection === "connected" || bridge.connection === "connected";
+  const isWebmcp = bridge.mode === "webmcp";
+  // WebMCP mode (043): 2-state machine — unregistered (grey Register) /
+  // registered (accent Unregister). Master OFF is still the kill-switch
+  // (quick-enable modal); unpaired pairs on the same click.
   const buttonState: ButtonState = !bridge.masterOn
     ? "off"
-    : !bridge.paired || !daemonDetected
-      ? "coach"
-      : bridge.isActive
+    : isWebmcp
+      ? bridge.webmcpRegistered
         ? "active"
-        : "ready";
+        : "ready"
+      : !bridge.paired || !daemonDetected
+        ? "coach"
+        : bridge.isActive
+          ? "active"
+          : "ready";
 
   const handleClick = () => {
     if (buttonState === "off") {
       // ① Feature OFF → quick-enable modal (journey short-circuit, 033 R2).
       setShowEnable(true);
+      return;
+    }
+    if (isWebmcp) {
+      // 043: the click IS the per-page exposure consent — no modal. Unpaired
+      // opens pairing on the same click (same one-consent philosophy as 034's
+      // quick-enable). Register failure stays unregistered + toast.
+      if (bridge.webmcpRegistered) {
+        void bridge.unregisterWebmcp();
+      } else {
+        if (!bridge.paired) bridge.pairAgent();
+        void bridge.registerWebmcp().then((ok) => {
+          if (!ok) toast.error(t("AgentWebmcpRegisterFailed"));
+        });
+      }
       return;
     }
     if (buttonState === "coach") {
@@ -212,16 +242,26 @@ const AgentActivationControl = ({
     active:
       "bg-blue-600 text-white border-blue-600 hover:bg-blue-700 dark:bg-blue-600 dark:text-white dark:border-blue-600",
   };
-  const label =
-    buttonState === "active"
+  const label = isWebmcp
+    ? buttonState === "off"
+      ? t("AgentButtonLabel")
+      : bridge.webmcpRegistered
+        ? t("AgentButtonUnregister")
+        : t("AgentButtonRegister")
+    : buttonState === "active"
       ? t("AgentButtonControlling")
       : buttonState === "coach"
         ? t("AgentButtonSetup")
         : buttonState === "ready"
           ? t("AgentButtonActivate")
           : t("AgentButtonLabel");
-  const tooltip =
-    buttonState === "off"
+  const tooltip = isWebmcp
+    ? buttonState === "off"
+      ? t("AgentTooltipOff")
+      : bridge.webmcpRegistered
+        ? t("AgentTooltipUnregister")
+        : t("AgentTooltipRegister")
+    : buttonState === "off"
       ? t("AgentTooltipOff")
       : buttonState === "coach"
         ? t("AgentTooltipSetup")
@@ -240,10 +280,20 @@ const AgentActivationControl = ({
             onClick={handleClick}
             title={connectionLabel || undefined}
             data-testid="agent-activation-toggle"
-            data-state={buttonState}
+            data-state={
+              isWebmcp && bridge.masterOn
+                ? bridge.webmcpRegistered
+                  ? "registered"
+                  : "unregistered"
+                : buttonState
+            }
             className={cn(
               "inline-flex items-center gap-1.5 rounded-lg border px-2.5 h-9 text-xs font-semibold transition-colors cursor-pointer",
-              tint[buttonState],
+              // WebMCP unregistered = muted grey (043); everything else uses
+              // the ws+daemon 4-state tints.
+              isWebmcp && !bridge.webmcpRegistered && buttonState !== "off"
+                ? "bg-transparent text-muted-foreground border-transparent hover:bg-accent hover:text-accent-foreground"
+                : tint[buttonState],
             )}
           >
             <span
@@ -252,7 +302,13 @@ const AgentActivationControl = ({
                 buttonState === "active" ? "bg-white" : "bg-current opacity-60",
               )}
             />
-            {bridge.isActive ? (
+            {isWebmcp ? (
+              bridge.webmcpRegistered ? (
+                <IconPlugConnectedX className="size-4" />
+              ) : (
+                <IconPlug className="size-4" />
+              )
+            ) : bridge.isActive ? (
               <IconRobotOff className="size-4" />
             ) : (
               <IconRobot className="size-4" />
@@ -261,7 +317,7 @@ const AgentActivationControl = ({
           </button>
         </Hint>
 
-        {buttonState === "coach" && coachOpen && (
+        {!isWebmcp && buttonState === "coach" && coachOpen && (
           <div
             data-testid="agent-coach-card"
             className="absolute right-0 top-full z-50 mt-2 w-[27rem] rounded-xl border border-border bg-popover p-3 text-xs text-popover-foreground shadow-lg"

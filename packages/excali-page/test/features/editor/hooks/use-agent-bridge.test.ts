@@ -207,8 +207,27 @@ const broadcast = (state: {
   });
 };
 
-const setConsent = (master: boolean, pairing: boolean) => {
-  harness.swState.storage[AGENT_BRIDGE_STORAGE_KEY] = { master, pairing };
+const setConsent = (
+  master: boolean,
+  pairing: boolean,
+  mode: "ws+daemon" | "webmcp" = "ws+daemon",
+) => {
+  harness.swState.storage[AGENT_BRIDGE_STORAGE_KEY] = {
+    master,
+    pairing,
+    mode,
+    hideButton: false,
+  };
+};
+
+/** Install a fake document.modelContext (WebMCP imperative API) for a test. */
+const installModelContext = () => {
+  const ctx = {
+    registerTool: vi.fn(async (_def: Record<string, unknown>) => {}),
+    unregisterTool: vi.fn(async () => {}),
+  };
+  (document as unknown as { modelContext?: unknown }).modelContext = ctx;
+  return ctx;
 };
 
 // The control session is dialed FIRST (paired, no activation) — the active
@@ -219,13 +238,17 @@ const controlSession = () =>
 const activeSession = () =>
   [...harness.MockSession.instances].reverse().find((s) => s.opts.role !== "control-page");
 
-const fireStorageChange = (master: boolean, pairing: boolean) => {
+const fireStorageChange = (
+  master: boolean,
+  pairing: boolean,
+  mode: "ws+daemon" | "webmcp" = "ws+daemon",
+) => {
   act(() => {
     for (const fn of harness.swState.storageListeners) {
       fn(
         {
           [AGENT_BRIDGE_STORAGE_KEY]: {
-            newValue: { master, pairing },
+            newValue: { master, pairing, mode, hideButton: false },
           },
         },
         "local",
@@ -244,6 +267,7 @@ beforeEach(() => {
   harness.MockSession.instances = [];
   window.excaliAPI = undefined;
   delete window.excaliAPI;
+  delete (document as unknown as { modelContext?: unknown }).modelContext;
   getDefaultStore().set(currentLoadedDrawingIdAtom, null);
 });
 
@@ -1037,5 +1061,116 @@ describe("useAgentBridge", () => {
 	  ok: false,
 	  reason: "bridge.stop requires the active-page role",
 	});
+  });
+
+  // ------------------------------------------------------------------
+  // Wayfinder 043/044 — WebMCP exposure + active control route
+  // ------------------------------------------------------------------
+
+  test("mode switch (ws+daemon → webmcp): WS sessions tear down, no dials", async () => {
+	setConsent(true, true, "ws+daemon");
+	const api = { updateScene: vi.fn() };
+	const { result } = renderLocal(api);
+	await waitFor(() => expect(result.current.canActivate).toBe(true));
+	act(() => result.current.toggleActivation());
+	act(() => result.current.confirmActivation());
+	await waitFor(() =>
+	  expect(harness.swState.sendMessages.some((m: any) => m.type === AB_ACTIVATE)).toBe(
+	    true,
+	  ),
+	);
+	broadcast({ swInstanceId: "sw-1", activeTabId: 1, isActive: true });
+	await waitFor(() => expect(result.current.isActive).toBe(true));
+	expect(activeSession()!.stopped).toBe(false);
+
+	// The route flips to webmcp → the WS effect cleanup stops every session
+	// (no daemon exists in WebMCP mode); the SW already cleared the registry.
+	fireStorageChange(true, true, "webmcp");
+	await waitFor(() => expect(result.current.mode).toBe("webmcp"));
+	await waitFor(() => expect(activeSession()!.stopped).toBe(true));
+	await waitFor(() => expect(controlSession()!.stopped).toBe(true));
+	await waitFor(() => expect(window.excaliAPI).toBeUndefined());
+  });
+
+  test("AB_MODE_CHANGED relay updates the route without polling", async () => {
+	setConsent(true, true, "ws+daemon");
+	const { result } = renderLocal({});
+	await waitFor(() => expect(result.current.mode).toBe("ws+daemon"));
+	act(() => {
+	  for (const fn of harness.swState.runtimeListeners) {
+	    fn({ type: "AGENT_BRIDGE_MODE_CHANGED", mode: "webmcp" });
+	  }
+	});
+	await waitFor(() => expect(result.current.mode).toBe("webmcp"));
+  });
+
+  test("WebMCP register: click-consent flow — registerTool succeeds → registered", async () => {
+	setConsent(true, true, "webmcp");
+	const ctx = installModelContext();
+	const api = { updateScene: vi.fn() };
+	const { result } = renderLocal(api);
+	await waitFor(() => expect(result.current.mode).toBe("webmcp"));
+
+	expect(result.current.webmcpRegistered).toBe(false);
+	await act(async () => {
+	  expect(await result.current.registerWebmcp()).toBe(true);
+	});
+	expect(result.current.webmcpRegistered).toBe(true);
+	expect(ctx.registerTool).toHaveBeenCalledTimes(1);
+	const def = ctx.registerTool.mock.calls[0]?.[0] as unknown as {
+	  name?: string;
+	  inputSchema?: { properties?: { method?: { enum?: string[] } } };
+	};
+	expect(def?.name).toBe("excali_canvas");
+	expect(def?.inputSchema?.properties?.method?.enum).toContain("scene.get");
+	expect(def?.inputSchema?.properties?.method?.enum).not.toContain("commands.list");
+  });
+
+  test("WebMCP register failure: stays unregistered, returns false", async () => {
+	setConsent(true, true, "webmcp");
+	const ctx = installModelContext();
+	ctx.registerTool.mockRejectedValueOnce(new Error("no permission"));
+	const { result } = renderLocal({});
+	await waitFor(() => expect(result.current.mode).toBe("webmcp"));
+
+	await act(async () => {
+	  expect(await result.current.registerWebmcp()).toBe(false);
+	});
+	expect(result.current.webmcpRegistered).toBe(false);
+  });
+
+  test("WebMCP kill-switch: master OFF unregisters immediately", async () => {
+	setConsent(true, true, "webmcp");
+	const ctx = installModelContext();
+	const { result } = renderLocal({});
+	await waitFor(() => expect(result.current.mode).toBe("webmcp"));
+
+	await act(async () => {
+	  await result.current.registerWebmcp();
+	});
+	expect(result.current.webmcpRegistered).toBe(true);
+
+	fireStorageChange(false, false, "webmcp"); // Layer 0 kill-switch
+	await waitFor(() => expect(result.current.masterOn).toBe(false));
+	await waitFor(() => expect(result.current.webmcpRegistered).toBe(false));
+	expect(ctx.unregisterTool).toHaveBeenCalledWith("excali_canvas");
+  });
+
+  test("WebMCP unregister: explicit withdrawal clears the registration", async () => {
+	setConsent(true, true, "webmcp");
+	const ctx = installModelContext();
+	const { result } = renderLocal({});
+	await waitFor(() => expect(result.current.mode).toBe("webmcp"));
+
+	await act(async () => {
+	  await result.current.registerWebmcp();
+	});
+	expect(result.current.webmcpRegistered).toBe(true);
+
+	await act(async () => {
+	  await result.current.unregisterWebmcp();
+	});
+	expect(result.current.webmcpRegistered).toBe(false);
+	expect(ctx.unregisterTool).toHaveBeenCalledWith("excali_canvas");
   });
 });
