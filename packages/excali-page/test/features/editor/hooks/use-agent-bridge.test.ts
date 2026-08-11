@@ -11,6 +11,7 @@ import {
 	AB_READY,
 	AB_STATE,
 	AGENT_BRIDGE_STORAGE_KEY,
+	AB_BRIDGE_STOP_REQUEST,
 	PROFILE_ID_STORAGE_KEY,
 } from "excali-shared";
 
@@ -115,6 +116,9 @@ const harness = vi.hoisted(() => {
     sendJSON(obj: unknown) {
 	  this.sent.push(obj);
     }
+    request: ReturnType<typeof vi.fn> = vi.fn(() =>
+	  Promise.resolve({ ok: true }),
+    );
   }
 
   return { swState, browser, MockSession };
@@ -960,5 +964,78 @@ describe("useAgentBridge", () => {
       }
     });
     await waitFor(() => expect(reply2).toEqual({ name: "My Canvas" }));
+  });
+
+  // ------------------------------------------------------------------
+  // 045 — extension-initiated daemon stop (AB_BRIDGE_STOP_REQUEST)
+  // ------------------------------------------------------------------
+
+  const fireBridgeStop = (): Promise<unknown> =>
+    new Promise((resolve) => {
+      act(() => {
+        for (const fn of harness.swState.runtimeListeners) {
+          (fn as (m: unknown, s: unknown, r: (v: unknown) => void) => void)(
+            { type: AB_BRIDGE_STOP_REQUEST },
+            undefined,
+            resolve,
+          );
+        }
+      });
+    });
+
+  test("AB_BRIDGE_STOP_REQUEST: active canvas relays bridge.stop → {ok:true}", async () => {
+	setConsent(true, true);
+	const { result } = renderLocal({});
+	await waitFor(() => expect(result.current.canActivate).toBe(true));
+	act(() => result.current.toggleActivation());
+	act(() => result.current.confirmActivation());
+	await waitFor(() =>
+	  expect(harness.swState.sendMessages.some((m: any) => m.type === AB_ACTIVATE)).toBe(
+	    true,
+	  ),
+	);
+	broadcast({ swInstanceId: "sw-1", activeTabId: 1, isActive: true });
+	await waitFor(() => expect(result.current.isActive).toBe(true));
+
+	const session = activeSession()!;
+	const reply = await fireBridgeStop();
+	expect(reply).toEqual({ ok: true });
+	expect(session.request).toHaveBeenCalledWith("bridge.stop", {});
+  });
+
+  test("AB_BRIDGE_STOP_REQUEST: no active session → {ok:false, reason:'no-active-session'}", async () => {
+	setConsent(true, true);
+	const { result } = renderLocal({});
+	await waitFor(() => expect(result.current.canActivate).toBe(true));
+	// paired but NOT activated → only a control session exists, no active slot.
+	expect(activeSession()).toBeUndefined();
+	const reply = await fireBridgeStop();
+	expect(reply).toEqual({ ok: false, reason: "no-active-session" });
+  });
+
+  test("AB_BRIDGE_STOP_REQUEST: daemon error (-32007) → {ok:false, reason}", async () => {
+	setConsent(true, true);
+	const { result } = renderLocal({});
+	await waitFor(() => expect(result.current.canActivate).toBe(true));
+	act(() => result.current.toggleActivation());
+	act(() => result.current.confirmActivation());
+	await waitFor(() =>
+	  expect(harness.swState.sendMessages.some((m: any) => m.type === AB_ACTIVATE)).toBe(
+	    true,
+	  ),
+	);
+	broadcast({ swInstanceId: "sw-1", activeTabId: 1, isActive: true });
+	await waitFor(() => expect(result.current.isActive).toBe(true));
+
+	activeSession()!.request.mockResolvedValueOnce({
+	  ok: false,
+	  reason: "bridge.stop requires the active-page role",
+	  code: -32007,
+	});
+	const reply = await fireBridgeStop();
+	expect(reply).toEqual({
+	  ok: false,
+	  reason: "bridge.stop requires the active-page role",
+	});
   });
 });

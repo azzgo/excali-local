@@ -39,6 +39,7 @@ const origin = process.env.ORIGIN ?? "chrome-extension://abcdabcdabcdabcdabcdabc
 const profileA = "11111111-2222-4333-8444-555555555555";
 const profileB = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 const profileStorm = "dddddddd-eeee-4fff-8000-111111111111";
+const profileStop = "99999999-8888-4777-8000-222222222222";
 const bin =
   process.env.EXCALI_BRIDGE_BIN ??
   join(hereDir(import.meta.url), "../../packages/excali-bridge/bin/excali-bridge");
@@ -301,11 +302,83 @@ if (selfDisplacements > 0) {
   fail(`storm: daemon logged ${selfDisplacements} self-inflicted control displacement(s)`);
 }
 if (stormPings.some((p) => !p)) {
-  fail("storm: pings did not round-trip after the storm settled");
+	fail("storm: pings did not round-trip after the storm settled");
 } else {
-  console.log("[driver] storm: pings round-trip after the storm ✔");
+	console.log("[driver] storm: pings round-trip after the storm settled ✔");
 }
-// --- verdict ----------------------------------------------------------------
+// --- verdict ---
+
+// --- Phase 4: extension-initiated daemon stop (045) ------------------------
+// The active page calls the daemon-local `bridge.stop` exactly like the
+// Options pill's relay does: response {stopped:true} arrives FIRST, then the
+// daemon shuts down (socket closes), and the pidfile is removed (cmdServe).
+// A subsequent CLI `status` proves the daemon is gone; a fresh session's
+// reconnect loop then re-boots it lazily — the reconnect closed loop.
+let stopOk = false;
+const stopSession = new AgentBridgeSession({
+  origin,
+  token: mintBridgeToken(),
+  profileId: profileStop,
+  wsFactory,
+  reconnectBaseMs: 200,
+  reconnectMaxMs: 1000,
+  handshakeTimeoutMs: 500,
+});
+stopSession.start();
+await withTimeout(
+  waitFor(() => stopSession.currentStatus === "connected", 8000, "stop phase connects"),
+  TIMEOUT_MS,
+  "stop-phase connect",
+);
+const stopResp = await stopSession.request("bridge.stop", {});
+if (stopResp.ok && (stopResp.result as { stopped?: unknown })?.stopped === true) {
+  console.log("[driver] bridge.stop → {stopped:true} ✔");
+} else {
+  fail(`bridge.stop reply = ${JSON.stringify(stopResp)}`);
+}
+// The daemon's flush window closes the socket; the session sees the drop.
+await withTimeout(
+  waitFor(() => stopSession.currentStatus !== "connected", 8000, "socket drops after stop"),
+  TIMEOUT_MS,
+  "stop-phase socket close",
+);
+stopSession.stop();
+// pidfile removed → CLI status reports not running (exit 1).
+const statusAfter = run([bin, "status"], { env: { ...process.env, EXCALI_BRIDGE_BIN: bin } });
+if (statusAfter.code === 1 && statusAfter.stdout.includes("not running")) {
+  console.log("[driver] daemon pidfile removed after bridge.stop ✔");
+  stopOk = true;
+} else {
+  fail(`daemon status after stop = exit ${statusAfter.code}: ${statusAfter.stdout.trim()}`);
+}
+// Reconnect closed loop: the daemon is down, so the session's dial backoffs
+// (never connects). The user restarts it via the CLI (`excali-bridge <method>`
+// lazily spawns the daemon) → the SAME session reconnects without any
+// page-side change — the closed loop 045 requires.
+const relive = new AgentBridgeSession({
+  origin,
+  token: mintBridgeToken(),
+  profileId: profileStop,
+  wsFactory,
+  reconnectBaseMs: 200,
+  reconnectMaxMs: 1000,
+  handshakeTimeoutMs: 500,
+});
+relive.start();
+await sleep(1000); // let the reconnect loop observe the daemon is down
+const bootAgain = run([bin, "ping"], { env: { ...process.env, EXCALI_BRIDGE_BIN: bin } });
+if (bootAgain.code !== 0) {
+  fail(`daemon re-boot after bridge.stop failed:\n${bootAgain.stdout}\n${bootAgain.stderr}`);
+}
+await withTimeout(
+  waitFor(() => relive.currentStatus === "connected", 15000, "session reconnects after daemon re-boot"),
+  TIMEOUT_MS + 5000,
+  "stop-phase relive",
+);
+console.log("[driver] reconnect: same session reconnects after daemon re-boot ✔");
+relive.stop();
+
+// --- verdict ---
 console.log(
   ok1
     ? "[driver] PASS — ping round-trip through window.excaliAPI client code ✔"
@@ -316,4 +389,4 @@ console.log(
     ? "[driver] PASS — displacement: B displaced A, daemon held ≤1 active page ✔"
     : "[driver] FAIL — displacement proof broken",
 );
-process.exit(failures > 0 || !ok1 || !okB || !displacedA ? 1 : 0);
+process.exit(failures > 0 || !ok1 || !okB || !displacedA || !stopOk ? 1 : 0);

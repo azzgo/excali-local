@@ -155,6 +155,14 @@ export const AB_STATE_QUERY = "AGENT_BRIDGE_STATE_QUERY";
 /** SW → active editor tab: what is the current canvas name? (popup indicator.) */
 export const AB_CANVAS_NAME = "AGENT_BRIDGE_CANVAS_NAME";
 
+/**
+ * Options → SW → active editor page: user clicked "Stop daemon" (045). The SW
+ * relays to the active tab (never touches the wire itself); the page sends the
+ * daemon-local JSON-RPC `bridge.stop` on its live active-slot WS and replies
+ * `{ok: true}` once the daemon confirms, or `{ok: false, reason}` otherwise.
+ */
+export const AB_BRIDGE_STOP_REQUEST = "AGENT_BRIDGE_BRIDGE_STOP_REQUEST";
+
 export interface AgentBridgeStatePayload {
   type: typeof AB_STATE;
   /** SW boot instance id — regenerated on every SW restart (registry wiped). */
@@ -282,6 +290,7 @@ export const DAEMON_LOCAL_METHODS = [
   "commands.list",
   "protocol.version",
   "bridge.status",
+  "bridge.stop",
 ] as const;
 
 /**
@@ -291,6 +300,14 @@ export const DAEMON_LOCAL_METHODS = [
  */
 export const BRIDGE_STATUS_METHOD = "bridge.status";
 
+
+/**
+ * bridge.stop — daemon-local JSON-RPC method (045): the paired + ACTIVE page
+ * asks the daemon to gracefully shut down. Authority: the caller must be the
+ * single active `role=page` connection (s.active == cl on the server); any
+ * other peer gets JSON_RPC_ERROR_REQUIRES_ACTIVE_PAGE (-32007).
+ */
+export const BRIDGE_STOP_METHOD = "bridge.stop";
 // ---------------------------------------------------------------------------
 // fonts/v1 command set (Wayfinder Ticket 015, refined — goal 4)
 // ---------------------------------------------------------------------------
@@ -335,4 +352,7 @@ export const JSON_RPC_ERROR_AMBIGUOUS_TARGET = -32004;
 export const JSON_RPC_ERROR_USER_CANCELLED = -32005;
 /** gallery.get / load referenced a drawing id that does not exist. */
 export const JSON_RPC_ERROR_NOT_FOUND = -32006;
+
+/** bridge.* daemon-local method requires the single active-page role (045). */
+export const JSON_RPC_ERROR_REQUIRES_ACTIVE_PAGE = -32007;
 

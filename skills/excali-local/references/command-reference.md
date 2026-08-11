@@ -41,7 +41,7 @@ requirement** for that method (see SKILL.md):
 
 | Gate | Requires | Methods |
 | --- | --- | --- |
-| **daemon-local** | the daemon itself (no page, no canvas, no pairing beyond connection auth) | `ping`, `commands.list`, `protocol.version`, `bridge.status`, `fonts.system.list` |
+| **daemon-local** | the daemon itself (no page, no canvas, no pairing beyond connection auth) | `ping`, `commands.list`, `protocol.version`, `bridge.status`, `bridge.stop`, `fonts.system.list` |
 | **activated (canvas-bound)** | an **activated canvas** (plus the paired connection) | all `canvas/*` draw/read methods + `gallery.load` + `gallery.save` |
 | **paired** | the **paired connection** (no canvas needed) | gallery metadata ops + font config ops |
 
@@ -58,6 +58,13 @@ Resolved by the daemon itself — no page, no canvas, no user confirmation.
   extension identity + the connected control-page identities. No params.
   Result: `{ "activeCanvas": { "profileId": "…" } | null, "controlPages": [ { "profileId": "…" } ] }`.
 - `fonts.system.list` — OS-installed fonts, enumerated by the daemon (pure
+
+- `bridge.stop` — **NOT a CLI subcommand** — page-only, invoked by the
+  extension's Options page ("Stop daemon" pill, Wayfinder 040/045): the
+  active editor page sends it over its live WS and the daemon replies
+  `{ "stopped": true }` then shuts down. Authority: the caller must be the
+  single **activated** page; any other peer (the CLI included) gets `-32007`.
+  A stopped daemon reconnects automatically when started again.
   Go; no browser permission prompt, cross-browser, offline). No params.
   Result: `[ { "family": "SFNS-Regular", "postscriptName": "SFNS-Regular" }, … ]`.
 
@@ -212,13 +219,14 @@ Standard JSON-RPC + the bridge's custom range. Failures print
 | `-32004` | Ambiguous target (paired op, >1 control pages, no active canvas) | Ask the user to activate a canvas to disambiguate. |
 | `-32005` | User cancelled (blocking confirmation declined) | Back off; do not retry. |
 | `-32006` | Not found (gallery id missing) | Re-list first. |
+| `-32007` | Requires active page (`bridge.stop` from any non-active peer) | Use the Options page's Stop daemon action. |
 
 ## Full command index (machine-checked)
 
 The complete method set — every token below must exist in the wire contract
 and appear exactly once:
 
-daemon-local: `ping`, `commands.list`, `protocol.version`, `bridge.status`, `fonts.system.list`
+daemon-local: `ping`, `commands.list`, `protocol.version`, `bridge.status`, `bridge.stop`, `fonts.system.list`
 
 activated (canvas-bound): `scene.get`, `scene.elements`, `scene.state`, `scene.bounds`, `scene.exportPng`, `scene.exportSvg`, `scene.update`, `elements.add`, `elements.clear`, `scene.reset`, `files.add`, `tool.setActive`, `view.scrollTo`, `history.clear`, `gallery.load`, `gallery.save`
 

@@ -328,3 +328,77 @@ func readJSON(c *ws.Conn) (map[string]any, error) {
 	}
 	return m, nil
 }
+
+func TestBridgeStopRequiresActivePage(t *testing.T) {
+	s := startServer(t)
+
+	// The agent CLI role never holds the active slot → -32007.
+	agent, err := dialAgent(t, s, contract.LegAProtocolVersion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(agent, map[string]any{"jsonrpc": "2.0", "id": 1, "method": contract.BridgeStopMethod}); err != nil {
+		t.Fatal(err)
+	}
+	reply, err := readJSON(agent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	errObj, ok := reply["error"].(map[string]any)
+	if !ok || errObj["code"] != float64(contract.JSONRPCErrorRequiresActivePage) {
+		t.Fatalf("agent bridge.stop reply = %v, want -32007", reply)
+	}
+
+	// A control-page connection (paired, not active) is not the consent
+	// authority either → -32007.
+	control, err := dialControlPage(t, s, testProfileID, validToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := writeJSON(control, map[string]any{"jsonrpc": "2.0", "id": 2, "method": contract.BridgeStopMethod}); err != nil {
+		t.Fatal(err)
+	}
+	reply, err = readJSON(control)
+	if err != nil {
+		t.Fatal(err)
+	}
+	errObj, ok = reply["error"].(map[string]any)
+	if !ok || errObj["code"] != float64(contract.JSONRPCErrorRequiresActivePage) {
+		t.Fatalf("control bridge.stop reply = %v, want -32007", reply)
+	}
+
+	// The daemon is still up and serving (no shutdown happened).
+	if h := health(t, s); h["ok"] != true {
+		t.Fatalf("daemon should still be healthy after rejected stops, got %v", h)
+	}
+}
+
+func TestBridgeStopFlushesResponseBeforeClose(t *testing.T) {
+	s := startServer(t)
+
+	page, err := dialPage(t, s, validToken)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitHealth(t, s, true, 1)
+
+	// The active page calls bridge.stop: the {stopped:true} response MUST be
+	// delivered before the daemon closes the socket (the 150ms flush window).
+	if err := writeJSON(page, map[string]any{"jsonrpc": "2.0", "id": 99, "method": contract.BridgeStopMethod}); err != nil {
+		t.Fatal(err)
+	}
+	reply, err := readJSON(page)
+	if err != nil {
+		t.Fatalf("page bridge.stop read: %v", err)
+	}
+	res, ok := reply["result"].(map[string]any)
+	if !ok || res["stopped"] != true {
+		t.Fatalf("page bridge.stop result = %v, want {stopped:true}", reply["result"])
+	}
+
+	// Then Shutdown() closes every live WS connection.
+	_ = page.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if _, err := page.ReadMessage(); err == nil {
+	t.Fatal("page socket should have been closed by the daemon shutdown")
+	}
+}

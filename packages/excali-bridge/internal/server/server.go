@@ -431,6 +431,26 @@ func (s *Server) handleLocalMethod(cl *client, id json.RawMessage, method string
 			return
 		}
 		s.sendRPCResult(cl, id, fonts)
+	case contract.BridgeStopMethod:
+		// Authority (045): only the single active page can stop the daemon — the
+		// active page IS the user's consent authority (Ticket 011 layer 4). Any
+		// other peer (agent CLI, control page, idle page) gets -32007.
+		s.mu.Lock()
+		isActive := s.active == cl
+		s.mu.Unlock()
+		if !isActive {
+			s.sendRPCError(cl, id, contract.JSONRPCErrorRequiresActivePage,
+				"bridge.stop requires the active-page role")
+			return
+		}
+		// Send the response FIRST so the page can confirm success before the
+		// socket closes, then trigger shutdown on a small flush window.
+		// Shutdown is idempotent (closeOnce), so a concurrent SIGTERM no-ops.
+		s.sendRPCResult(cl, id, map[string]any{"stopped": true})
+		go func() {
+			time.Sleep(150 * time.Millisecond)
+			_ = s.Shutdown(context.Background())
+		}()
 	}
 }
 

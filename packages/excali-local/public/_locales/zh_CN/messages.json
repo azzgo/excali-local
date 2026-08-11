@@ -136,5 +136,26 @@
   },
   "AgentHideButtonHint": {
     "message": "仅在 Agent 控制关闭时可调整。默认关闭（显示按钮）——避免画布受控时按钮被隐藏。"
+  },
+  "AgentStopDaemon": {
+    "message": "停止守护进程"
+  },
+  "AgentDaemonNotRunning": {
+    "message": "守护进程未运行"
+  },
+  "AgentStopNeedsActiveCanvas": {
+    "message": "需先激活画布才能停止守护进程"
+  },
+  "AgentStopDaemonConfirmTitle": {
+    "message": "要停止本地守护进程吗？"
+  },
+  "AgentStopDaemonConfirmBody": {
+    "message": "Agent Bridge 守护进程将立即停止。扩展无法自行重启它——请在终端运行 `excali-bridge <method>` 重新启动。"
+  },
+  "AgentStopDaemonToast": {
+    "message": "守护进程已停止。运行 `excali-bridge <method>` 可重新启动。"
+  },
+  "AgentStopDaemonFailed": {
+    "message": "无法停止守护进程：$1"
   }
 }

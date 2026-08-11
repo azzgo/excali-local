@@ -136,5 +136,26 @@
   },
   "AgentHideButtonHint": {
     "message": "Only adjustable while Agent control is off. Default off (button shown) — prevents a hidden button while a canvas is active."
+  },
+  "AgentStopDaemon": {
+    "message": "Stop daemon"
+  },
+  "AgentDaemonNotRunning": {
+    "message": "Daemon not running"
+  },
+  "AgentStopNeedsActiveCanvas": {
+    "message": "Activate a canvas to stop the daemon"
+  },
+  "AgentStopDaemonConfirmTitle": {
+    "message": "Stop the local daemon?"
+  },
+  "AgentStopDaemonConfirmBody": {
+    "message": "The Agent Bridge daemon stops now. The extension cannot start it again — run `excali-bridge <method>` from your terminal to bring it back."
+  },
+  "AgentStopDaemonToast": {
+    "message": "Daemon stopped. Run `excali-bridge <method>` to start it again."
+  },
+  "AgentStopDaemonFailed": {
+    "message": "Could not stop the daemon: $1"
   }
 }

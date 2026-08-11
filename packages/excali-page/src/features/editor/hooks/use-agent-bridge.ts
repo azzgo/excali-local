@@ -38,6 +38,8 @@ import {
 	PROFILE_ID_STORAGE_KEY,
 	WS_DISPLACED,
 	WS_ROLE_CONTROL_PAGE,
+	AB_BRIDGE_STOP_REQUEST,
+	BRIDGE_STOP_METHOD,
 	mintBridgeToken,
 	type AgentBridgeStorage,
 	type AgentBridgeStatePayload,
@@ -225,6 +227,9 @@ export function useAgentBridge({
   const sessionActiveRef = useRef(false);
   const lastSwIdRef = useRef<string | null>(null);
   const wasActiveRef = useRef(false);
+  // The LIVE active-slot session (created inside the WS effect) — the SW
+  // relay for bridge.stop (045) needs it from the runtime-message listener.
+  const activeSessionRef = useRef<AgentBridgeSession | null>(null);
   // Per-canvas first-time consent (034 R1): keyed by drawing id ("unsaved"
   // for a blank canvas); cleared on unpair/re-pair so a NEW connection asks again.
   const confirmShownRef = useRef<Record<string, boolean>>({});
@@ -387,6 +392,23 @@ export function useAgentBridge({
             }
           }
           sendResponse({ name: name ?? t("New Drawing") });
+        })();
+        return true;
+      } else if (m?.type === AB_BRIDGE_STOP_REQUEST) {
+        // Options → SW → this page (045): relay the daemon-local `bridge.stop`
+        // over the LIVE active-slot WS. The daemon replies {stopped:true} and
+        // then shuts itself down (flush window) — we answer the SW as soon as
+        // the JSON-RPC response lands. (async reply → return true.)
+        void (async () => {
+          const session = activeSessionRef.current;
+          if (!session) {
+            sendResponse({ ok: false, reason: "no-active-session" });
+            return;
+          }
+          const resp = await session.request(BRIDGE_STOP_METHOD, {});
+          sendResponse(
+            resp.ok ? { ok: true } : { ok: false, reason: resp.reason ?? "daemon-error" },
+          );
         })();
         return true;
       }
@@ -757,6 +779,8 @@ export function useAgentBridge({
         onInbound: (msg) => onInbound(activeSession!, msg),
       });
       activeSession.start();
+      // The live active-slot session for the SW's bridge.stop relay (045).
+      activeSessionRef.current = activeSession;
       window.excaliAPI = {
         excalidrawAPI: api!,
         ping: () => activeSession!.ping(),
@@ -768,6 +792,9 @@ export function useAgentBridge({
     }
 
     return () => {
+      if (activeSessionRef.current === activeSession) {
+        activeSessionRef.current = null;
+      }
       controlSession?.stop();
       activeSession?.stop();
       if (window.excaliAPI?.excalidrawAPI === api) {

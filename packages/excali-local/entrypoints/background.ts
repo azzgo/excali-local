@@ -8,6 +8,7 @@ import {
 	AB_HEARTBEAT,
 	AB_STATE_QUERY,
 	AB_CANVAS_NAME,
+	AB_BRIDGE_STOP_REQUEST,
   AGENT_BRIDGE_STORAGE_KEY,
   AGENT_BRIDGE_DEFAULT_STORAGE,
   type AgentBridgeStorage,
@@ -243,6 +244,25 @@ const handleAgentBridgeMessage = async (
       });
       return;
     }
+    case AB_BRIDGE_STOP_REQUEST: {
+      // Options → active page (045): the SW is the control plane ONLY — it
+      // never touches the daemon wire. It relays the request to the ACTIVE
+      // editor tab (the user's consent authority) and forwards the page's
+      // {ok} reply back to the options page.
+      if (activeTabId == null) {
+        sendResponse({ ok: false, reason: "no-active-canvas" });
+        return;
+      }
+      try {
+        const reply = (await browser.tabs.sendMessage(activeTabId, {
+          type: AB_BRIDGE_STOP_REQUEST,
+        })) as { ok?: boolean; reason?: string } | undefined;
+        sendResponse(reply ?? { ok: false, reason: "page-unreachable" });
+      } catch {
+        sendResponse({ ok: false, reason: "page-unreachable" });
+      }
+      return;
+    }
     default:
       sendResponse(undefined);
   }
@@ -271,6 +291,7 @@ browser.storage.onChanged.addListener((changes, area) => {
     broadcastState();
   }
 });
+
 
 // Tab close → teardown that tab's activation.
 browser.tabs.onRemoved.addListener((tabId) => {

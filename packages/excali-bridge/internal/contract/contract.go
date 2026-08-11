@@ -84,6 +84,7 @@ var DaemonLocalMethods = map[string]bool{
 	"commands.list":     true,
 	"protocol.version":  true,
 	"bridge.status":     true,
+	"bridge.stop":       true, // 045: active page stops the daemon
 	"fonts.system.list": true, // daemon-local (goal 4 refinement)
 }
 
@@ -93,6 +94,12 @@ const CanvasV1Protocol = "canvas/v1"
 // BridgeStatusMethod is the daemon-local status query (goal 3): the active
 // canvas's extension identity + the connected control-page identities.
 const BridgeStatusMethod = "bridge.status"
+
+// BridgeStopMethod is the daemon-local stop method (Wayfinder 045): the
+// paired + ACTIVE page asks the daemon to gracefully shut down. Authority:
+// the caller must be the single active `role=page` connection (s.active == cl
+// on the server); any other peer gets JSONRPCErrorRequiresActivePage (-32007).
+const BridgeStopMethod = "bridge.stop"
 
 // GalleryV1Methods is the gallery/v1 method set (Wayfinder Ticket 014) — EXACT
 // names. CLI subcommand == method. list/get/rename/delete/collections.* are
@@ -141,6 +148,11 @@ const (
 	// JSONRPCErrorNotFound: gallery.get/load referenced a missing drawing id.
 	JSONRPCErrorNotFound = -32006
 )
+
+// JSONRPCErrorRequiresActivePage: a bridge.* daemon-local method (045:
+// bridge.stop) requires the single active-page role — the user's consent
+// authority (Ticket 011 layer 4). Mirrors JSON_RPC_ERROR_REQUIRES_ACTIVE_PAGE.
+const JSONRPCErrorRequiresActivePage = -32007
 
 // IsCanvasV1Method reports whether m is a routed or local canvas/v1 method.
 func IsCanvasV1Method(m string) bool {

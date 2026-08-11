@@ -144,6 +144,70 @@ export class AgentBridgeClient {
   onInbound: ((msg: Record<string, unknown>) => void) | null = null;
 
   constructor(private opts: AgentBridgeClientOptions) {}
+  /**
+   * Outstanding JSON-RPC request/response correlations (page-initiated
+   * requests like `bridge.stop` — 045). Keyed by the string request id.
+   */
+  private pending: Map<
+    string,
+    { resolve: (v: BridgeRequestResult) => void; timer: ReturnType<typeof setTimeout> }
+  > = new Map();
+  private rpcIdCounter = 0;
+
+  /** JSON-RPC round-trip over the live connection (resolves on the matched
+   * response, times out, or fails fast when the socket is not open). */
+  request(
+    method: string,
+    params?: unknown,
+    timeoutMs?: number,
+  ): Promise<BridgeRequestResult> {
+    return new Promise((resolve) => {
+      if (!this.isOpen || this.closed) {
+        resolve({ ok: false, reason: "not-connected" });
+        return;
+      }
+      const id = `req-${(++this.rpcIdCounter).toString(36)}-${Date.now().toString(36)}`;
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        resolve({ ok: false, reason: "timeout" });
+      }, timeoutMs ?? BRIDGE_PING_TIMEOUT_MS);
+      this.pending.set(id, { resolve, timer });
+      this.ws!.send(
+        JSON.stringify({ jsonrpc: "2.0", id, method, params: params ?? {} }),
+      );
+    });
+  }
+
+  /** Route an inbound JSON-RPC response to its pending request; returns true
+   * when consumed (else the message falls through to onInbound). */
+  private matchResponse(msg: Record<string, unknown>): boolean {
+    if (msg.jsonrpc !== "2.0" || typeof msg.id !== "string") return false;
+    if (typeof msg.method === "string") return false; // a request, not a reply
+    const p = this.pending.get(msg.id);
+    if (!p) return false;
+    clearTimeout(p.timer);
+    this.pending.delete(msg.id);
+    const err = msg.error as { code?: unknown; message?: unknown } | undefined;
+    if (err != null) {
+      p.resolve({
+        ok: false,
+        reason: typeof err.message === "string" ? err.message : "daemon-error",
+        code: err.code,
+      });
+    } else {
+      p.resolve({ ok: true, result: msg.result });
+    }
+    return true;
+  }
+
+  /** Fail every in-flight page-initiated request (socket closed / stopped). */
+  private failAllPending(reason: string) {
+    for (const [id, p] of [...this.pending]) {
+      clearTimeout(p.timer);
+      this.pending.delete(id);
+      p.resolve({ ok: false, reason });
+    }
+  }
 
   get isOpen(): boolean {
     return !!this.ws && this.ws.readyState === WS_OPEN;
@@ -204,6 +268,9 @@ export class AgentBridgeClient {
           const w = this.pongWait;
           this.pongWait = null;
           w.resolve(true);
+        } else if (this.matchResponse(msg)) {
+          // A JSON-RPC response for a page-initiated request (bridge.stop — 045)
+          // was consumed by the request correlation; do not fan it to onInbound.
         } else {
           this.onInbound?.(msg);
         }
@@ -214,6 +281,9 @@ export class AgentBridgeClient {
         // Any close (ours or the daemon's) must be drained before a same-profile
         // re-dial — see the drain-gate block above.
         registerProfileDrain(this.opts.profileId, ws);
+        // Page-initiated JSON-RPC requests in flight (bridge.stop — 045) can
+        // never be answered once the socket is gone.
+        this.failAllPending("socket-closed");
         this.onClose?.();
       };
 
@@ -280,7 +350,21 @@ export class AgentBridgeClient {
     // profile. isOpen/sendJSON/ping all guard on this.closed, so a retained
     // closed socket is inert.
     registerProfileDrain(this.opts.profileId, ws);
+    // Page-initiated JSON-RPC requests in flight (bridge.stop — 045) can
+    // never be answered once the client is stopped.
+    this.failAllPending("socket-closed");
   }
+}
+
+/**
+ * Result of a page-initiated JSON-RPC round-trip (045 — bridge.stop):
+ * `ok: true` + the daemon's result, or `ok: false` + reason/code.
+ */
+export interface BridgeRequestResult {
+  ok: boolean;
+  result?: unknown;
+  reason?: string;
+  code?: unknown;
 }
 
 // ---------------------------------------------------------------------------
@@ -487,6 +571,18 @@ export class AgentBridgeSession {
   /** Send a JSON message over the live connection (canvas/v1 responses). */
   sendJSON(obj: unknown): void {
 	this.client?.sendJSON(obj);
+  }
+
+  /**
+   * Page-initiated JSON-RPC round-trip (045 — `bridge.stop`): delegates to
+   * the live client; resolves {ok:false, reason:"not-connected"} when no
+   * socket is up (the page hook replies to the SW accordingly).
+   */
+  request(method: string, params?: unknown): Promise<BridgeRequestResult> {
+    return (
+      this.client?.request(method, params) ??
+      Promise.resolve({ ok: false, reason: "not-connected" })
+    );
   }
 
   private setStatus(
