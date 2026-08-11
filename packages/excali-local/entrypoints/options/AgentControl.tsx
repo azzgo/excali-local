@@ -54,20 +54,21 @@ const AgentControl = () => {
     port: null,
   });
   const [activeTabId, setActiveTabId] = useState<number | null>(null);
-  // Set true once /health ever answered OK — gates the pill's visibility
-  // (#040: no pill before a connection has occurred at least once).
-  const seenDaemonRef = useRef(false);
-  const [seenDaemon, setSeenDaemon] = useState(false);
+  // Stop-flow guards: while a stop is in flight no NEW probe runs (stoppingRef)
+  // and any in-flight probe from before the stop is discarded (stopGenRef), so
+  // a stale /health result can't flip the pill back to green after the daemon
+  // is confirmed gone. The pill itself only shows while health.ok (daemon up).
+  const stoppingRef = useRef(false);
+  const stopGenRef = useRef(0);
   const [showStopModal, setShowStopModal] = useState(false);
   const [stopping, setStopping] = useState(false);
 
   const refreshDaemon = useCallback(async () => {
+    if (stoppingRef.current) return; // stop in flight — no new probes
+    const gen = stopGenRef.current;
     const h = await probeDaemonHealth();
+    if (gen !== stopGenRef.current) return; // stop started mid-probe — discard
     setHealth(h);
-    if (h.ok && !seenDaemonRef.current) {
-      seenDaemonRef.current = true;
-      setSeenDaemon(true);
-    }
     try {
       const reply = (await browser.runtime.sendMessage({
         type: AB_STATE_QUERY,
@@ -82,7 +83,7 @@ const AgentControl = () => {
 
   useEffect(() => {
     refreshDaemon();
-    // Same cadence as the popup indicator; the pill must stay live.
+    // Same cadence as before — the pill must stay live while visible.
     const id = setInterval(refreshDaemon, 4000);
     return () => clearInterval(id);
   }, [refreshDaemon]);
@@ -145,6 +146,8 @@ const AgentControl = () => {
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   const handleStop = useCallback(async () => {
     setStopping(true);
+    stoppingRef.current = true;
+    stopGenRef.current += 1;
     // The request is advisory: runtime.sendMessage fans out to the SW AND the
     // editor page (multi-responder), and Chrome keeps only the first
     // sendResponse — the {ok:true} ack can be lost even though the daemon
@@ -178,6 +181,7 @@ const AgentControl = () => {
       await verdict("SW unreachable");
     } finally {
       setStopping(false);
+      stoppingRef.current = false;
       setShowStopModal(false);
     }
   }, []);
@@ -197,8 +201,7 @@ const AgentControl = () => {
   );
 
   // --- daemon-stop pill (ws+daemon mode only; 040 states + 045 gating) ------
-  const pillVisible =
-    mode === AGENT_BRIDGE_MODE_WS && (seenDaemon || health.ok);
+  const pillVisible = mode === AGENT_BRIDGE_MODE_WS && health.ok;
   const pillStoppable = health.ok && activeTabId != null;
   const pillTitle = health.ok
     ? activeTabId != null
