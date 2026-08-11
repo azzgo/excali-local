@@ -10,7 +10,6 @@ import IconHeader from "./IconHeader";
 import Item from "./item";
 import { useMessage } from "./hooks/use-message";
 import { useCommandList } from "./hooks/use-command-list";
-import AgentStatus from "./AgentStatus";
 import { t } from "../lib/utils";
 
 function App() {
@@ -75,7 +74,6 @@ function App() {
         </div>
       </div>
       <div>
-        <AgentStatus />
         <IconHeader icon={IconTools} label={t("LocalEditor")} />
         <div className="my-4 gap-2 flex flex-col">
           <button

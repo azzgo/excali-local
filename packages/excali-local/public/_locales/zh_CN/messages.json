@@ -107,30 +107,6 @@
   "AgentControlOn": {
     "message": "已启用"
   },
-  "AgentControlOff": {
-    "message": "已禁用"
-  },
-  "AgentControlEnabledHint": {
-    "message": "Agent 控制在画布按钮和设置页中可用。"
-  },
-  "AgentSetupNeeded": {
-    "message": "等待桥接"
-  },
-  "AgentNoDaemonMeta": {
-    "message": "守护进程未运行 — 通过 Agent 或 CLI 启动"
-  },
-  "AgentPaired": {
-    "message": "已配对"
-  },
-  "AgentPairedIdleMeta": {
-    "message": "空闲 — 从画布激活"
-  },
-  "AgentOtherCanvasControlling": {
-    "message": "另一个画布正在受控"
-  },
-  "AgentControlling": {
-    "message": "控制中"
-  },
   "AgentHideButton": {
     "message": "隐藏画布上的 AI 按钮"
   },

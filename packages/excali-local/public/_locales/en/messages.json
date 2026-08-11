@@ -107,30 +107,6 @@
   "AgentControlOn": {
     "message": "Enabled"
   },
-  "AgentControlOff": {
-    "message": "Disabled"
-  },
-  "AgentControlEnabledHint": {
-    "message": "Agent controls are available from the canvas button and on the Options page."
-  },
-  "AgentSetupNeeded": {
-    "message": "Waiting for bridge"
-  },
-  "AgentNoDaemonMeta": {
-    "message": "daemon not running — start via the agent or CLI"
-  },
-  "AgentPaired": {
-    "message": "Paired"
-  },
-  "AgentPairedIdleMeta": {
-    "message": "idle — activate from canvas"
-  },
-  "AgentOtherCanvasControlling": {
-    "message": "another canvas is controlling"
-  },
-  "AgentControlling": {
-    "message": "Controlling"
-  },
   "AgentHideButton": {
     "message": "Hide the AI button on canvas"
   },

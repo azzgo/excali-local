@@ -44,7 +44,8 @@ canvas; the Options page is a conservative kill-switch.
 > master toggle still exists and defaults OFF. Turning it **ON** there enables the
 > feature but does *not* auto-pair or activate — use the canvas button for that.
 > Turning it **OFF** tears down any pairing/activation immediately. The **popup**
-> is a glanceable status indicator only (no pair button).
+> carries no agent-status indicator — daemon state is shown on the **Options**
+> page (daemon-stop pill).
 
 > **What each gate allows:** with only a paired connection (Gate 1), your agent
 > can do **global** ops (gallery list/save, font config) — no canvas needed.
