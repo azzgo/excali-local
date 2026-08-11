@@ -7,26 +7,17 @@ import {
   AGENT_BRIDGE_MODE_WS,
   AGENT_BRIDGE_STORAGE_KEY,
   AGENT_BRIDGE_DEFAULT_STORAGE,
+  isWebmcpUsable,
   type AgentBridgeMode,
   type AgentBridgeStorage,
   type AgentBridgeStatePayload,
 } from "excali-shared";
 import { toast } from "sonner";
+
 import { probeDaemonHealth } from "../lib/bridge-probe";
 
-/** Feature-detect WebMCP (Wayfinder 043): Chrome 157+ exposes
- * document.modelContext; navigator.modelContext is the deprecated alias.
- * Extension pages may lack it entirely → the WebMCP segment greys out. */
-function webmcpAvailable(): boolean {
-  try {
-    return !!(
-      (document as unknown as { modelContext?: unknown })?.modelContext ??
-      (navigator as unknown as { modelContext?: unknown })?.modelContext
-    );
-  } catch {
-    return false;
-  }
-}
+
+
 
 /**
  * Layer 0 — "Enabled" master switch + hide-button toggle (Options), the
@@ -53,7 +44,9 @@ const AgentControl = () => {
   const [hideButton, setHideButton] = useState(false);
   const [mode, setMode] = useState<AgentBridgeMode>("ws+daemon");
   const [isLoading, setIsLoading] = useState(true);
-  const [webmcpOk] = useState(webmcpAvailable);
+  // Honest detect: presence ≠ usability on chrome-extension:// pages before
+  // Chrome 157 (the API throws SecurityError there) — probe once.
+  const [webmcpOk] = useState(isWebmcpUsable);
 
   // --- daemon-stop pill state (040/045) ------------------------------------
   const [health, setHealth] = useState<{ ok: boolean; port: number | null }>({
@@ -149,24 +142,40 @@ const AgentControl = () => {
   };
 
   // --- daemon-stop flow (045) ----------------------------------------------
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   const handleStop = useCallback(async () => {
     setStopping(true);
+    // The request is advisory: runtime.sendMessage fans out to the SW AND the
+    // editor page (multi-responder), and Chrome keeps only the first
+    // sendResponse — the {ok:true} ack can be lost even though the daemon
+    // stopped cleanly (E2E finding). The source of truth is the daemon
+    // itself: a reply of {ok:true} wins immediately; otherwise wait a beat
+    // and probe /health — daemon gone = success, still up = real failure.
+    const verdict = async (reason: string | undefined) => {
+      await sleep(300);
+      const h = await probeDaemonHealth();
+      if (!h.ok) {
+        setHealth({ ok: false, port: null });
+        toast(t("AgentStopDaemonToast"), { duration: 4000 });
+      } else {
+        toast(t("AgentStopDaemonFailed", reason ?? "unknown"), {
+          duration: 4000,
+        });
+      }
+    };
     try {
       const reply = (await browser.runtime.sendMessage({
         type: AB_BRIDGE_STOP_REQUEST,
       })) as { ok?: boolean; reason?: string } | undefined;
       if (reply?.ok) {
-        // The daemon replies then shuts down (flush window); flip the pill to
-        // its stopped state immediately — the next health poll confirms.
+        // Clean ack — the daemon replies then shuts down (flush window).
         setHealth({ ok: false, port: null });
         toast(t("AgentStopDaemonToast"), { duration: 4000 });
       } else {
-        toast(t("AgentStopDaemonFailed", reply?.reason ?? "unknown"), {
-          duration: 4000,
-        });
+        await verdict(reply?.reason);
       }
     } catch {
-      toast(t("AgentStopDaemonFailed", "SW unreachable"), { duration: 4000 });
+      await verdict("SW unreachable");
     } finally {
       setStopping(false);
       setShowStopModal(false);

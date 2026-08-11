@@ -205,6 +205,50 @@ export interface AgentBridgeStatePayload {
 // Token helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Honest WebMCP feature-detect (Wayfinder 043/044 + E2E finding).
+ * `'modelContext' in document` is TRUE on chrome-extension:// pages even
+ * though Chrome ≤156 blocks the API there: registerTool/getTools throw
+ * `SecurityError: document.modelContext cannot be used when document.domain
+ * is enabled.` (extension origins are treated as document.domain-enabled;
+ * extension-origin support is flagged 'ongoing development' upstream, and
+ * Chrome 157 is the default-enable milestone — but whether it lifts this
+ * block for extension pages is not verifiable from here).
+ *
+ * So presence is NOT usability: probe the API once — a throwing call proves
+ * the block → report unavailable. Absence or a non-throwing call → report
+ * usable. Synchronous; async getTools rejections are swallowed (a rejected
+ * probe still means 'present, may work' — only a sync SecurityError proves
+ * the document.domain block).
+ */
+export function isWebmcpUsable(): boolean {
+  try {
+    const doc = (document ?? undefined) as unknown as {
+      modelContext?: { getTools?: () => unknown };
+    } | undefined;
+    const nav = (navigator ?? undefined) as unknown as {
+      modelContext?: { getTools?: () => unknown };
+    } | undefined;
+    const mc = doc?.modelContext ?? nav?.modelContext;
+    if (!mc) return false;
+    try {
+      const r = mc.getTools?.();
+      if (r && typeof (r as Promise<unknown>)?.catch === "function") {
+        (r as Promise<unknown>).catch(() => {}); // swallow async rejection
+      }
+    } catch {
+      return false; // SecurityError: API present but blocked on this origin
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Token helpers
+// ---------------------------------------------------------------------------
+
 const HEX = /^[0-9a-f]+$/;
 
 /** Mint a ≥128-bit (256-bit) hex token for the WS handshake. Never logged. */

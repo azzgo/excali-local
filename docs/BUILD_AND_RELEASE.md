@@ -81,3 +81,12 @@ the artifact; scratch lives in the OS temp dir, no `.skill-dist/`). It is **not*
 into the tag-driven CI above yet — remote distribution
 (e.g. `skills.sh` → `.agents/skills/`) is a tracked follow-up. The skill bundles its own
 static multi-platform daemon binaries, so it has no runtime dependency on the extension build.
+
+## Known limitations
+
+Upstream/platform constraints the code cannot fix are collected in
+[`docs/KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) — notably: **WebMCP is
+blocked on `chrome-extension://` pages before Chrome 157** (the API exists
+but throws `SecurityError`; the extension's `isWebmcpUsable()` probe greys
+the WebMCP route out on such origins). Re-check after the Chrome 157
+milestone.

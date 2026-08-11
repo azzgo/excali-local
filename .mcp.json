@@ -8,9 +8,8 @@
         "chrome-devtools-mcp@1.6.0",
         "--categoryExtensions=true",
         "--allowUnrestrictedPaths",
-        "--categoryExperimentalWebmcp",
-        "--chromeArg",
-        "--enable-features=WebMCPTesting,WebMCP,DevToolsWebMCPSupport"
+        "--categoryExperimentalWebmcp=true",
+        "--chromeArg=--enable-features=WebMCPTesting,WebMCP,DevToolsWebMCPSupport"
       ],
       "directTools": false,
       "lifecycle": "keep-alive"

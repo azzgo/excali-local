@@ -45,6 +45,7 @@ import {
 	AGENT_BRIDGE_MODE_WEBMCP,
 	CANVAS_V1_METHODS,
 	mintBridgeToken,
+	isWebmcpUsable,
 	type AgentBridgeStorage,
 	type AgentBridgeStatePayload,
 	type AgentBridgeMode,
@@ -149,6 +150,18 @@ function getModelContext(): WebMCPModelContext | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * True when the message sender is the background service worker (045 relay
+ * gate). Chrome reports sender.url as the SW script URL for messages the SW
+ * sends via tabs.sendMessage — WXT builds it as <ext>/background.js in both
+ * dev and prod. Any other sender (e.g. the Options page's runtime.sendMessage
+ * fan-out) is NOT the relay and must be ignored (see the STOP gate above).
+ */
+function isFromBackground(sender: unknown): boolean {
+  const url = (sender as { url?: string } | undefined)?.url ?? "";
+  return url.endsWith("background.js");
 }
 
 export interface ExcaliAPI {
@@ -451,7 +464,7 @@ export function useAgentBridge({
 
     const onMessage = (
       message: unknown,
-      _sender: unknown,
+      sender: unknown,
       sendResponse: (response?: unknown) => void,
     ) => {
       const m = message as Partial<AgentBridgeStatePayload> & {
@@ -487,11 +500,18 @@ export function useAgentBridge({
         if (nextMode === AGENT_BRIDGE_MODE_WS || nextMode === AGENT_BRIDGE_MODE_WEBMCP) {
           setMode(nextMode);
         }
-      } else if (m?.type === AB_BRIDGE_STOP_REQUEST) {
+      } else if (m?.type === AB_BRIDGE_STOP_REQUEST && isFromBackground(sender)) {
         // Options → SW → this page (045): relay the daemon-local `bridge.stop`
         // over the LIVE active-slot WS. The daemon replies {stopped:true} and
         // then shuts itself down (flush window) — we answer the SW as soon as
         // the JSON-RPC response lands. (async reply → return true.)
+        //
+        // SENDER GATE (E2E finding): runtime.sendMessage from the Options page
+        // fans out to the SW AND every extension page — without this gate the
+        // page relays the request directly AND via the SW's tabs.sendMessage
+        // (two responders, two bridge.stop calls), and Chrome keeps only the
+        // first sendResponse → the Options ack is lost. Only the SW-relayed
+        // copy (sender.url = <ext>/background.js) is acted on here.
         void (async () => {
           const session = activeSessionRef.current;
           if (!session) {
@@ -915,6 +935,11 @@ export function useAgentBridge({
   // The canvas button's click IS the consent — this hook never auto-registers.
   // It only AUTO-WITHDRAWS (kill-switch / unpair / route switch away).
   const registerWebmcp = useCallback(async (): Promise<boolean> => {
+    // Honest detect (E2E finding): on chrome-extension:// pages before Chrome
+    // 157 the API is present but blocked (SecurityError, document.domain).
+    // Probe first — a blocked page reports unavailable without a failed
+    // register attempt.
+    if (!isWebmcpUsable()) return false;
     const mc = getModelContext();
     if (!mc?.registerTool || webmcpRegRef.current) return false;
     const api = excalidrawAPIRef.current;

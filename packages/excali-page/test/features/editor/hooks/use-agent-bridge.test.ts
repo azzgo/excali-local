@@ -225,6 +225,7 @@ const installModelContext = () => {
   const ctx = {
     registerTool: vi.fn(async (_def: Record<string, unknown>) => {}),
     unregisterTool: vi.fn(async () => {}),
+    getTools: vi.fn(async () => []),
   };
   (document as unknown as { modelContext?: unknown }).modelContext = ctx;
   return ctx;
@@ -994,13 +995,17 @@ describe("useAgentBridge", () => {
   // 045 — extension-initiated daemon stop (AB_BRIDGE_STOP_REQUEST)
   // ------------------------------------------------------------------
 
-  const fireBridgeStop = (): Promise<unknown> =>
+  // The SW-relayed copy arrives with sender.url = <ext>/background.js — the
+  // only sender the page may act on (the Options page's direct fan-out is
+  // ignored — E2E finding: multi-responder ack race).
+  const swSender = { url: "chrome-extension://abcdabcdabcdabcdabcdabcdabcdabcd/background.js" };
+  const fireBridgeStop = (sender: unknown = swSender): Promise<unknown> =>
     new Promise((resolve) => {
       act(() => {
         for (const fn of harness.swState.runtimeListeners) {
           (fn as (m: unknown, s: unknown, r: (v: unknown) => void) => void)(
             { type: AB_BRIDGE_STOP_REQUEST },
-            undefined,
+            sender,
             resolve,
           );
         }
@@ -1172,5 +1177,60 @@ describe("useAgentBridge", () => {
 	});
 	expect(result.current.webmcpRegistered).toBe(false);
 	expect(ctx.unregisterTool).toHaveBeenCalledWith("excali_canvas");
+  });
+
+  test("AB_BRIDGE_STOP_REQUEST sender gate: Options-page fan-out is IGNORED (E2E ack race)", async () => {
+	setConsent(true, true);
+	const { result } = renderLocal({});
+	await waitFor(() => expect(result.current.canActivate).toBe(true));
+	act(() => result.current.toggleActivation());
+	act(() => result.current.confirmActivation());
+	await waitFor(() =>
+	  expect(harness.swState.sendMessages.some((m: any) => m.type === AB_ACTIVATE)).toBe(
+	    true,
+	  ),
+	);
+	broadcast({ swInstanceId: "sw-1", activeTabId: 1, isActive: true });
+	await waitFor(() => expect(result.current.isActive).toBe(true));
+
+	// The Options page's runtime.sendMessage fans out to this page directly;
+	// acting on it would double-relay bridge.stop and race the SW's ack.
+	const optionsSender = { url: "chrome-extension://abcdabcdabcdabcdabcdabcdabcdabcd/options.html" };
+	let replied = false;
+	const pending = new Promise<void>((resolve) => {
+	  act(() => {
+	    for (const fn of harness.swState.runtimeListeners) {
+	      (fn as (m: unknown, s: unknown, r: (v: unknown) => void) => void)(
+	        { type: AB_BRIDGE_STOP_REQUEST },
+	        optionsSender,
+	        () => {
+	          replied = true;
+	          resolve();
+	        },
+	      );
+	    }
+	  });
+	});
+	await Promise.race([pending, new Promise((r) => setTimeout(r, 50))]);
+	expect(replied).toBe(false);
+	// The active session relayed nothing (no double bridge.stop).
+	expect(activeSession()!.request).not.toHaveBeenCalled();
+  });
+
+  test("WebMCP honest detect: blocked API (SecurityError probe) → registerWebmcp returns false without attempting", async () => {
+	setConsent(true, true, "webmcp");
+	const ctx = installModelContext();
+	// modelContext exists but getTools throws — the chrome-extension:// block.
+	ctx.getTools = vi.fn(() => {
+	  throw new Error("document.modelContext cannot be used when document.domain is enabled");
+	});
+	const { result } = renderLocal({});
+	await waitFor(() => expect(result.current.mode).toBe("webmcp"));
+
+	await act(async () => {
+	  expect(await result.current.registerWebmcp()).toBe(false);
+	});
+	expect(ctx.registerTool).not.toHaveBeenCalled();
+	expect(result.current.webmcpRegistered).toBe(false);
   });
 });
