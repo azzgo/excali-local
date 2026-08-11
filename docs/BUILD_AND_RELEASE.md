@@ -86,7 +86,7 @@ static multi-platform daemon binaries, so it has no runtime dependency on the ex
 
 Upstream/platform constraints the code cannot fix are collected in
 [`docs/KNOWN_LIMITATIONS.md`](KNOWN_LIMITATIONS.md) — notably: **WebMCP is
-blocked on `chrome-extension://` pages before Chrome 157** (the API exists
-but throws `SecurityError`; the extension's `isWebmcpUsable()` probe greys
-the WebMCP route out on such origins). Re-check after the Chrome 157
+blocked on `chrome-extension://` pages on default Chrome ≤156** (the API
+exists but throws `SecurityError`; the extension's `isWebmcpUsable()` probe
+greys the WebMCP route out on such origins). Re-check after the Chrome 157
 milestone.
