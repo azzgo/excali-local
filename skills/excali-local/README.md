@@ -64,7 +64,7 @@ runtime, no libgcc, no libwinpthread); macOS links only Apple system
 libraries. Actual sizes are recorded below at pack time.
 
 <!-- PACK-SIZES-BEGIN -->
-| `excali-bridge-darwin-arm64` | 6.36 MiB | Apple system libs only: /usr/lib/libSystem.B.dylib, /usr/lib/libresolv.9.dylib, /System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation, /System/Library/Frameworks/Security.framework/Versions/A/Security |
+| `excali-bridge-darwin-arm64` | 6.37 MiB | Apple system libs only: /usr/lib/libSystem.B.dylib, /usr/lib/libresolv.9.dylib, /System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation, /System/Library/Frameworks/Security.framework/Versions/A/Security |
 | `excali-bridge-darwin-amd64` | 6.86 MiB | Apple system libs only: /usr/lib/libSystem.B.dylib, /usr/lib/libresolv.9.dylib, /System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation, /System/Library/Frameworks/Security.framework/Versions/A/Security |
 | `excali-bridge-linux-amd64` | 6.73 MiB | statically linked (file) |
 | `excali-bridge-windows-amd64.exe` | 6.93 MiB | imports only: kernel32.dll |
@@ -115,4 +115,4 @@ version info"; it would re-introduce non-idempotent binaries that dirty every co
 
 ## Version
 
-This skill tracks the excali-local release version (currently `1.7.3`).
+This skill tracks the excali-local release version (currently `1.7.4`).

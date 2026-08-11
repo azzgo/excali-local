@@ -1,6 +1,6 @@
 # Architecture
 
-> Detail doc linked from [AGENTS.md](../AGENTS.md). Verified against `main` @ `00a9674` (v1.7.3).
+> Detail doc linked from [AGENTS.md](../AGENTS.md). Verified against `main` @ `00a9674` (v1.7.4).
 
 ## Three-layer monorepo
 
