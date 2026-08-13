@@ -34,7 +34,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { cn } from "@/lib/utils";
+import { cn, getBrowser } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 import { Modal } from "@/components/ui/modal";
@@ -70,6 +70,11 @@ const AgentActivationControl = ({
     },
     [t],
   );
+  // Open the extension Options page (where the agent feature can be turned
+  // off). No-op in dev mode where getBrowser() returns null.
+  const openOptions = () => {
+    getBrowser()?.runtime?.openOptionsPage?.();
+  };
 
   const bridge = useAgentBridge({
 	  excalidrawAPI,
@@ -343,7 +348,17 @@ const AgentActivationControl = ({
             </div>
             <p className="mb-2 text-muted-foreground">{t("AgentCoachOptionBDesc")}</p>
             {renderCommandRow("AgentCoachCommand")}
-            <p className="mt-2 text-[11px] text-muted-foreground">{t("AgentCoachFooter")}</p>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              {t("AgentCoachFooter")}{" "}
+              <button
+                type="button"
+                onClick={openOptions}
+                className="cursor-pointer underline underline-offset-2 hover:text-foreground"
+              >
+                {t("AgentCoachFooterLink")}
+              </button>
+              {t("AgentCoachFooterSuffix")}
+            </p>
           </div>
         )}
       </div>

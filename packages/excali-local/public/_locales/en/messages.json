@@ -160,8 +160,5 @@
   },
   "AgentRouteWebmcp": {
     "message": "WebMCP"
-  },
-  "AgentRouteUnsupported": {
-    "message": "Requires Chrome with WebMCP enabled"
   }
 }

@@ -5,6 +5,7 @@ import {
   AB_STATE,
   AB_STATE_QUERY,
   AGENT_BRIDGE_MODE_WS,
+  AGENT_BRIDGE_MODE_WEBMCP,
   AGENT_BRIDGE_STORAGE_KEY,
   AGENT_BRIDGE_DEFAULT_STORAGE,
   isWebmcpUsable,
@@ -114,6 +115,13 @@ const AgentControl = () => {
         setIsOn(current.master);
         setHideButton(current.hideButton);
         setMode(current.mode ?? AGENT_BRIDGE_MODE_WS);
+        // WebMCP unusable on this browser (isWebmcpUsable probe) → force
+        // ws+daemon: reset any stale persisted "webmcp" choice so the SW
+        // broadcasts AB_MODE_CHANGED and open editor pages auto-unregister.
+        if (current.mode === AGENT_BRIDGE_MODE_WEBMCP && !webmcpOk) {
+          setMode(AGENT_BRIDGE_MODE_WS);
+          writeStorage({ mode: AGENT_BRIDGE_MODE_WS });
+        }
       })
       .finally(() => setIsLoading(false));
   }, []);
@@ -252,6 +260,7 @@ const AgentControl = () => {
         aria-checked={mode === "ws+daemon"}
         disabled={isLoading || !isOn}
         onClick={() => handleModeChange("ws+daemon")}
+        title={t("AgentRouteDefault")}
         className={`${segBase} ${
           mode === "ws+daemon"
             ? "bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400"
@@ -259,7 +268,6 @@ const AgentControl = () => {
         } ${!isOn ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
       >
         <span
-          title={t("AgentRouteDefault")}
           className="flex size-3.5 items-center justify-center rounded-full bg-gray-300 text-white dark:bg-gray-500"
         >
           <svg
@@ -275,24 +283,25 @@ const AgentControl = () => {
           </svg>
         </span>
         <span className="whitespace-nowrap">
-          {t("AgentRouteDefault")} · {t("AgentRouteWsDaemon")}
+          {t("AgentRouteWsDaemon")}
         </span>
       </button>
-      <button
-        type="button"
-        role="radio"
-        aria-checked={mode === "webmcp"}
-        disabled={isLoading || !isOn || !webmcpOk}
-        onClick={() => handleModeChange("webmcp")}
-        title={webmcpOk ? "" : t("AgentRouteUnsupported")}
-        className={`${segBase} border-l border-gray-300 dark:border-gray-600 ${
-          mode === "webmcp"
-            ? "bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400"
-            : "bg-transparent text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
-        } ${!isOn || !webmcpOk ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
-      >
-        <span className="whitespace-nowrap">{t("AgentRouteWebmcp")}</span>
-      </button>
+      {webmcpOk && (
+        <button
+          type="button"
+          role="radio"
+          aria-checked={mode === "webmcp"}
+          disabled={isLoading || !isOn}
+          onClick={() => handleModeChange("webmcp")}
+          className={`${segBase} border-l border-gray-300 dark:border-gray-600 ${
+            mode === "webmcp"
+              ? "bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-400"
+              : "bg-transparent text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+          } ${!isOn ? "cursor-not-allowed opacity-40" : "cursor-pointer"}`}
+        >
+          <span className="whitespace-nowrap">{t("AgentRouteWebmcp")}</span>
+        </button>
+      )}
     </div>
   );
 

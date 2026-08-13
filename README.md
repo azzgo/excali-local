@@ -53,11 +53,18 @@ Demo: [YouTube](https://youtu.be/_aHWUz9Og-I) | [Bilibili](https://www.bilibili.
 
 <img src="./.assets/FontFamily-Customization.png" />
 
-6. **Open `.excalidraw` files** — recognized files get an “Open with Excali Local” button that imports them instantly.
+5. **Open `.excalidraw` files** — recognized files get an “Open with Excali Local” button that imports them instantly.
 
 <video src="https://github.com/user-attachments/assets/3be7b273-cac4-4fc8-ab03-5bb50eab8cd4" autoplay loop muted></video>
 
-7. **Drive the canvas from an agent or CLI** — enable agent access in the extension, install the Skill (`npx skills add azzgo/excali-local --skill excali-local -y`), and draw programmatically over the local WebSocket bridge. Full guide: [Agent Bridge Guide](docs/AGENT_BRIDGE.md).
+6. **Drive the canvas from an agent or CLI** — enable agent access in the extension, install the Skill (`npx skills add azzgo/excali-local --skill excali-local -y`), and draw programmatically over the local WebSocket bridge. Full guide: [Agent Bridge Guide](docs/AGENT_BRIDGE.md).
+
+## See also
+
+Reference implementations consulted when building the agent-drive feature:
+
+- [smart-excalidraw-next](https://github.com/liujuntao123/smart-excalidraw-next) — a Next.js Excalidraw app with agent-driven canvas control.
+- [excalidraw-diagram-skill](https://github.com/coleam00/excalidraw-diagram-skill) — an agent skill for drawing Excalidraw diagrams.
 
 ## Development
 

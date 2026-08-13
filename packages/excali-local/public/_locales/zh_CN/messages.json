@@ -160,8 +160,5 @@
   },
   "AgentRouteWebmcp": {
     "message": "WebMCP"
-  },
-  "AgentRouteUnsupported": {
-    "message": "需要启用 WebMCP 的 Chrome"
   }
 }
