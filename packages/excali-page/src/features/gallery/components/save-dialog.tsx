@@ -1,7 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Modal } from "@/components/ui/modal";
 import { useState, useEffect } from "react";
-import { IconDeviceFloppy, IconPlus } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { Collection } from "../../editor/utils/indexdb";
 
@@ -27,15 +26,21 @@ const SaveDialog = ({
   const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Draft-state lifecycle: seed fresh state when the dialog opens, and clear it
+  // when it closes. Closing must not leave stale draft state behind — the
+  // dialog component stays mounted (only the overlay unmounts), so without the
+  // close branch a dismissed dialog would resurrect with its old draft.
   useEffect(() => {
     if (isOpen) {
       setName(defaultName);
       setSelectedCollections([]);
       setIsSaving(false);
+    } else {
+      setName("");
+      setSelectedCollections([]);
+      setIsSaving(false);
     }
   }, [isOpen, defaultName]);
-
-  if (!isOpen) return null;
 
   const toggleCollection = (collectionId: string) => {
     setSelectedCollections((prev) =>
@@ -59,82 +64,67 @@ const SaveDialog = ({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all"
-      onClick={onClose}
+    <Modal
+      open={isOpen}
+      title={currentLoadedDrawingId ? t("Save as New Drawing") : t("Save New Drawing")}
+      onDismiss={isSaving ? undefined : onClose}
     >
-      <div
-        className="bg-card rounded-lg p-6 w-full max-w-md mx-4 border border-border shadow-xl animate-in fade-in zoom-in-95 duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-4">
-          {currentLoadedDrawingId ? t("Save as New Drawing") : t("Save New Drawing")}
-        </h2>
+      <div className="flex flex-col gap-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-[var(--text-primary-color)]">
+            {t("Name")}
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+            className="w-full h-9 px-3 rounded-md bg-input border border-border text-[var(--text-primary-color)] placeholder:text-[var(--text-secondary-color)] outline-none transition-colors focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
+          />
+        </div>
 
-        <div className="flex flex-col gap-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-[var(--text-primary-color)]">
-              {t("Name")}
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              autoFocus
-              className={cn(
-                "w-full h-9 px-3 rounded-md bg-input",
-                "border border-border",
-                "text-[var(--text-primary-color)] placeholder:text-[var(--text-secondary-color)]",
-                "outline-none transition-colors",
-                "focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
-              )}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-[var(--text-primary-color)]">
-              {t("Collections")}
-            </label>
-            <div className="max-h-48 overflow-y-auto border border-border rounded-md p-2 bg-muted">
-              {collections.length === 0 ? (
-                <p className="text-xs text-[var(--text-secondary-color)] text-center py-2">
-                  {t("No collections found")}
-                </p>
-              ) : (
-                <div className="space-y-1">
-                  {collections.map((collection) => (
-                    <label
-                      key={collection.id}
-                      className="flex items-center gap-2 p-2 rounded hover:bg-[var(--button-hover-bg)] cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedCollections.includes(collection.id)}
-                        onChange={() => toggleCollection(collection.id)}
-                        className="h-4 w-4 rounded border-gray-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
-                      />
-                      <span className="text-sm text-[var(--text-primary-color)]">
-                        {collection.name}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="flex gap-2 justify-end mt-2">
-            <Button variant="ghost" onClick={onClose} disabled={isSaving}>
-              {t("Cancel")}
-            </Button>
-            <Button onClick={() => handleSave(true)} disabled={isSaving || !name.trim()}>
-              {t("Save")}
-            </Button>
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-[var(--text-primary-color)]">
+            {t("Collections")}
+          </label>
+          <div className="max-h-48 overflow-y-auto border border-border rounded-md p-2 bg-muted">
+            {collections.length === 0 ? (
+              <p className="text-xs text-[var(--text-secondary-color)] text-center py-2">
+                {t("No collections found")}
+              </p>
+            ) : (
+              <div className="space-y-1">
+                {collections.map((collection) => (
+                  <label
+                    key={collection.id}
+                    className="flex items-center gap-2 p-2 rounded hover:bg-[var(--button-hover-bg)] cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedCollections.includes(collection.id)}
+                      onChange={() => toggleCollection(collection.id)}
+                      className="h-4 w-4 rounded border-gray-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+                    />
+                    <span className="text-sm text-[var(--text-primary-color)]">
+                      {collection.name}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
+        <div className="flex gap-2 justify-end mt-2">
+          <Button variant="ghost" onClick={onClose} disabled={isSaving}>
+            {t("Cancel")}
+          </Button>
+          <Button onClick={() => handleSave(true)} disabled={isSaving || !name.trim()}>
+            {t("Save")}
+          </Button>
+        </div>
       </div>
-    </div>
+    </Modal>
   );
 };
 

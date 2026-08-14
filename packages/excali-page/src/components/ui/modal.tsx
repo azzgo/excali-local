@@ -1,4 +1,5 @@
 import * as React from "react"
+import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 
 interface ModalProps {
@@ -21,15 +22,49 @@ interface ModalProps {
  *
  * No Radix dependency — the page has no `react-dialog` and these are
  * low-frequency confirm prompts, not app-wide dialogs.
+ *
+ * Hardening (Gallery SaveDialog fix A–F):
+ * - Rendered through `createPortal(document.body)`: escapes the gallery
+ *   sidebar island (DOM containment + stacking context). Without this,
+ *   Excalidraw's `useOutsideClick` treats backdrop clicks as "inside the
+ *   sidebar" only by DOM ancestry — and conversely a portaled overlay that
+ *   lacked a guard would be "outside" and collapse the panel on every click.
+ * - `data-prevent-outside-click` on the backdrop: Excalidraw's
+ *   `useOutsideClick` explicitly skips targets matching this attribute, so a
+ *   click on the overlay (backdrop or card) never collapses the gallery panel.
+ * - Escape handling: while open, the modal owns the Escape key — dismisses
+ *   itself and stops the event from reaching document-level sidebar Escape
+ *   listeners. (Excalidraw's window-capture Escape handler may still consume
+ *   the key first; the gallery resets its transient state on panel close, so
+ *   that path is safe too.)
+ * - `z-[2000]`: above Excalidraw's own modal/popup layers (--zIndex-modal:
+ *   1000, --zIndex-popup: 1001) so the portaled overlay is always on top.
  */
 export function Modal({ open, title, children, onDismiss, className }: ModalProps) {
+  const onDismissRef = React.useRef(onDismiss)
+  onDismissRef.current = onDismiss
+
+  React.useEffect(() => {
+    if (!open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return
+      event.stopImmediatePropagation()
+      event.preventDefault()
+      onDismissRef.current?.()
+    }
+    document.addEventListener("keydown", onKeyDown, true)
+    return () => document.removeEventListener("keydown", onKeyDown, true)
+  }, [open])
+
   if (!open) return null
-  return (
+
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
       aria-label={title}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all"
+      data-prevent-outside-click="true"
+      className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all"
       onClick={onDismiss}
     >
       <div
@@ -44,6 +79,7 @@ export function Modal({ open, title, children, onDismiss, className }: ModalProp
         </h2>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

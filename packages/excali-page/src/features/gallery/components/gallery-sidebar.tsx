@@ -35,6 +35,7 @@ import DrawingCardSkeleton from "./drawing-card-skeleton";
 import CollectionManager from "./collection-manager";
 import SearchBar from "./search-bar";
 import SaveDialog from "./save-dialog";
+import { Modal } from "@/components/ui/modal";
 import {
   Suspense,
   useCallback,
@@ -262,6 +263,14 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
         setIsOpen(true);
       } else {
         setIsOpen(false);
+        // Gallery panel collapsed: reset transient UI state so a dismissed
+        // save/import dialog or a stale name can't resurrect on next open
+        // (GallerySidebar stays mounted while the panel is closed — only the
+        // Excalidraw Sidebar island unmounts, so useState survives).
+        setSaveDialogOpen(false);
+        setImportDialogOpen(false);
+        setSelectedImportFile(null);
+        setCurrentName("");
       }
     },
     [setIsOpen],
@@ -773,59 +782,50 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
         onChange={handleImportFileSelect}
       />
       {importDialogOpen && selectedImportFile && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm transition-all"
-          onClick={handleImportCancel}
+        <Modal
+          open
+          title={t("Import Gallery")}
+          onDismiss={isImporting ? undefined : handleImportCancel}
         >
-          <div
-            className="bg-card rounded-lg p-6 w-full max-w-md mx-4 border border-border shadow-xl animate-in fade-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-2">
-              {t("Import Gallery")}
-            </h2>
-            <p className="text-sm text-[var(--text-secondary-color)] mb-4 break-all">
-              {selectedImportFile.name}
-            </p>
-
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={() => setImportMode("append")}
-                className={`w-full text-left rounded-md border p-3 transition-colors ${importMode === "append" ? "border-[var(--color-primary)] bg-[var(--button-hover-bg)]" : "border-border"}`}
-              >
-                <div className="text-sm font-medium text-[var(--text-primary-color)]">
-                  {t("Append Import (Default)")}
-                </div>
-                <div className="text-xs text-[var(--text-secondary-color)] mt-1">
-                  {t("Append Import Description")}
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setImportMode("overwrite")}
-                className={`w-full text-left rounded-md border p-3 transition-colors ${importMode === "overwrite" ? "border-[var(--color-primary)] bg-[var(--button-hover-bg)]" : "border-border"}`}
-              >
-                <div className="text-sm font-medium text-[var(--text-primary-color)]">
-                  {t("Overwrite Restore")}
-                </div>
-                <div className="text-xs text-[var(--text-secondary-color)] mt-1">
-                  {t("Overwrite Restore Description")}
-                </div>
-              </button>
-            </div>
-
-            <div className="flex gap-2 justify-end mt-5">
-              <Button variant="ghost" onClick={handleImportCancel} disabled={isImporting}>
-                {t("Cancel")}
-              </Button>
-              <Button onClick={handleImportConfirm} disabled={isImporting}>
-                {isImporting ? <IconLoader2 className="h-4 w-4 animate-spin" /> : null}
-                <span>{t("Start Import")}</span>
-              </Button>
-            </div>
+          <p className="text-sm text-[var(--text-secondary-color)] mb-4 break-all">
+            {selectedImportFile.name}
+          </p>
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() => setImportMode("append")}
+              className={`w-full text-left rounded-md border p-3 transition-colors ${importMode === "append" ? "border-[var(--color-primary)] bg-[var(--button-hover-bg)]" : "border-border"}`}
+            >
+              <div className="text-sm font-medium text-[var(--text-primary-color)]">
+                {t("Append Import (Default)")}
+              </div>
+              <div className="text-xs text-[var(--text-secondary-color)] mt-1">
+                {t("Append Import Description")}
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setImportMode("overwrite")}
+              className={`w-full text-left rounded-md border p-3 transition-colors ${importMode === "overwrite" ? "border-[var(--color-primary)] bg-[var(--button-hover-bg)]" : "border-border"}`}
+            >
+              <div className="text-sm font-medium text-[var(--text-primary-color)]">
+                {t("Overwrite Restore")}
+              </div>
+              <div className="text-xs text-[var(--text-secondary-color)] mt-1">
+                {t("Overwrite Restore Description")}
+              </div>
+            </button>
           </div>
-        </div>
+          <div className="flex gap-2 justify-end mt-5">
+            <Button variant="ghost" onClick={handleImportCancel} disabled={isImporting}>
+              {t("Cancel")}
+            </Button>
+            <Button onClick={handleImportConfirm} disabled={isImporting}>
+              {isImporting ? <IconLoader2 className="h-4 w-4 animate-spin" /> : null}
+              <span>{t("Start Import")}</span>
+            </Button>
+          </div>
+        </Modal>
       )}
     </Sidebar>
   );
