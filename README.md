@@ -13,6 +13,11 @@ Excali Local is a browser extension that brings **Excalidraw fully offline**: sc
 - **Import your gallery from a ZIP** — bring a previously exported archive (even one edited outside the app) back into your gallery.
 - **Agent-driven editing** — drive the active canvas from a CLI or an AI agent through the `excali-local` Skill and the `excali-bridge` daemon, over a local-only WebSocket. → [Agent Bridge Guide](docs/AGENT_BRIDGE.md)
 
+> Quick start (~1 min, silent, bilingual subtitles):
+>
+> [![Agent Drive quick start — 1 minute, silent, with bilingual subtitles](https://img.youtube.com/vi/0ceYcxnoB9M/maxresdefault.jpg)](https://youtu.be/0ceYcxnoB9M)
+
+
 ## Features
 
 - **Screenshot annotation** — capture a full page or select an area, then annotate it in Excalidraw.
@@ -58,9 +63,6 @@ Demo: [YouTube](https://youtu.be/_aHWUz9Og-I) | [Bilibili](https://www.bilibili.
 <video src="https://github.com/user-attachments/assets/3be7b273-cac4-4fc8-ab03-5bb50eab8cd4" autoplay loop muted></video>
 
 6. **Drive the canvas from an agent or CLI** — enable agent access in the extension, install the Skill (`npx skills add azzgo/excali-local --skill excali-local -y`), and draw programmatically over the local WebSocket bridge. Full guide: [Agent Bridge Guide](docs/AGENT_BRIDGE.md).
-   Quick start (~1 min, silent, bilingual subtitles):
-
-[![Agent Drive quick start — 1 minute, silent, with bilingual subtitles](https://img.youtube.com/vi/0ceYcxnoB9M/maxresdefault.jpg)](https://youtu.be/0ceYcxnoB9M)
 
 ## See also
 
