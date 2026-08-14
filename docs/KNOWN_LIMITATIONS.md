@@ -1,5 +1,7 @@
 # Known Limitations
 
+[简体中文](./KNOWN_LIMITATIONS.zh-CN.md)
+
 Documented platform / upstream constraints that the extension cannot fix in
 code. Each entry states the limitation, why it exists, and what the code does
 in response. Keep this file updated when a limitation lifts (e.g. a Chrome

@@ -1,5 +1,7 @@
 # Agent Bridge Guide
 
+[简体中文](./AGENT_BRIDGE.zh-CN.md)
+
 How to build the extension, enable the Agent Bridge, load the drawing skill into your agent,
 and smoke-test the full round-trip. (Two-gate consent model — see `CONTEXT.md` for terms.)
 
