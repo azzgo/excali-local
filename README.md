@@ -1,3 +1,5 @@
+
+
 # Excali Local
 
 > A local-first, offline Excalidraw app that lives entirely in your browser.
@@ -8,7 +10,7 @@
 
 Excali Local is a browser extension that brings **Excalidraw fully offline**: screenshot annotation, a complete local editor, a private gallery, and presentation mode — with no backend, no account, no uploads. Every drawing stays in your browser.
 
-## New in v1.7.0
+## New in v1.7.5
 
 - **Import your gallery from a ZIP** — bring a previously exported archive (even one edited outside the app) back into your gallery.
 - **Agent-driven editing** — drive the active canvas from a CLI or an AI agent through the `excali-local` Skill and the `excali-bridge` daemon, over a local-only WebSocket. → [Agent Bridge Guide](docs/AGENT_BRIDGE.md)
@@ -81,4 +83,3 @@ pnpm local:tar      # archive build assets
 ---
 
 *Screenshots from [unDraw](https://undraw.co/) — free illustrations for everyone.*
-
