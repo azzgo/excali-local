@@ -5,7 +5,7 @@
  * under `skills/excali-local/bin/`; this script refreshes them in place. It writes
  * nothing to the repo outside that dir — cross-compile scratch lives in the OS
  * temp dir and is cleaned up on exit, so a gate failure never leaves a partial
- * binary (or a patched README) in the committed source.
+ * binary in the committed source.
  *
  * 1. Cross-compiles the Go daemon (packages/bridge) for the target
  *    matrix with CGO_ENABLED=0 -trimpath -buildvcs=false -ldflags="-s -w" (pure Go, cgo
@@ -18,8 +18,8 @@
  *    dep-free story: linux fully static; windows imports only kernel32;
  *    darwin links only Apple system libraries. FAILS otherwise.
  * 4. Only after ALL gates pass: copies the verified binaries into
- *    `skills/excali-local/bin/` (overwriting) and refreshes the PACK-SIZES
- *    table IN PLACE in `skills/excali-local/README.md`.
+ *    `skills/excali-local/bin/` (overwriting). Sizes are printed to the console
+ *    for the maintainer; the user-facing README no longer lists them.
  *
  * Reproducibility (-buildvcs=false): Go 1.18+ stamps binaries with the
  * surrounding git repo's vcs.revision/time/modified by default, so two builds
@@ -82,7 +82,7 @@ interface BuiltTarget {
 const built: BuiltTarget[] = [];
 
 // Cross-compile scratch lives in the OS temp dir — a gate failure never leaves a
-// partial binary (or a patched README) in the committed source. Cleaned on exit.
+// partial binary in the committed source. Cleaned on exit.
 const scratch = mkdtempSync(join(os.tmpdir(), "skill-pack-"));
 mkdirSync(SKILL_BIN_DIR, { recursive: true });
 
@@ -186,7 +186,7 @@ try {
     }
 
     // ---------------------------------------------------------------------------
-    // 4. copy verified binaries into the SOURCE skill + patch its README in place
+    // 4. copy verified binaries into the SOURCE skill
     // ---------------------------------------------------------------------------
     for (const b of built) {
       const dest = join(SKILL_BIN_DIR, binName(b.target));
@@ -194,19 +194,6 @@ try {
       ok(`installed bin/${binName(b.target)} → skills/excali-local/bin/`);
     }
 
-    // Patch the README size table with the real measurements (in place — the
-    // source README is part of the artifact).
-    const readmePath = join(SKILL_DIR, "README.md");
-    const readme = readFileSync(readmePath, "utf8");
-    const rows = built
-      .map((b) => `| \`${binName(b.target)}\` | ${(b.sizeBytes / (1024 * 1024)).toFixed(2)} MiB | ${b.verify} |`)
-      .join("\n");
-    const patched = readme.replace(
-      /<!-- PACK-SIZES-BEGIN -->[\s\S]*?<!-- PACK-SIZES-END -->/,
-      `<!-- PACK-SIZES-BEGIN -->\n${rows}\n<!-- PACK-SIZES-END -->`,
-    );
-    writeFileSync(readmePath, patched);
-    ok("README.md PACK-SIZES table updated in place");
 
     console.log(`\n[skill-pack] source skill ready: ${SKILL_DIR}`);
     for (const b of built) {

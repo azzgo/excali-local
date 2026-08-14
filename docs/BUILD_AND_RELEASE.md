@@ -20,7 +20,7 @@
 | `pnpm sync:version` | Propagate root version to all `package.json`s.
 | `pnpm bridge:build` | `go build` the Go bridge daemon into `bridge/bin/` (gitignored).
 | `pnpm bridge:test` | `go test ./...` for the Go daemon. |
-| `pnpm skill:pack` | Cross-compile the daemon (4 static targets: darwin-arm64/amd64, linux-amd64, windows-amd64; CGO off, symbols stripped, reproducible via `-buildvcs=false`) + static-verify + refresh the committed `skills/excali-local/bin/` + README sizes in place. |
+| `pnpm skill:pack` | Cross-compile the daemon (4 static targets: darwin-arm64/amd64, linux-amd64, windows-amd64; CGO off, symbols stripped, reproducible via `-buildvcs=false`) + static-verify + refresh the committed `skills/excali-local/bin/` in place. |
 | `pnpm skill:check` | Zero-drift gate: the skill's documented commands == the wire contract. |
 
 > There is no `local:dev` script. For the editor UI use `page:dev`; for the full
@@ -76,8 +76,8 @@ propagate to all three packages. Keep all three versions in sync.
 
 The **excali-local skill** (`skills/excali-local/`) is a separate release artifact from the
 extension: pack it with `pnpm skill:pack` — binaries land in the committed
-`skills/excali-local/bin/` and README sizes refresh in place (the committed skill dir IS
-the artifact; scratch lives in the OS temp dir, no `.skill-dist/`). It is **not** wired
+`skills/excali-local/bin/` (the committed skill dir IS the artifact; scratch lives
+in the OS temp dir, no `.skill-dist/`). It is **not** wired
 into the tag-driven CI above yet — remote distribution
 (e.g. `skills.sh` → `.agents/skills/`) is a tracked follow-up. The skill bundles its own
 static multi-platform daemon binaries, so it has no runtime dependency on the extension build.
