@@ -1,7 +1,7 @@
 {
   "name": "excali",
   "private": true,
-  "version": "1.7.5",
+  "version": "1.7.6",
   "type": "module",
   "packageManager": "pnpm@10.25.0",
   "scripts": {
