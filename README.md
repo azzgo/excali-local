@@ -3,7 +3,7 @@
 > A local-first, offline Excalidraw app that lives entirely in your browser.
 
 <p align="center">
-  <img src="./.assets/banner.jpg" alt="Excali Local banner">
+  <img src="./.assets/new-banner.png" alt="Excali Local banner">
 </p>
 
 Excali Local is a browser extension that brings **Excalidraw fully offline**: screenshot annotation, a complete local editor, a private gallery, and presentation mode — with no backend, no account, no uploads. Every drawing stays in your browser.
