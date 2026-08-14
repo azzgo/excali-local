@@ -74,7 +74,7 @@ export function Modal({ open, title, children, onDismiss, className }: ModalProp
         )}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-2">
+        <h2 className="text-lg font-semibold text-foreground mb-2">
           {title}
         </h2>
         {children}

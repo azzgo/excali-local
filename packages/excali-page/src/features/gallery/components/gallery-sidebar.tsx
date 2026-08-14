@@ -787,7 +787,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
           title={t("Import Gallery")}
           onDismiss={isImporting ? undefined : handleImportCancel}
         >
-          <p className="text-sm text-[var(--text-secondary-color)] mb-4 break-all">
+          <p className="text-sm text-[var(--color-muted)] mb-4 break-all">
             {selectedImportFile.name}
           </p>
           <div className="space-y-3">
@@ -799,7 +799,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
               <div className="text-sm font-medium text-[var(--text-primary-color)]">
                 {t("Append Import (Default)")}
               </div>
-              <div className="text-xs text-[var(--text-secondary-color)] mt-1">
+              <div className="text-xs text-[var(--color-muted)] mt-1">
                 {t("Append Import Description")}
               </div>
             </button>
@@ -811,7 +811,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
               <div className="text-sm font-medium text-[var(--text-primary-color)]">
                 {t("Overwrite Restore")}
               </div>
-              <div className="text-xs text-[var(--text-secondary-color)] mt-1">
+              <div className="text-xs text-[var(--color-muted)] mt-1">
                 {t("Overwrite Restore Description")}
               </div>
             </button>

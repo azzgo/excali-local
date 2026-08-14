@@ -134,7 +134,7 @@ const DrawingCard = ({
           )}
           onClick={handleClick}
         >
-          <div className="relative aspect-video w-full overflow-hidden rounded-md bg-white/10 border border-black/5 dark:border-white/5">
+          <div className="relative aspect-video w-full overflow-hidden rounded-md bg-black/5 dark:bg-white/10 border border-black/5 dark:border-white/5">
             {drawing.thumbnail ? (
               <img
                 src={drawing.thumbnail}
@@ -156,7 +156,7 @@ const DrawingCard = ({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="h-6 w-6 bg-card hover:bg-[var(--button-hover-bg)]"
+                    className="h-6 w-6 bg-[var(--color-surface-high)] hover:bg-[var(--button-hover-bg)]"
                   >
                     <IconDots className="h-3 w-3" />
                   </Button>
@@ -171,7 +171,7 @@ const DrawingCard = ({
                   <DropdownMenuItem onClick={handleOverwrite}>
                     {t("Overwrite with current canvas")}
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleDelete} className="text-red-500 focus:text-red-500">
+                  <DropdownMenuItem onClick={handleDelete} className="text-red-500 focus:text-red-500 dark:text-red-400 dark:focus:text-red-400">
                     {t("Delete")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
@@ -183,7 +183,7 @@ const DrawingCard = ({
             <span className="text-sm font-medium truncate text-[var(--text-primary-color)]">
               {drawing.name}
             </span>
-            <span className="text-xs text-[var(--text-secondary-color)]">
+            <span className="text-xs text-[var(--color-muted)]">
               {format(new Date(drawing.updatedAt), "MMM d, yyyy")}
             </span>
             {drawing.collectionIds && drawing.collectionIds.length > 0 && (
@@ -217,11 +217,11 @@ const DrawingCard = ({
             <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-2">
               {t("Add to Collection")}
             </h2>
-            <p className="text-sm text-[var(--text-secondary-color)] mb-4">
+            <p className="text-sm text-[var(--color-muted)] mb-4">
               {t('Select collections for "{{name}}"', { name: drawing.name })}
             </p>
             {collections.length === 0 ? (
-              <p className="text-sm text-[var(--text-secondary-color)] py-4 text-center">
+              <p className="text-sm text-[var(--color-muted)] py-4 text-center">
                 {t("No collections yet. Create one first!")}
               </p>
             ) : (
@@ -269,7 +269,7 @@ const DrawingCard = ({
             <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-2">
               {t("Rename Drawing")}
             </h2>
-            <p className="text-sm text-[var(--text-secondary-color)] mb-4">
+            <p className="text-sm text-[var(--color-muted)] mb-4">
               {t("Enter a new name for this drawing")}
             </p>
             <Input
@@ -311,7 +311,7 @@ const DrawingCard = ({
             <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-2">
               {t("Overwrite Drawing")}
             </h2>
-            <p className="text-sm text-[var(--text-secondary-color)] mb-4">
+            <p className="text-sm text-[var(--color-muted)] mb-4">
               {t('Overwrite "{{name}}" with current canvas? This cannot be undone.', { name: drawing.name })}
             </p>
             <div className="flex gap-2 justify-end">
@@ -341,7 +341,7 @@ const DrawingCard = ({
             <h2 className="text-lg font-semibold text-[var(--text-primary-color)] mb-2">
               {t("Delete Drawing")}
             </h2>
-            <p className="text-sm text-[var(--text-secondary-color)] mb-4">
+            <p className="text-sm text-[var(--color-muted)] mb-4">
               {t('Delete "{{name}}"? This cannot be undone.', { name: drawing.name })}
             </p>
             <div className="flex gap-2 justify-end">

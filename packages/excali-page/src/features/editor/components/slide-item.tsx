@@ -19,7 +19,7 @@ const SlideItem = ({ id, onClick, slide }: SlideItemProps) => {
     <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
       <div className="shrink-0 flex flex-col space-y-4 items-center h-full">
         <div
-          className="cursor-pointer p-4 border rounded-sm bg-gray-50 hover:opacity-75"
+          className="cursor-pointer p-4 border rounded-sm bg-muted hover:opacity-75"
           onClick={onClick}
         >
           <img

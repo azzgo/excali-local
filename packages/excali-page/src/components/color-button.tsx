@@ -10,8 +10,8 @@ const ColorButton = ({ color, active, onClick, readonly }: ColorButtonProps) => 
   return (
     <div
       className={cn(
-        "size-5 rounded border border-[#d6d6d6] relative bg-left-center",
-        !readonly && "hover:after:absolute hover:after:shadow-[0_0_0_1px_#d6d6d6] hover:after:left-[-2px] hover:after:right-[-2px] hover:after:top-[-2px] hover:after:bottom-[-2px] hover:after:rounded",
+        "size-5 rounded border border-[var(--default-border-color)] relative bg-left-center",
+        !readonly && "hover:after:absolute hover:after:shadow-[0_0_0_1px_var(--default-border-color)] hover:after:left-[-2px] hover:after:right-[-2px] hover:after:top-[-2px] hover:after:bottom-[-2px] hover:after:rounded",
       )}
       role="button"
       style={{
@@ -24,7 +24,7 @@ const ColorButton = ({ color, active, onClick, readonly }: ColorButtonProps) => 
       onClick={onClick}
     >
       {active && (
-        <div className="absolute top-[-2px] left-[-2px] right-[-2px] bottom-[-2px] shadow-[0_0_0_1px_#4a47b1] rounded"></div>
+        <div className="absolute top-[-2px] left-[-2px] right-[-2px] bottom-[-2px] shadow-[0_0_0_1px_var(--color-primary)] rounded"></div>
       )}
     </div>
   );

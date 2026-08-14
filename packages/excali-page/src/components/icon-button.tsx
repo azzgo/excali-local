@@ -19,7 +19,7 @@ const IconButton = ({
       title={title}
       role="button"
       className={cn(
-        "cursor-pointer size-9 [&_svg]:size-4 box-border flex items-center justify-center text-[var(--icon-fill-color)] rounded-[0.5rem] bg-[hsl(240,25%,96%)] ",
+        "cursor-pointer size-9 [&_svg]:size-4 box-border flex items-center justify-center text-[var(--icon-fill-color)] rounded-[0.5rem] bg-[var(--color-surface-high)] ",
         active
           ? "bg-[var(--button-selected-hover-bg,var(--color-surface-primary-container))]"
           : "hover:bg-[var(--button-hover-bg)]",

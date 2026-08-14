@@ -27,7 +27,7 @@ export const Hint = ({
       <Tooltip delayDuration={100}>
         <TooltipTrigger asChild>{children}</TooltipTrigger>
         <TooltipContent
-          className="text-white bg-black border-black"
+          className="bg-popover text-popover-foreground border-border"
           side={side}
           align={align}
           sideOffset={sideOffset}

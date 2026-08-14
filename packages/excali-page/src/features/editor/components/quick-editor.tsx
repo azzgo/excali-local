@@ -12,6 +12,7 @@ import GallerySidebar from "../../gallery/components/gallery-sidebar";
 import { useFileCleanup } from "../../gallery/hooks/use-file-cleanup";
 import { useSetAtom } from "jotai";
 import { currentLoadedDrawingIdAtom } from "@/features/gallery/store/gallery-atoms";
+import { useEditorTheme } from "../hooks/use-editor-theme";
 
 interface QuickMarkerEditorProps {
   lang: string;
@@ -22,6 +23,7 @@ const QuickMarkerEditor = ({ lang }: QuickMarkerEditorProps) => {
   const [excalidrawAPI, setExcalidrawAPI] =
     useState<ExcalidrawImperativeAPI | null>(null);
   const { runCleanupIfNeeded } = useFileCleanup(excalidrawAPI);
+  const { theme, handleThemeChange } = useEditorTheme();
 
   const updateExcalidrawAPI = useCallback(
     (api: ExcalidrawImperativeAPI | null) => {
@@ -54,6 +56,8 @@ const QuickMarkerEditor = ({ lang }: QuickMarkerEditorProps) => {
           autoFocus
           langCode={lang}
           aiEnabled={false}
+          theme={theme}
+          onThemeChange={handleThemeChange}
           initialData={data}
           showDeprecatedFonts={false}
           onExcalidrawAPI={(api) => updateExcalidrawAPI(api)}

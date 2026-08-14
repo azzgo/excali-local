@@ -71,7 +71,7 @@ const SaveDialog = ({
     >
       <div className="flex flex-col gap-4">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-[var(--text-primary-color)]">
+          <label className="text-sm font-medium text-foreground">
             {t("Name")}
           </label>
           <input
@@ -79,17 +79,17 @@ const SaveDialog = ({
             value={name}
             onChange={(e) => setName(e.target.value)}
             autoFocus
-            className="w-full h-9 px-3 rounded-md bg-input border border-border text-[var(--text-primary-color)] placeholder:text-[var(--text-secondary-color)] outline-none transition-colors focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
+            className="w-full h-9 px-3 rounded-md bg-input border border-border text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-[var(--color-primary)] focus:ring-1 focus:ring-[var(--color-primary)]"
           />
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium text-[var(--text-primary-color)]">
+          <label className="text-sm font-medium text-foreground">
             {t("Collections")}
           </label>
           <div className="max-h-48 overflow-y-auto border border-border rounded-md p-2 bg-muted">
             {collections.length === 0 ? (
-              <p className="text-xs text-[var(--text-secondary-color)] text-center py-2">
+              <p className="text-xs text-muted-foreground text-center py-2">
                 {t("No collections found")}
               </p>
             ) : (
@@ -103,9 +103,9 @@ const SaveDialog = ({
                       type="checkbox"
                       checked={selectedCollections.includes(collection.id)}
                       onChange={() => toggleCollection(collection.id)}
-                      className="h-4 w-4 rounded border-gray-300 text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+                      className="h-4 w-4 rounded border-border text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
                     />
-                    <span className="text-sm text-[var(--text-primary-color)]">
+                    <span className="text-sm text-foreground">
                       {collection.name}
                     </span>
                   </label>

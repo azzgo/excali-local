@@ -31,6 +31,7 @@ import GallerySidebar from "../../gallery/components/gallery-sidebar";
 import { useFileCleanup } from "../../gallery/hooks/use-file-cleanup";
 import { currentLoadedDrawingIdAtom } from "@/features/gallery/store/gallery-atoms";
 import TopRightToolbar from "./top-right-toolbar";
+import { useEditorTheme } from "../hooks/use-editor-theme";
 
 interface LocalEditorProps {
   lang: string;
@@ -45,6 +46,7 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
     showSlideQuickNavAtom,
   );
   const { runCleanupIfNeeded } = useFileCleanup(excalidrawAPI);
+  const { theme, handleThemeChange } = useEditorTheme();
   const setCurrentLoadedId = useSetAtom(currentLoadedDrawingIdAtom);
 
   useEffect(() => {
@@ -119,6 +121,8 @@ const LocalEditor = ({ lang }: LocalEditorProps) => {
             autoFocus
             langCode={lang}
             aiEnabled={false}
+            theme={theme}
+            onThemeChange={handleThemeChange}
             initialData={data}
             showDeprecatedFonts={false}
             onExcalidrawAPI={(api) => updateExcalidrawAPI(api)}

@@ -76,7 +76,7 @@ const CollectionItem = ({
           "group flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-colors text-sm font-medium",
           isSelected 
             ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)]" 
-            : "text-[var(--text-secondary-color)] hover:bg-[var(--button-hover-bg)] hover:text-[var(--text-primary-color)]"
+            : "text-[var(--color-muted)] hover:bg-[var(--button-hover-bg)] hover:text-[var(--text-primary-color)]"
         )}
         onClick={onClick}
       >
@@ -241,7 +241,7 @@ const CollectionsList = ({ collections, setCollections, drawingCounts, onResetPa
     <div className="flex flex-col gap-1 mt-2 mb-2 px-2">
       <div className="flex items-center justify-between px-2 group">
         <button 
-          className="flex items-center gap-1 text-xs font-semibold text-[var(--text-secondary-color)] hover:text-[var(--text-primary-color)] transition-colors"
+          className="flex items-center gap-1 text-xs font-semibold text-[var(--color-muted)] hover:text-[var(--text-primary-color)] transition-colors"
           onClick={() => setIsExpanded(!isExpanded)}
         >
           {isExpanded ? <IconChevronDown className="h-3.5 w-3.5" /> : <IconChevronRight className="h-3.5 w-3.5" />}
@@ -265,7 +265,7 @@ const CollectionsList = ({ collections, setCollections, drawingCounts, onResetPa
               "flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-colors text-sm font-medium",
               selectedId === null
                 ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)]"
-                : "text-[var(--text-secondary-color)] hover:bg-[var(--button-hover-bg)] hover:text-[var(--text-primary-color)]"
+                : "text-[var(--color-muted)] hover:bg-[var(--button-hover-bg)] hover:text-[var(--text-primary-color)]"
             )}
             onClick={() => handleSelectCollection(null)}
           >
