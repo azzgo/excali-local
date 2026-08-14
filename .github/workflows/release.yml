@@ -50,8 +50,8 @@ jobs:
             --title "🎉 Excali Local ${{ github.ref_name }}" \
             --generate-notes \
             --draft \
-            ./packages/excali-local/.output/*.zip \
-            ./packages/excali-local/*.tar.gz \
+            ./packages/local/.output/*.zip \
+            ./packages/local/*.tar.gz \
             ./skills-${{ github.ref_name }}.tar.gz
       - run: echo "🍏 This job's status is ${{ job.status }}."
 

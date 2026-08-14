@@ -25,14 +25,14 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { mintBridgeToken } from "excali-shared";
 import { run, runAsync, hereDir } from "../_run";
-import { AgentBridgeSession, type BridgeWs } from "../../packages/excali-page/src/features/editor/lib/agent-bridge-client";
+import { AgentBridgeSession, type BridgeWs } from "../../packages/page/src/features/editor/lib/agent-bridge-client";
 import {
   blobToDataURL,
   handleCanvasV1Request,
   type CanvasV1Api,
   type CanvasV1Helpers,
   type CanvasV1Request,
-} from "../../packages/excali-page/src/features/editor/lib/canvas-v1";
+} from "../../packages/page/src/features/editor/lib/canvas-v1";
 
 // ---- pick the HOST platform's bundled binary (the skill's naming rule) -----
 const HOST_BIN_NAMES: Record<string, Record<string, string>> = {

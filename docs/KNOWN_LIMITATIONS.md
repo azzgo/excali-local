@@ -53,7 +53,7 @@ for extension pages is not verifiable from here.
 
 - Presence is not usability: `'modelContext' in document` is `true` on
   extension pages even though the API throws there. `isWebmcpUsable()` in
-  `packages/excali-shared/src/agent-bridge.ts` probes the API once — a
+  `packages/shared/src/agent-bridge.ts` probes the API once — a
   throwing call (the SecurityError above) reports the feature as **unusable**.
 - The Options page uses that probe: the WebMCP segment greys out
   ("Requires Chrome with WebMCP enabled") on blocked origins instead of

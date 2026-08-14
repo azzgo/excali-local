@@ -13,16 +13,16 @@ pnpm workspaces, three packages (plus a Go package that is NOT a workspace membe
 
 | Package | Role |
 | --- | --- |
-| `packages/excali-local` | **Extension shell** (WXT). Generates the MV3 manifest; hosts the background service worker, content script, crop script, popup, and options page. Embeds the built editor from `excali-page`. |
-| `packages/excali-page` | **Editor app** (React 19 + Vite 5). The Excalidraw UI — editor, gallery, presentation, marker. Ships as a standalone web app and as the extension's editor. |
-| `packages/excali-shared` | **Shared layer**. Font-config IndexedDB (`excali-fonts`) + the **agent-bridge wire contract** (`agent-bridge.ts` — method sets, ports, WS types, token rules; the source of truth the Go daemon mirrors) + pure utils/types (`cn`, `getBrowser`, `getLang`). Imported via the `excali-shared` workspace alias. |
-| `packages/excali-bridge` | **Go daemon** (Go, not a workspace member). The Agent Bridge: a 127.0.0.1-only WS server + agent CLI. Cross-profile single-active-canvas arbiter. See the bridge section below. |
+| `packages/local` | **Extension shell** (WXT). Generates the MV3 manifest; hosts the background service worker, content script, crop script, popup, and options page. Embeds the built editor from `page`. |
+| `packages/page` | **Editor app** (React 19 + Vite 5). The Excalidraw UI — editor, gallery, presentation, marker. Ships as a standalone web app and as the extension's editor. |
+| `packages/shared` | **Shared layer**. Font-config IndexedDB (`excali-fonts`) + the **agent-bridge wire contract** (`agent-bridge.ts` — method sets, ports, WS types, token rules; the source of truth the Go daemon mirrors) + pure utils/types (`cn`, `getBrowser`, `getLang`). Imported via the `excali-shared` workspace alias. |
+| `packages/bridge` | **Go daemon** (Go, not a workspace member). The Agent Bridge: a 127.0.0.1-only WS server + agent CLI. Cross-profile single-active-canvas arbiter. See the bridge section below. |
 
 ## Repository layout
 
 ```
 packages/
-  excali-local/            # WXT extension shell
+  local/            # WXT extension shell
     wxt.config.ts          # manifest generator (perms, commands, i18n)
     entrypoints/
       background.ts        # message-routing hub
@@ -32,7 +32,7 @@ packages/
       lib/utils.ts         # shell helpers (cn, ...)
     public/_locales/{en,zh_CN}/messages.json  # chrome.i18n strings
     public/editor/         # GENERATED (gitignored) — output of page:build
-  excali-page/
+  page/
     excalidraw-excalidraw-v0.18.0-csp.14.tgz   # local patched Excalidraw dep
     vite.config.mts        # CSP globals, @ alias, Vitest config
     src/
@@ -42,8 +42,8 @@ packages/
       components/ui/       # shadcn-style primitives (Radix + Tailwind)
       lib/ locales/        # utils + i18n
     test/                  # mirrors src/features/...; setup.ts + provider.helper.tsx
-  excali-shared/src/       # db.ts (fonts) + agent-bridge.ts (wire contract) + index.ts (utils/types)
-  excali-bridge/           # Go daemon (NOT a pnpm workspace): go.mod + main.go +
+  shared/src/       # db.ts (fonts) + agent-bridge.ts (wire contract) + index.ts (utils/types)
+  bridge/           # Go daemon (NOT a pnpm workspace): go.mod + main.go +
     internal/              #   contract (wire mirror), pidfile, ws (RFC 6455), fonts,
     bin/                   #   server (daemon), client (Leg-A CLI); bin/ gitignored
 skills/excali-local/        # agent-agnostic drawing skill (SKILL.md + references/) —
@@ -84,7 +84,7 @@ fonts) work over a paired connection **without** an activated canvas. The canvas
 master + pairing in one action; the Options page toggles master independently (pairing is
 then opened from the canvas button).
 
-The **Go daemon** (`packages/excali-bridge`, Tickets 009/016/017) is the **cross-profile
+The **Go daemon** (`packages/bridge`, Tickets 009/016/017) is the **cross-profile
 arbiter** — the only entity shared across browsers/profiles (loopback). One self-contained
 binary, two faces:
 
@@ -140,8 +140,8 @@ JSON-RPC error codes: `-32001` no active canvas · `-32002` page timeout · `-32
 disconnected mid-flight · `-32004` ambiguous target (>1 control page, no active canvas) ·
 `-32005` user cancelled a blocking op · plus std `-32600..-32603`.
 
-Wire contract: `packages/excali-shared/src/agent-bridge.ts` is the **source of truth** for
-the method set + ports + WS types + token rules; `packages/excali-bridge/internal/contract/`
+Wire contract: `packages/shared/src/agent-bridge.ts` is the **source of truth** for
+the method set + ports + WS types + token rules; `packages/bridge/internal/contract/`
 **mirrors it by hand** (change both together — code-gen to eliminate the manual mirror is a
 tracked follow-up). The e2e harness in `scripts/agent-bridge/` exercises the full surface
 against the real daemon: `driver.ts` (ping + displacement), `driver-canvas.ts` (canvas/v1),
@@ -187,17 +187,17 @@ Three editor components under `features/editor/components/`:
 
 | File | Why it matters |
 | --- | --- |
-| `packages/excali-local/wxt.config.ts` | Manifest, permissions, keyboard commands, Firefox `gecko.id`. |
-| `packages/excali-local/entrypoints/background.ts` | Extension hub; all message routing. |
-| `packages/excali-local/entrypoints/excalidraw.content.ts` | `.excalidraw` detection + button injection. |
-| `packages/excali-local/entrypoints/crop.ts` | Select-area screenshot logic. |
-| `packages/excali-page/vite.config.mts` | CSP globals, `@` alias, Vitest config. |
-| `packages/excali-page/src/features/editor/utils/indexdb.ts` | `excali` DB schema (v2) + gallery CRUD. |
-| `packages/excali-page/src/features/editor/components/local-editor.tsx` | Main editor UI + save pipeline. |
-| `packages/excali-page/src/features/gallery/store/gallery-atoms.ts` | Gallery Jotai state. |
-| `packages/excali-shared/src/db.ts` + `index.ts` | Font-config storage + shared utils/types.
-| `packages/excali-shared/src/agent-bridge.ts` | Agent-bridge wire contract — **source of truth**: method sets (canvas/gallery/fonts), ports, WS types, token rules, consent keys, error codes. The Go daemon mirrors it. |
-| `packages/excali-bridge/` (`main.go` + `internal/`) | Go daemon: WS server + agent CLI, pidfile single-instance, displacement, daemon-local OS-font enumeration, cross-profile routing. |
+| `packages/local/wxt.config.ts` | Manifest, permissions, keyboard commands, Firefox `gecko.id`. |
+| `packages/local/entrypoints/background.ts` | Extension hub; all message routing. |
+| `packages/local/entrypoints/excalidraw.content.ts` | `.excalidraw` detection + button injection. |
+| `packages/local/entrypoints/crop.ts` | Select-area screenshot logic. |
+| `packages/page/vite.config.mts` | CSP globals, `@` alias, Vitest config. |
+| `packages/page/src/features/editor/utils/indexdb.ts` | `excali` DB schema (v2) + gallery CRUD. |
+| `packages/page/src/features/editor/components/local-editor.tsx` | Main editor UI + save pipeline. |
+| `packages/page/src/features/gallery/store/gallery-atoms.ts` | Gallery Jotai state. |
+| `packages/shared/src/db.ts` + `index.ts` | Font-config storage + shared utils/types.
+| `packages/shared/src/agent-bridge.ts` | Agent-bridge wire contract — **source of truth**: method sets (canvas/gallery/fonts), ports, WS types, token rules, consent keys, error codes. The Go daemon mirrors it. |
+| `packages/bridge/` (`main.go` + `internal/`) | Go daemon: WS server + agent CLI, pidfile single-instance, displacement, daemon-local OS-font enumeration, cross-profile routing. |
 | `scripts/agent-bridge/` (5 drivers) | e2e vs the real daemon: `driver` (ping+displacement), `driver-canvas` (canvas/v1), `driver-gallery` (gallery/v1), `driver-fonts` (fonts/v1), `driver-skill` (source skill binary). |
 | `skills/excali-local/` | Agent-agnostic drawing skill (`SKILL.md` + `references/`); bundles the static multi-platform daemon binaries **committed under `bin/`** (source-is-the-artifact). Pack with `scripts/skill-pack.ts`. |
 | `scripts/{build,clean,tar,zip}.ts` + `sync-version.sh` + `skill-pack.ts` + `check-skill-commands.ts` | Build/pack/version tooling + skill binary refresh/archive + zero-drift command gate. |

@@ -95,7 +95,7 @@ function resolveRepoRoot() {
   const abs = path.resolve(root);
   let pkg;
   try { pkg = JSON.parse(readFileSync(path.join(abs, "package.json"), "utf8")); } catch { pkg = null; }
-  const valid = pkg?.name === "excali" && existsSync(path.join(abs, "packages/excali-local/wxt.config.ts"));
+  const valid = pkg?.name === "excali" && existsSync(path.join(abs, "packages/local/wxt.config.ts"));
   return valid ? abs : null;
 }
 
@@ -153,7 +153,7 @@ async function cmdStart() {
     die(1, `port ${DEV_PORT} is already in use — stop "pnpm page:dev" or another "pnpm local:dev" first`);
   }
 
-  const pkgDir = path.join(repoRoot, "packages/excali-local");
+  const pkgDir = path.join(repoRoot, "packages/local");
   // node_modules present?
   if (!existsSync(path.join(repoRoot, "node_modules")) && !existsSync(path.join(pkgDir, "node_modules"))) {
     log("node_modules missing — running `pnpm install` (first run only)");
@@ -165,7 +165,7 @@ async function cmdStart() {
 
   // Editor artifact (public/editor) — rebuild when the page source is newer
   const editorHtml = path.join(pkgDir, "public/editor/index.html");
-  const pageSrc = path.join(repoRoot, "packages/excali-page/src");
+  const pageSrc = path.join(repoRoot, "packages/page/src");
   if (!existsSync(editorHtml) || newestMtime(pageSrc) > statSync(editorHtml).mtimeMs) {
     log("running `pnpm page:build` (editor artifact)");
     await new Promise((res) => {
@@ -236,12 +236,12 @@ async function cmdStatus() {
   console.log(`wxt.pid: ${wxtPid} (${isAlive(wxtPid) ? "alive" : "dead"})`);
   console.log(`port ${DEV_PORT}: ${(await portOpen(DEV_PORT)) ? "open" : "closed"}`);
   if (repoRoot) {
-    const outdir = path.join(repoRoot, "packages/excali-local/.output/chrome-mv3-dev/manifest.json");
+    const outdir = path.join(repoRoot, "packages/local/.output/chrome-mv3-dev/manifest.json");
     if (existsSync(outdir)) {
       const fresh = Date.now() - statSync(outdir).mtimeMs < 10 * 60_000;
       console.log(`dev-build: ${new Date(statSync(outdir).mtime).toISOString()} (${fresh ? "fresh" : "STALE"})`);
     } else console.log("dev-build: missing");
-    console.log(`editor-artifact: ${existsSync(path.join(repoRoot, "packages/excali-local/public/editor/index.html")) ? "present" : "MISSING"}`);
+    console.log(`editor-artifact: ${existsSync(path.join(repoRoot, "packages/local/public/editor/index.html")) ? "present" : "MISSING"}`);
   } else {
     console.log("repo root: not resolvable from cwd (use --root)");
   }

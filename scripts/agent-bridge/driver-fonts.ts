@@ -32,18 +32,18 @@ import { run, runAsync, hereDir } from "../_run";
 import {
   AgentBridgeSession,
   type BridgeWs,
-} from "../../packages/excali-page/src/features/editor/lib/agent-bridge-client";
+} from "../../packages/page/src/features/editor/lib/agent-bridge-client";
 import {
   handleFontsV1Request,
   type FontsV1Deps,
   type FontsV1Request,
-} from "../../packages/excali-page/src/lib/fonts-v1";
+} from "../../packages/page/src/lib/fonts-v1";
 
 const origin = process.env.ORIGIN ?? "chrome-extension://abcdabcdabcdabcdabcdabcdabcdabcd";
 const profileId = "11111111-2222-4333-8444-555555555555";
 const bin =
   process.env.EXCALI_BRIDGE_BIN ??
-  join(hereDir(import.meta.url), "../../packages/excali-bridge/bin/excali-bridge");
+  join(hereDir(import.meta.url), "../../packages/bridge/bin/excali-bridge");
 
 const wsFactory = (url: string): BridgeWs =>
   new WebSocket(url, { headers: { Origin: origin } }) as unknown as BridgeWs;

@@ -45,7 +45,7 @@ Excalidraw. "Stroke" is `strokeColor`, "fill" is `backgroundColor`; pair with
 
 ## Slate palette (product-derived — Clean preset)
 
-Derived from Excali Local's actual UI tokens (`packages/excali-page/src/index.css`,
+Derived from Excali Local's actual UI tokens (`packages/page/src/index.css`,
 the `--chart-1..5` values converted from HSL), so a Clean-preset diagram sits
 visually next to the product. Pair with `roughness: 0`, `roundness: null`,
 `strokeWidth: 1`/`2`/`3`, `opacity: 100`.

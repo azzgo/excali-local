@@ -4,7 +4,7 @@
   "version": "1.7.5",
   "scripts": {
     "dev": "vite",
-    "build": "BUILD_FOR_EXTENSION=1 vite build --outDir=../excali-local/public/editor --emptyOutDir",
+    "build": "BUILD_FOR_EXTENSION=1 vite build --outDir=../local/public/editor --emptyOutDir",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest --run",
     "test:coverage": "vitest --run --coverage",

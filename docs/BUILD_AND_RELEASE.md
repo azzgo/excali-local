@@ -12,13 +12,13 @@
 | --- | --- |
 | `pnpm install` | Install workspace deps; triggers `wxt prepare` in the shell package. |
 | `pnpm page:dev` | Vite dev server for the editor webapp alone (port 3000). |
-| `pnpm page:build` | Build editor with `BUILD_FOR_EXTENSION=1`; outputs to `packages/excali-local/public/editor/`. **Run after changing page code before testing the extension.** |
+| `pnpm page:build` | Build editor with `BUILD_FOR_EXTENSION=1`; outputs to `packages/local/public/editor/`. **Run after changing page code before testing the extension.** |
 | `pnpm page:test` | Vitest suite. Run before considering page changes done. |
 | `pnpm local:build` | Build the extension for Chrome **and** Firefox (WXT). |
 | `pnpm local:tar` / `local:zip` | Pack `.output/` into release archives. |
 | `pnpm local:clean` | Remove `public/editor`, `.output`, archives. |
 | `pnpm sync:version` | Propagate root version to all `package.json`s.
-| `pnpm bridge:build` | `go build` the Go bridge daemon into `excali-bridge/bin/` (gitignored).
+| `pnpm bridge:build` | `go build` the Go bridge daemon into `bridge/bin/` (gitignored).
 | `pnpm bridge:test` | `go test ./...` for the Go daemon. |
 | `pnpm skill:pack` | Cross-compile the daemon (4 static targets: darwin-arm64/amd64, linux-amd64, windows-amd64; CGO off, symbols stripped, reproducible via `-buildvcs=false`) + static-verify + refresh the committed `skills/excali-local/bin/` + README sizes in place. |
 | `pnpm skill:check` | Zero-drift gate: the skill's documented commands == the wire contract. |
@@ -29,12 +29,12 @@
 ## Build pipeline
 
 1. `page:build` runs Vite with `BUILD_FOR_EXTENSION=1`, emitting the editor into
-   `packages/excali-local/public/editor/` (base path `/editor/`).
+   `packages/local/public/editor/` (base path `/editor/`).
 2. `local:build` runs WXT, which packages the shell + the embedded editor into
    `.output/chrome-mv3` and `.output/firefox-mv3`.
 3. `local:tar` / `local:zip` archive `.output/` for release.
 
-**Go bridge daemon** (`packages/excali-bridge`): NOT a pnpm workspace. Build/test with
+**Go bridge daemon** (`packages/bridge`): NOT a pnpm workspace. Build/test with
 `pnpm bridge:build` / `bridge:test` (plain `go build` / `go test`; stdlib-only, no
 module downloads, so it builds offline). The daemon is NOT packaged into the extension —
 it is the agent-side binary, distributed as the **excali-local skill** (`skills/excali-local/`):
@@ -54,7 +54,7 @@ Excalidraw dep) are gitignored build artifacts — skip them when exploring.
    `@excalidraw/excalidraw: ./excalidraw-excalidraw-v0.18.0-csp.14.tgz`. The patch
    disables CDN font/asset loading to satisfy the extension CSP / no-remote-code
    rules. **Never swap it for the npm version** — offline mode and CSP will break.
-2. **Vite injects CSP-compliance globals** (`excali-page/vite.config.mts`):
+2. **Vite injects CSP-compliance globals** (`page/vite.config.mts`):
    `window.DISABLE_EMBEDDED=true`, `window.DISABLE_FONT_CDN=true`, and
    `EXCALIDRAW_ASSET_PATH="/editor/"` (extension) or `"/"` (web). `main.tsx` reads
    `EXCALIDRAW_ASSET_PATH` at boot. Code that gates CDN/embed behavior must read these.

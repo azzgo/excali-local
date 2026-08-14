@@ -1,5 +1,5 @@
 // Package contract mirrors the wire contract in
-// `packages/excali-shared/src/agent-bridge.ts` (the single source of truth for
+// `packages/shared/src/agent-bridge.ts` (the single source of truth for
 // the Leg-B protocol). Keep this file in sync with that module — a divergence
 // here breaks the page client ↔ daemon handshake. (This file mirrors the TS source of
 // truth by hand; code-gen to drop the manual mirror is a tracked follow-up, not a blocker.)

@@ -25,21 +25,21 @@
 import { join } from "node:path";
 import { mintBridgeToken } from "excali-shared";
 import { run, runAsync, hereDir } from "../_run";
-import { AgentBridgeSession, type BridgeWs } from "../../packages/excali-page/src/features/editor/lib/agent-bridge-client";
+import { AgentBridgeSession, type BridgeWs } from "../../packages/page/src/features/editor/lib/agent-bridge-client";
 import {
   blobToDataURL,
   handleCanvasV1Request,
   type CanvasV1Api,
   type CanvasV1Helpers,
   type CanvasV1Request,
-} from "../../packages/excali-page/src/features/editor/lib/canvas-v1";
+} from "../../packages/page/src/features/editor/lib/canvas-v1";
 
 const origin = process.env.ORIGIN ?? "chrome-extension://abcdabcdabcdabcdabcdabcdabcdabcd";
 // Per-profile identity uuid (goal 3) — REQUIRED by the daemon for page roles.
 const profileId = "11111111-2222-4333-8444-555555555555";
 const bin =
   process.env.EXCALI_BRIDGE_BIN ??
-  join(hereDir(import.meta.url), "../../packages/excali-bridge/bin/excali-bridge");
+  join(hereDir(import.meta.url), "../../packages/bridge/bin/excali-bridge");
 
 const wsFactory = (url: string): BridgeWs =>
   new WebSocket(url, { headers: { Origin: origin } }) as unknown as BridgeWs;

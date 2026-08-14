@@ -9,13 +9,13 @@
 
 ## UI primitives
 
-`excali-page/src/components/ui/` — Radix + shadcn-style + Tailwind v4. Reuse these
+`page/src/components/ui/` — Radix + shadcn-style + Tailwind v4. Reuse these
 before adding new components. Add new ones via
-`pnpm --filter ./packages/excali-page shadcn:add <name>`.
+`pnpm --filter ./packages/page shadcn:add <name>`.
 
 ## Path alias
 
-`@` → `packages/excali-page/src` (Vite alias, defined in `vite.config.mts`).
+`@` → `packages/page/src` (Vite alias, defined in `vite.config.mts`).
 
 ## Icons
 
@@ -29,7 +29,7 @@ Check which package you're in before importing.
 ## i18n (two systems — do not mix)
 
 - **Extension shell:** chrome.i18n. Strings in
-  `packages/excali-local/public/_locales/{en,zh_CN}/messages.json`, referenced via
+  `packages/local/public/_locales/{en,zh_CN}/messages.json`, referenced via
   `__MSG_key__` in the manifest.
 - **Page app:** i18next + react-i18next. All strings inline in
   `src/locales/locales.ts` (single file, `en`/`zh` resources); initialized by
@@ -46,9 +46,9 @@ Check which package you're in before importing.
 
 ## Agent bridge (Go daemon)
 
-- **Wire contract**: `packages/excali-shared/src/agent-bridge.ts` is the single source
+- **Wire contract**: `packages/shared/src/agent-bridge.ts` is the single source
   of truth for the Leg-B protocol (ports, WS message types, token rules, consent
-  keys). The Go daemon mirrors it in `packages/excali-bridge/internal/contract/` —
+  keys). The Go daemon mirrors it in `packages/bridge/internal/contract/` —
   change both together (code-gen is a tracked follow-up).
 - **Auth posture (011)**: loopback-only; origin allow-list `chrome-extension://<id>` at
   the WS upgrade; ≥128-bit per-session hex token in the `handshake` message. The token
@@ -69,7 +69,7 @@ Check which package you're in before importing.
 ## Testing
 
 Vitest + Testing Library + happy-dom. Tests mirror `src/features/...` under
-`test/features/...`. Config lives in `excali-page/vite.config.mts`.
+`test/features/...`. Config lives in `page/vite.config.mts`.
 
 - `test/setup.ts` mocks `localStorage`, `sessionStorage`, `requestIdleCallback`, and
   `location`.

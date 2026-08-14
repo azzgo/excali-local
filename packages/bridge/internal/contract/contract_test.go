@@ -26,7 +26,7 @@ func TestIsValidBridgeToken(t *testing.T) {
 }
 
 // TestBridgeStopMirror locks the 045 wire additions to the TS source of
-// truth (packages/excali-shared/src/agent-bridge.ts): the two constants and
+// truth (packages/shared/src/agent-bridge.ts): the two constants and
 // the DaemonLocalMethods map entry must match exactly.
 func TestBridgeStopMirror(t *testing.T) {
 	if BridgeStopMethod != "bridge.stop" {

@@ -1,7 +1,7 @@
 /**
  * AGENT BRIDGE — driver: exercises the REAL page-side WS client
- * (`packages/excali-page/src/features/editor/lib/agent-bridge-client.ts`)
- * against the Go bridge daemon (`packages/excali-bridge`), exactly as
+ * (`packages/page/src/features/editor/lib/agent-bridge-client.ts`)
+ * against the Go bridge daemon (`packages/bridge`), exactly as
  * activated Local editor pages do: scan the fixed port range → token
  * handshake → connected → ping round-trip.
  *
@@ -33,7 +33,7 @@ import {
   AgentBridgeSession,
   type BridgeConnectionStatus,
   type BridgeWs,
-} from "../../packages/excali-page/src/features/editor/lib/agent-bridge-client";
+} from "../../packages/page/src/features/editor/lib/agent-bridge-client";
 
 const origin = process.env.ORIGIN ?? "chrome-extension://abcdabcdabcdabcdabcdabcdabcdabcd";
 const profileA = "11111111-2222-4333-8444-555555555555";
@@ -42,7 +42,7 @@ const profileStorm = "dddddddd-eeee-4fff-8000-111111111111";
 const profileStop = "99999999-8888-4777-8000-222222222222";
 const bin =
   process.env.EXCALI_BRIDGE_BIN ??
-  join(hereDir(import.meta.url), "../../packages/excali-bridge/bin/excali-bridge");
+  join(hereDir(import.meta.url), "../../packages/bridge/bin/excali-bridge");
 
 const TIMEOUT_MS = 15000;
 

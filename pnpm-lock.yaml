@@ -16,7 +16,7 @@ importers:
         version: 2.1.1
       excali-shared:
         specifier: workspace:*
-        version: link:packages/excali-shared
+        version: link:packages/shared
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
@@ -24,14 +24,14 @@ importers:
         specifier: ^4.23.8
         version: 4.23.8
 
-  packages/excali-local:
+  packages/local:
     dependencies:
       '@tabler/icons-react':
         specifier: ^3.24.0
         version: 3.46.0(react@19.2.8)
       excali-shared:
         specifier: workspace:*
-        version: link:../excali-shared
+        version: link:../shared
       react:
         specifier: ^19.2.4
         version: 19.2.8
@@ -79,7 +79,7 @@ importers:
         specifier: ^0.21.3
         version: 0.21.3(eslint@9.39.4(jiti@2.7.0))(rollup@4.62.4)(typescript@7.0.2)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.8))(web-ext@10.6.0(jiti@2.7.0))
 
-  packages/excali-page:
+  packages/page:
     dependencies:
       '@dnd-kit/core':
         specifier: ^6.3.1
@@ -92,7 +92,7 @@ importers:
         version: 3.2.2(react@19.2.8)
       '@excalidraw/excalidraw':
         specifier: file:./excalidraw-excalidraw-v0.18.0-csp.14.tgz
-        version: file:packages/excali-page/excalidraw-excalidraw-v0.18.0-csp.14.tgz(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        version: file:packages/page/excalidraw-excalidraw-v0.18.0-csp.14.tgz(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@radix-ui/react-dropdown-menu':
         specifier: ^2.1.16
         version: 2.1.24(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -131,7 +131,7 @@ importers:
         version: 4.4.0
       excali-shared:
         specifier: workspace:*
-        version: link:../excali-shared
+        version: link:../shared
       i18next:
         specifier: ^26.3.6
         version: 26.3.6(typescript@7.0.2)
@@ -230,7 +230,7 @@ importers:
         specifier: ^10.6.0
         version: 10.6.0(jiti@2.7.0)
 
-  packages/excali-shared:
+  packages/shared:
     dependencies:
       clsx:
         specifier: ^2.1.1
@@ -629,8 +629,8 @@ packages:
     resolution: {integrity: sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@excalidraw/excalidraw@file:packages/excali-page/excalidraw-excalidraw-v0.18.0-csp.14.tgz':
-    resolution: {integrity: sha512-VU0tKlukZLkXTC5Yq54pB0XIAv6PxU/7HyBIeFYyfoe2ImfX2NXT99mMuZ3xchowq4zR271MKXalMnB0uHsNVw==, tarball: file:packages/excali-page/excalidraw-excalidraw-v0.18.0-csp.14.tgz}
+  '@excalidraw/excalidraw@file:packages/page/excalidraw-excalidraw-v0.18.0-csp.14.tgz':
+    resolution: {integrity: sha512-VU0tKlukZLkXTC5Yq54pB0XIAv6PxU/7HyBIeFYyfoe2ImfX2NXT99mMuZ3xchowq4zR271MKXalMnB0uHsNVw==, tarball: file:packages/page/excalidraw-excalidraw-v0.18.0-csp.14.tgz}
     version: 0.18.0-csp.14
     peerDependencies:
       react: ^17.0.2 || ^18.2.0 || ^19.0.0
@@ -2775,10 +2775,6 @@ packages:
     peerDependenciesMeta:
       magicast:
         optional: true
-
-  cac@6.7.14:
-    resolution: {integrity: sha512-b6Ilus+c3RrdDk+JhLKUAQfzzgLEPy6wcXqS7f/xe1EETvsDP6GORG7SFuOs6cID5YkqchW/LXZbX5bc8j7ZcQ==}
-    engines: {node: '>=8'}
 
   cac@7.0.0:
     resolution: {integrity: sha512-tixWYgm5ZoOD+3g6UTea91eow5z6AAHaho3g0V9CNSNb45gM8SmflpAc+GRd1InC4AqN/07Unrgp56Y94N9hJQ==}
@@ -5533,7 +5529,7 @@ snapshots:
       '@eslint/core': 0.17.0
       levn: 0.4.1
 
-  '@excalidraw/excalidraw@file:packages/excali-page/excalidraw-excalidraw-v0.18.0-csp.14.tgz(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@excalidraw/excalidraw@file:packages/page/excalidraw-excalidraw-v0.18.0-csp.14.tgz(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@braintree/sanitize-url': 6.0.2
       '@codemirror/commands': 6.10.4
@@ -7644,8 +7640,6 @@ snapshots:
       rc9: 3.0.1
     optionalDependencies:
       magicast: 0.5.4
-
-  cac@6.7.14: {}
 
   cac@7.0.0: {}
 
@@ -9950,7 +9944,7 @@ snapshots:
       '@wxt-dev/browser': 0.2.5
       '@wxt-dev/storage': 1.2.9
       c12: 3.3.4(magicast@0.5.4)
-      cac: 6.7.14
+      cac: 7.0.0
       chokidar: 5.0.0
       consola: 3.4.2
       defu: 6.1.7

@@ -1,7 +1,7 @@
 /**
  * check-skill-commands — assert ZERO DRIFT between the command surface
  * documented in skills/excali-local/references/command-reference.md and the
- * wire contract in packages/excali-shared/src/agent-bridge.ts.
+ * wire contract in packages/shared/src/agent-bridge.ts.
  *
  * The CLI is the stable contract of the excali-local skill; the reference doc
  * is its teaching surface. If the daemon/contract gains or loses a method

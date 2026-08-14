@@ -14,7 +14,7 @@ can reason about what you see in `.excali-test/` and `supervisor.log`.
 
 1. **Resolve the repo root** — `--root <path>` > `EXCALI_REPO_ROOT` > `cwd`.
    Validates `package.json` name is `excali` and
-   `packages/excali-local/wxt.config.ts` exists. Exit 1 with a clear message
+   `packages/local/wxt.config.ts` exists. Exit 1 with a clear message
    otherwise.
 2. **Idempotency check** — if a supervisor pidfile exists and both the
    supervisor and wxt are alive, it prints `already running` and exits 0.
@@ -26,15 +26,15 @@ can reason about what you see in `.excali-test/` and `supervisor.log`.
 4. **`pnpm install`** — only if neither the repo nor the package has
    `node_modules` (first run on a fresh clone).
 5. **`pnpm page:build`** — the editor is a build artifact at
-   `packages/excali-local/public/editor/` (gitignored). Rebuilt when
+   `packages/local/public/editor/` (gitignored). Rebuilt when
    `public/editor/index.html` is missing or older than the newest file under
-   `packages/excali-page/src/`.
+   `packages/page/src/`.
 6. **Materialize `.excali-test/wxt.test.config.ts`** from
    `templates/wxt.test.config.ts.tpl` — the template imports the project's
    real `wxt.config.ts` by absolute path and sets `webExt: { disabled: true }`
    (WXT's "manual runner": dev server + build, no browser launched).
 7. **Spawn wxt** — `node <pkg>/node_modules/wxt/dist/cli/index.mjs -c <config>`,
-   cwd = `packages/excali-local`, **stdin = an open pipe the supervisor holds**.
+   cwd = `packages/local`, **stdin = an open pipe the supervisor holds**.
    wxt exits when its stdin closes, so the supervisor is both the
    stdin-holder and the lifecycle guard: supervisor dies → pipe closes → wxt
    dies. No orphans possible.
@@ -80,6 +80,6 @@ can reason about what you see in `.excali-test/` and `supervisor.log`.
 - **The extension id derives from the install path** — the same outdir yields
   the same id on a machine; a changed temp path yields a new id.
 - **`wxt build` mode** — for a CI-style regression pass you can instead run a
-  plain `pnpm --filter ./packages/excali-local build` and `install_extension`
+  plain `pnpm --filter ./packages/local build` and `install_extension`
   the self-contained `.output/chrome-mv3` (no dev server needed). Everything
   else in this skill is unchanged.

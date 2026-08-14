@@ -7,7 +7,7 @@
  * temp dir and is cleaned up on exit, so a gate failure never leaves a partial
  * binary (or a patched README) in the committed source.
  *
- * 1. Cross-compiles the Go daemon (packages/excali-bridge) for the target
+ * 1. Cross-compiles the Go daemon (packages/bridge) for the target
  *    matrix with CGO_ENABLED=0 -trimpath -buildvcs=false -ldflags="-s -w" (pure Go, cgo
  *    disabled, symbols stripped).
  * 2. Mandatory per-target gates: `go build` AND `go vet` must both pass for
@@ -43,7 +43,7 @@ import os from "node:os";
 import { run as runCmd, hereDir } from "./_run";
 
 const ROOT = join(hereDir(import.meta.url), "..");
-const BRIDGE_DIR = join(ROOT, "packages/excali-bridge");
+const BRIDGE_DIR = join(ROOT, "packages/bridge");
 const SKILL_DIR = join(ROOT, "skills/excali-local");
 const SKILL_BIN_DIR = join(SKILL_DIR, "bin");
 

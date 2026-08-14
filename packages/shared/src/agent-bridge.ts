@@ -3,7 +3,7 @@
  *
  * Consumed by all three packages (shell background/popup/options via chrome.i18n
  * pages, editor page app) and by the Go bridge daemon (mirrored in
- * `packages/excali-bridge/internal/contract/contract.go` — keep both in sync;
+ * `packages/bridge/internal/contract/contract.go` — keep both in sync;
  * this module is the source of truth; the Go side mirrors it by hand; code-gen to
  * drop the manual mirror is a tracked follow-up).
  *

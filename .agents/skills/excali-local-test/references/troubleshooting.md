@@ -81,8 +81,8 @@ the MCP server is not running with `--categoryExtensions=true` — check
 
 ## `pnpm page:build` fails or editor page is blank
 
-The editor artifact is required (`packages/excali-local/public/editor/`,
+The editor artifact is required (`packages/local/public/editor/`,
 gitignored). Rebuild with `pnpm page:build` and re-run `start` — the artifact
-check re-triggers when `excali-page/src` is newer. A blank editor page usually
+check re-triggers when `page/src` is newer. A blank editor page usually
 means a stale/missing artifact (the dev server serves
 `editor/index.html` from the extension bundle, not from vite).

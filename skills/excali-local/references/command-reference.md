@@ -8,7 +8,7 @@ never part of this reference.
 
 This file is machine-checked: `scripts/check-skill-commands.ts` asserts that
 the command set documented here equals the wire contract
-(`packages/excali-shared/src/agent-bridge.ts`) with **zero drift** — a method
+(`packages/shared/src/agent-bridge.ts`) with **zero drift** — a method
 listed here must exist there, and every method there must be listed here.
 
 ## Invocation form

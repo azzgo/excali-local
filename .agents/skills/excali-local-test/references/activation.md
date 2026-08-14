@@ -1,6 +1,6 @@
 # Canvas activation — the Agent button state machine
 
-Source of truth: `packages/excali-page/src/features/editor/components/agent-activation-control.tsx`
+Source of truth: `packages/page/src/features/editor/components/agent-activation-control.tsx`
 (the comment block at the top describes the states). Rendered by the **local**
 editor only; the quick editor never shows it.
 
