@@ -12,14 +12,24 @@ offline) through one small CLI: `excali-bridge`.
   It is BOTH the WS server the editor page connects to (Leg B) AND the agent
   CLI you invoke (Leg A) — one binary, launched lazily on first use.
 
-## Install set
+## Install
 
-1. **Excali Local** browser extension (Chrome/Firefox/Edge), with the editor
-   open on a canvas.
-2. **This skill** (this folder). No third artifact, no runtime, no downloads.
+### Quick Install (Recommended)
 
-Install it with the [`skills`](https://github.com/vercel-labs/skills) CLI —
-npm package `skills`, maintained by **vercel-labs/skills** (not WorkOS):
+Paste this into your AI agent (Claude, Codex, Cursor, Pi, Gemini CLI, etc.) — it will handle everything for you:
+
+> Install the excali-local skill from azzgo/excali-local. After installing,
+> use it to start the daemon by running `excali-bridge ping` from the skill's
+> bin directory. I'm on macOS Apple Silicon.
+
+That's it. The agent will install the skill, detect your platform, and start the daemon.
+Once the daemon is running, open the Excali Local extension in your browser —
+it will detect the daemon and offer pairing (popup: "Paired"; canvas button: ready → activate).
+
+### Manual Install
+
+If you prefer to install yourself, use the [`skills`](https://github.com/vercel-labs/skills) CLI
+(npm package `skills`, maintained by **vercel-labs/skills**):
 
 ```bash
 npx skills add azzgo/excali-local --skill excali-local -y
@@ -32,14 +42,15 @@ Read-only discovery (`--list`) confirms the skill exists and is named
 npx skills add azzgo/excali-local --list
 ```
 
-> **Installing is not enough — invoke the skill to start the daemon.**
+Then start the daemon by telling your agent:
+
+> **"Use the excali-local skill: run excali-bridge ping"**
+
+Or run it yourself from the skill folder (see [Picking your binary](#picking-your-binary) below).
+
+> **Installing is not enough — you must start the daemon.**
 > The pairing condition is a **running daemon**, and the daemon only spawns
- lazily on first use. After installing, ask your agent to start it — say
- it in plain words: **"Use the excali-local skill: run excali-bridge ping"**
- (or run `bin/excali-bridge-<your-platform> ping` yourself from the skill
- folder — see "Picking your binary" below). Only then does the extension
- detect the daemon and offer pairing
-> (popup: "Paired"; canvas button: ready → activate).
+> lazily on first use. Only then does the extension detect it and offer pairing
 
 ## Picking your binary
 
