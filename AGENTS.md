@@ -33,8 +33,7 @@ detail, read the doc relevant to your task (links below).
 - **`skills/excali-local/bin/` is COMMITTED** (source-is-the-artifact): the 4
   platform daemon binaries ship inside the skill dir. Refresh them in place with
   `pnpm skill:pack` (cross-compile + static-verify; writes only to
-  `skills/excali-local/bin/` + the README size table — scratch is in the OS temp
-  dir, no `.skill-dist/`).
+  `skills/excali-local/bin/` — scratch is in the OS temp dir, no `.skill-dist/`).
 - **IndexedDB schema changes** require a `DB_VERSION` bump + `upgrade()` migration
   (users have existing data). Two DBs: `excali` (gallery) and `excali-fonts`. See
   [docs/CONVENTIONS.md](docs/CONVENTIONS.md).
@@ -71,6 +70,12 @@ Full list + build/release/CSP detail: [docs/BUILD_AND_RELEASE.md](docs/BUILD_AND
   patterns in the same directory.
 - Small, conventional commits (`feat:` `fix:` `refactor:` `test:` `chore:` `docs:`).
 - When code and docs disagree, trust the code and update the docs.
+- **User-facing docs are bilingual (EN ⇄ zh-CN).** `README.md`, `docs/AGENT_BRIDGE.md`,
+  `docs/KNOWN_LIMITATIONS.md`, and `skills/excali-local/README.md` each have a
+  `*.zh-CN.md` mirror linked from the top of the file (pattern: pi-web). Update both
+  halves of a pair together — prose differs, assets/links/code stay identical.
+  Developer docs (`ARCHITECTURE`, `BUILD_AND_RELEASE`, `CONVENTIONS`, `CONTEXT.md`,
+  `AGENTS.md`) stay English-only.
 
 ## Deeper knowledge (read when relevant)
 
