@@ -1,5 +1,7 @@
 # Excali Local
 
+[简体中文](./README.zh-CN.md)
+
 > A local-first, offline Excalidraw app that lives entirely in your browser.
 
 <p align="center">
