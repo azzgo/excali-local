@@ -62,3 +62,19 @@ Default-on in Sketch; closed in Clean. Detail: [`references/style-presets.md`](r
 
 Canvas content uses the Warm palette; the app UI uses Slate. They are
 different surfaces, so they are styled independently. Detail: [`references/color-palette.md`](references/color-palette.md).
+
+## Structural verification
+
+The arithmetic audit of readback geometry: label-vs-container fit, pairwise overlap
+and gutter checks, composition centering, and binding closure — computed from
+`scene.get`/`scene.bounds` numbers, never from a picture. The baseline every model
+runs; on text-only agents it is the whole verification. Detail:
+[`references/workflows/draw-a-diagram.md`](references/workflows/draw-a-diagram.md).
+
+## Visual verification
+
+The picture readback (`scene.exportPng`) layered on top of structural
+verification by agents with vision. Catches what arithmetic cannot — color,
+aesthetics, whether the whole looks right. Never required; text-only agents run
+structural verification alone and leave aesthetic acceptance to the user, who
+owns the canvas. Detail: [`references/workflows/draw-a-diagram.md`](references/workflows/draw-a-diagram.md).

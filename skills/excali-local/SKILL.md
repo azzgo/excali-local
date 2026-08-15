@@ -142,14 +142,22 @@ to the live-canvas delivery model**. The complete methodology is in
 4. **Hand-craft the JSON.** No generator scripts, no delegating JSON
    generation to a sub-agent — write the element payloads yourself, directly
    as `elements.add` arguments. Indirection hurts debugging.
-5. **Render → view → fix (mandatory, 2–4 iterations).** This is where the
+5. **Render → verify → fix (mandatory).** This is where the
    delivery differs from disk-based skills: you never write a file and you
-   never run a headless browser. The **live canvas is the renderer**:
+   never run a headless browser. The **live canvas is the renderer**, and
+   verification comes in two composable tracks — **structural verification**
+   (arithmetic audit of `scene.get` / `scene.bounds` readbacks: label-vs-
+   container fit, overlaps, gutters, binding closure) is the baseline every
+   agent runs; agents with vision add **visual verification** (`scene.exportPng`
+   PNG readback) on top. If you have no vision, run structural verification
+   alone — never call `exportPng` to self-check (you cannot see the result).
    - Render: apply your elements to the activated canvas via the CLI.
-   - View: read back a picture with `scene.exportPng` (base64 PNG — view it
-     with your image tool), or structural readbacks with `scene.get` /
-     `scene.bounds` (bounds catch clipped text, overlaps, misrouted arrows).
-   - Fix: adjust coordinates/sizes/points and re-emit; re-render.
+   - Verify: structural readbacks (`scene.get` / `scene.bounds`) always;
+     `scene.exportPng` (base64 PNG, viewed with your image tool) only if you
+     have vision.
+   - Fix: adjust coordinates/sizes/points and re-emit; re-render. Visual
+     track: 2–4 iterations is normal; text-only track: audit geometry before
+     each emit — 1–3 fix iterations is normal.
 6. **Aesthetics — a default hand-drawn style.** The skill defaults to the
    **Sketch** preset (`roughness: 1`, soft rounded corners, Warm palette,
    handwriting font primary, neutral boxes default to the light-warm fill
@@ -191,9 +199,14 @@ diagram in a single `elements.add` / `scene.update` blob is a failure mode.
 
 - **Never emit the whole diagram in one call.** One section/layer per
   `elements.add`, in reading order, a few → ~a dozen elements per batch.
-- **After every batch: render → view → fix.** `scene.exportPng` (view the
-  returned dataURL with your image tool) + check `scene.bounds` / `scene.get`,
-  fix, repeat. 2–4 iterations is normal — plan for it.
+- **After every batch: render → verify → fix.** Structural verification
+  (`scene.get` / `scene.bounds` — bindings, geometry, composition) after
+  every batch, plus `scene.exportPng` (view the returned dataURL with your
+  image tool) if you have vision. Fix, repeat. Visual track: 2–4 iterations
+  is normal; text-only track: plan the audit before each emit — 1–3 fix
+  iterations is normal. On the text-only track, when you finish, tell the
+  user to check the canvas themselves (they own it) and offer to fix anything
+  they see — structural verification cannot judge aesthetics.
 - **Multiple adjustment rounds are expected and welcome.** Revising earlier
   sections via `scene.update` (re-emitting only the changed elements read
   back from `scene.get`) is the normal path, not a mistake.

@@ -99,43 +99,84 @@ scene through `elements.add` — it regenerates ids and drops bindings).
 > Indirection (a script that builds JSON, or a sub-agent that drafts it)
 > costs you the context needed to debug and iterate.
 
-## 3. The mandatory render → view → fix loop (2–4 iterations)
+## 3. The mandatory render → verify → fix loop
 
 This is non-negotiable. Emitting once and declaring success is not a
-workflow. **One batch in = one picture out**: after every `elements.add`,
-view the result before the next batch — never stack several sections without
-looking between them.
+workflow. **One batch in = one verification out**: after every `elements.add`,
+verify the result before the next batch — never stack several sections without
+checking between them.
 
-1. **Render** — apply the current section (or the whole scene):
-   ```bash
-   $BIN elements.add '{"elements":[...your partials...]}'
-   ```
-2. **View** — read back a picture:
-   ```bash
-   $BIN scene.exportPng '{"mimeType":"image/png"}'
-   ```
-   → returns a base64 `dataURL` — view it with your image tool. For
-   structural readbacks:
-   ```bash
-   $BIN scene.bounds      # {x, y, width, height} — layout bleed / overlaps
-   $BIN scene.get         # full scene — check bindings, ids, values
-   ```
-3. **Audit against the planned vision** — check the defect list:
-   - clipped or overflowing text (element larger than its container /
-     bounds mismatch),
-   - overlapping elements (two elements at the same x/y region),
-   - misrouted arrows (arrow not visually connected — check `start`/`end`
-     ids in `scene.get`),
-   - lopsided composition (bounds far off the intended center),
-   - stale bindings (`boundElements` / `containerId` mismatches).
-4. **Fix** — adjust coordinates, widths/heights, points, or bindings and
-   re-emit (`elements.add` for new content, `scene.update` for replacing
-   existing elements read from `scene.get`). Re-render and re-view.
+Verification comes in two composable tracks. Pick yours by self-declaration —
+you know whether you can view images:
 
-Repeat until the picture matches the plan. 2–4 iterations is normal; quality
-here is the product. If you catch yourself about to emit the whole remaining
-diagram in one call — stop, split it into sections, and loop again (SKILL.md:
-incremental delivery is mandatory).
+- **Structural verification** (every agent, the baseline) — an arithmetic audit
+  of readback geometry. All inputs are exact numbers (`scene.get` returns
+  renderer-measured text sizes), so nothing here needs vision.
+- **Visual verification** (add-on for agents with vision) — the `scene.exportPng`
+  picture readback layered on top, catching what arithmetic cannot: color,
+  aesthetics, whether the whole looks right.
+
+On the text-only track, **never call `exportPng` to self-check** — you cannot see
+the PNG; the call is pure waste. (`exportPng` remains in your vocabulary for
+when the user explicitly wants an image.)
+
+### 3.1 Structural verification (baseline — run this on every track)
+
+Compute the audit **before each emit** (all inputs are numbers, so mistakes are
+cheapest to fix pre-emit), then read back what you could not predict:
+
+```bash
+$BIN scene.bounds      # {x, y, width, height} — layout bleed / composition
+$BIN scene.get         # full scene — bindings, ids, measured sizes
+```
+
+Audit the readback against the defect list (each visual defect has an exact
+structural counterpart):
+
+| Visual defect | Structural check |
+| --- | --- |
+| clipped / overflowing text | `label.width/height` vs container `width/height` minus padding (measurements are renderer-exact — no estimation) |
+| overlapping elements | pairwise AABB on returned `x/y/width/height` — **excluding arrows and freedraw accents** (they legitimately cross regions) |
+| misrouted arrows | every arrow's `start`/`end` (or `startBinding`/`endBinding`) resolves to a live element id; no unbound endpoint that was meant to bind |
+| lopsided composition | `scene.bounds` center vs the planned grid center |
+| stale bindings | `containerId` ↔ `boundElements` bidirectional closure on containers and labels |
+| cramped spacing | pairwise gap ≥ 40 px (the gutter rule — exact, where vision only estimates) |
+
+Geometry is computable — there is no daemon-side audit method, and none is
+needed: the arithmetic above is trivial per batch (a few → a dozen elements).
+
+### 3.2 Visual verification (agents with vision only)
+
+On top of the structural baseline, after each batch:
+
+```bash
+$BIN scene.exportPng '{"mimeType":"image/png"}'
+```
+
+→ returns a base64 `dataURL` — view it with your image tool, and audit against
+the planned vision: clipped text, misrouted arrows, lopsided composition, and
+the aesthetic qualities arithmetic cannot reach (color balance, hand-drawn
+charm, whether the picture *argues*).
+
+### 3.3 Fix and iterate
+
+Adjust coordinates, widths/heights, points, or bindings and re-emit
+(`elements.add` for new content, `scene.update` for replacing existing
+elements read from `scene.get`). Re-render and re-verify.
+
+Budget: visual track 2–4 iterations is normal (reactive — see, fix); text-only
+track 1–3 fix iterations is normal (proactive — audit pre-emit, so iterations
+absorb only surprises: binding closures from the real transform, normalization
+quirks, payload typos). Quality here is the product.
+
+**Text-only completion:** when the structural audit is clean and you are done,
+tell the user to check the canvas themselves — they own it and can see what you
+cannot — and offer to fix anything they spot. Structural verification cannot
+judge aesthetics; the user is the aesthetic acceptance step.
+
+If you catch yourself about to emit the whole remaining diagram in one call —
+stop, split it into sections, and loop again (SKILL.md: incremental delivery is
+mandatory).
 
 ## 4. Aesthetics (the standing rules)
 
@@ -197,5 +238,5 @@ $BIN elements.add '{"elements":[
    "textAlign":"center","verticalAlign":"middle",
    "strokeColor":"#868e96","strokeWidth":2,"roughness":1,"opacity":100}
 ]}'
-$BIN scene.exportPng   # view → fix → repeat
+$BIN scene.get && $BIN scene.bounds   # structural verify; + scene.exportPng if you have vision
 ```
