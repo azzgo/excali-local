@@ -107,11 +107,14 @@
   "AgentControlOn": {
     "message": "已启用"
   },
-  "AgentHideButton": {
-    "message": "隐藏画布上的 AI 按钮"
+  "AgentVisibleLabel": {
+    "message": "AI 按钮可见"
   },
-  "AgentHideButtonHint": {
-    "message": "仅在 Agent 控制关闭时可调整。默认关闭（显示按钮）——避免画布受控时按钮被隐藏。"
+  "AgentHiddenLabel": {
+    "message": "AI 按钮已隐藏"
+  },
+  "AgentVisibilityHint": {
+    "message": "仅在 Agent 控制关闭时可调整"
   },
   "AgentStopDaemon": {
     "message": "停止守护进程"
@@ -137,11 +140,14 @@
   "AgentEnabledLabel": {
     "message": "已启用"
   },
+  "AgentDisabledLabel": {
+    "message": "已禁用"
+  },
   "AgentEnabledOnHint": {
-    "message": "开启——在你允许后，外部客户端可接入"
+    "message": "在你允许后，外部客户端可接入"
   },
   "AgentEnabledOffHint": {
-    "message": "关闭——所有 Agent 控制均禁用"
+    "message": "所有 Agent 控制均禁用"
   },
   "AgentSubtitleWsDaemon": {
     "message": "总开关 + 守护进程状态"

@@ -337,7 +337,7 @@ const AgentControl = () => {
         {switchKnob(isOn)}
         <span className="flex flex-col text-left">
           <span className="text-sm font-medium text-gray-900 dark:text-white">
-            {t("AgentEnabledLabel")}
+            {isOn ? t("AgentEnabledLabel") : t("AgentDisabledLabel")}
           </span>
           <span className="text-xs text-gray-500">
             {isOn ? t("AgentEnabledOnHint") : t("AgentEnabledOffHint")}
@@ -361,10 +361,10 @@ const AgentControl = () => {
         {switchKnob(hideButton)}
         <span className="flex flex-col text-left">
           <span className="text-sm font-medium text-gray-900 dark:text-white">
-            {t("AgentHideButton")}
+            {hideButton ? t("AgentHiddenLabel") : t("AgentVisibleLabel")}
           </span>
           <span className="text-xs text-gray-500">
-            {t("AgentHideButtonHint")}
+            {t("AgentVisibilityHint")}
           </span>
         </span>
       </button>

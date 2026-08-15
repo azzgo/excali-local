@@ -107,11 +107,14 @@
   "AgentControlOn": {
     "message": "Enabled"
   },
-  "AgentHideButton": {
-    "message": "Hide the AI button on canvas"
+  "AgentVisibleLabel": {
+    "message": "AI button visible"
   },
-  "AgentHideButtonHint": {
-    "message": "Only adjustable while Agent control is off. Default off (button shown) — prevents a hidden button while a canvas is active."
+  "AgentHiddenLabel": {
+    "message": "AI button hidden"
+  },
+  "AgentVisibilityHint": {
+    "message": "Only adjustable while Agent control is off"
   },
   "AgentStopDaemon": {
     "message": "Stop daemon"
@@ -137,11 +140,14 @@
   "AgentEnabledLabel": {
     "message": "Enabled"
   },
+  "AgentDisabledLabel": {
+    "message": "Disabled"
+  },
   "AgentEnabledOnHint": {
-    "message": "On — external clients may attach when you allow it"
+    "message": "External clients may attach when you allow it"
   },
   "AgentEnabledOffHint": {
-    "message": "Off — all agent controls disabled"
+    "message": "All agent controls disabled"
   },
   "AgentSubtitleWsDaemon": {
     "message": "Master switch + daemon status"
