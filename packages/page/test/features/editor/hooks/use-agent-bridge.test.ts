@@ -277,7 +277,9 @@ describe("useAgentBridge", () => {
     const { result } = renderLocal();
     await waitFor(() => expect(harness.swState.sendMessages.length).toBeGreaterThan(0));
     expect(harness.swState.sendMessages[0]).toEqual({ type: AB_READY });
-    expect(result.current.masterOn).toBe(true);
+    await waitFor(() => expect(result.current.masterOn).toBe(true));
+    // master ON is only Layer 0 (UI visible) — Gate 1 pairing and Gate 2
+    // per-canvas activation stay untouched: nothing auto-pairs or auto-activates.
     expect(result.current.paired).toBe(false);
     expect(result.current.canActivate).toBe(false);
     expect(result.current.isActive).toBe(false);

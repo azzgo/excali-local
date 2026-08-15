@@ -104,8 +104,10 @@ const AgentActivationControl = ({
 
   // Options hide-toggle: the button hides ONLY while the feature is OFF, so an
   // active canvas is never left without a visible stop control (034 invariant).
+  // NOTE: the early return must stay AFTER every hook call — a conditional
+  // return between hooks flips the hook count mid-render and React throws
+  // #300/#301 ("rendered more/fewer hooks than during the previous render").
   const buttonHidden = !bridge.masterOn && bridge.hideButton;
-  if (buttonHidden) return null;
 
   // --- adaptive state (mirrors the prototype: off → coach → ready → active) ---
   // "Daemon detected" = the control WS (or the active-slot WS) is connected.
@@ -197,6 +199,10 @@ const AgentActivationControl = ({
       bridge.activateCurrentCanvas();
     }
   }, [bridge.masterOn, bridge.paired, daemonDetected, bridge.isActive, bridge.activateCurrentCanvas]);
+
+  // Hidden (034: only while feature OFF + Options hide-toggle on) — no button,
+  // no modals. Placed after the last hook so the hook order never changes.
+  if (buttonHidden) return null;
   const handleCopyCommand = async (key: string) => {
     try {
       await navigator.clipboard.writeText(t(key));

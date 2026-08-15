@@ -98,6 +98,29 @@ describe("AgentActivationControl", () => {
     expect(screen.getByTestId("agent-activation-toggle")).toBeTruthy();
   });
 
+  test("hidden→visible flip on the SAME mounted instance keeps hook count stable (React #300 regression)", () => {
+    // Mount hidden (feature OFF + Options hide-toggle on): the early return
+    // used to sit between hooks, so this instance rendered FEWER hooks.
+    setOverrides({ masterOn: false, paired: false, hideButton: true, canActivate: false });
+    const { rerender } = renderControl();
+    expect(screen.queryByTestId("agent-activation-toggle")).toBeNull();
+    // Flip to visible on the same instance (e.g. Options storage change): the
+    // hook count must not grow mid-render — that used to throw React #300
+    // ("rendered more hooks than during the previous render").
+    setOverrides({ ...ready });
+    rerender(<AgentActivationControl excalidrawAPI={{} as never} editorType="local" />);
+    expect(screen.getByTestId("agent-activation-toggle")).toBeTruthy();
+  });
+
+  test("visible→hidden flip on the SAME mounted instance keeps hook count stable (React #301 regression)", () => {
+    setOverrides({ ...ready });
+    const { rerender } = renderControl();
+    expect(screen.getByTestId("agent-activation-toggle")).toBeTruthy();
+    setOverrides({ masterOn: false, paired: false, hideButton: true, canActivate: false });
+    rerender(<AgentActivationControl excalidrawAPI={{} as never} editorType="local" />);
+    expect(screen.queryByTestId("agent-activation-toggle")).toBeNull();
+  });
+
   test("quick-enable: feature OFF → click opens the enable modal; confirm calls quickEnableAgent", () => {
     const quickEnableAgent = vi.fn();
     setOverrides({ masterOn: false, paired: false, canActivate: false, quickEnableAgent });
