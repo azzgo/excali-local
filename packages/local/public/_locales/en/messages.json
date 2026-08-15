@@ -110,6 +110,9 @@
   "AgentVisibleLabel": {
     "message": "AI button visible"
   },
+  "AgentHiddenBlocksEnable": {
+    "message": "Show the AI button first — AI features are unavailable while it is hidden."
+  },
   "AgentHiddenLabel": {
     "message": "AI button hidden"
   },

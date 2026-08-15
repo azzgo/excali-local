@@ -110,6 +110,9 @@
   "AgentVisibleLabel": {
     "message": "AI 按钮可见"
   },
+  "AgentHiddenBlocksEnable": {
+    "message": "请先显示 AI 按钮——隐藏状态下无法使用 AI 功能。"
+  },
   "AgentHiddenLabel": {
     "message": "AI 按钮已隐藏"
   },

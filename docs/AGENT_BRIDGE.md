@@ -45,6 +45,9 @@ canvas; the Options page is a conservative kill-switch.
 > **Options page (conservative kill-switch).** The **Options → "Agent control"**
 > master toggle still exists and defaults OFF. Turning it **ON** there enables the
 > feature but does *not* auto-pair or activate — use the canvas button for that.
+> Turning it **ON** is refused (with a hint) while **"Hide the AI button"** is
+> set — show the button first: with no visible button there is no canvas control
+> to pair/activate, so the page never silently overrides your choice.
 > Turning it **OFF** tears down any pairing/activation immediately. The **popup**
 > carries no agent-status indicator — daemon state is shown on the **Options**
 > page (daemon-stop pill).

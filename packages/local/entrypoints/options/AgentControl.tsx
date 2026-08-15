@@ -128,6 +128,13 @@ const AgentControl = () => {
 
   const handleMasterToggle = () => {
     const next = !isOn;
+    // OFF → ON with the AI button hidden: the canvas would have no visible
+    // stop control, so AI features stay unusable — require the user to show
+    // the button first (034 invariant) instead of silently un-hiding it.
+    if (next && hideButton) {
+      toast(t("AgentHiddenBlocksEnable"), { duration: 4000 });
+      return;
+    }
     setIsOn(next);
     // Flipping master OFF (or re-enabling) resets pairing; hideButton is kept,
     // but master ON forces the canvas button visible (034 invariant).
