@@ -1,9 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import FontChooser from "./FontChooser";
 import { CustomFontUpload } from "./CustomFontUpload";
 import { cn, t } from "../lib/utils";
 import type { FontSource } from "excali-shared";
-
 interface FontSlotProps {
   label: string;
   defaultFont: string;
@@ -21,8 +20,28 @@ export function FontSlot({
     value?.type === "custom" ? "custom" : "system",
   );
 
+  // Draft state for the system-font text input: typing only updates the draft;
+  // commit happens on blur/Enter. Esc discards the draft back to the committed
+  // value. FontChooser picks commit immediately (and sync the draft).
+  const committedText = value?.type === "system" ? value.postscriptName : "";
+  const [draft, setDraft] = useState(committedText);
+
+  useEffect(() => {
+    setDraft(value?.type === "system" ? value.postscriptName : "");
+  }, [value]);
+
+  const commitDraft = useCallback(() => {
+    const trimmed = draft.trim();
+    if (trimmed === "") {
+      onChange(null);
+    } else {
+      onChange({ type: "system", postscriptName: trimmed });
+    }
+  }, [draft, onChange]);
+
   const handleSystemFontSelect = useCallback(
     (font: { postscriptName: string }) => {
+      setDraft(font.postscriptName);
       onChange({ type: "system", postscriptName: font.postscriptName });
     },
     [onChange],
@@ -37,16 +56,6 @@ export function FontSlot({
 
   const handleClear = useCallback(() => {
     onChange(null);
-  }, [onChange]);
-
-  const toggleMode = useCallback(() => {
-    setMode((prev) => {
-      const newMode = prev === "system" ? "custom" : "system";
-      if (prev === "custom") {
-        onChange(null);
-      }
-      return newMode;
-    });
   }, [onChange]);
 
   const fontFamily = useMemo(() => {
@@ -109,10 +118,17 @@ export function FontSlot({
           <div className="relative flex items-center">
             <input
               type="text"
-              value={value?.type === "system" ? value.postscriptName : ""}
-              onChange={(event) =>
-                handleSystemFontSelect({ postscriptName: event.target.value })
-              }
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              onBlur={commitDraft}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  commitDraft();
+                } else if (event.key === "Escape") {
+                  setDraft(committedText);
+                }
+              }}
               placeholder={t("FontPlaceholder")}
               className="w-full h-10 px-3 pr-10 border border-gray-300 dark:border-gray-600 rounded-md outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 dark:focus:border-blue-400 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white transition-all shadow-sm"
             />

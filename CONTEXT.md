@@ -58,3 +58,10 @@ _Avoid_: extension feature, plugin surface
 A flow that reaches beyond the plugin's own pages — screen capture / screenshot annotation, or
 opening external `.excalidraw` files. Explicitly out of scope for agent control.
 _Avoid_: external action, capture flow
+
+**Options persistence rule**:
+The Options page has a single persistence semantics: every control on it takes
+effect immediately upon act (agent kill-switch, route, font slots alike). There is no
+draft/Save staging on the Options page. Font-config changes persist at once and take
+effect in newly opened editor windows (the editor reads font config once at boot).
+_Avoid_: Save flow, deferred apply, draft state

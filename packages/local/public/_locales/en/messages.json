@@ -38,11 +38,17 @@
   "FontDescription": {
     "message": "Excali Local allows customizing the font of the texts in Excalidraw canvas"
   },
+  "FontApplyHint": {
+    "message": "Changes apply to newly opened editor windows"
+  },
   "FontUploadedSuccess": {
     "message": "Font Uploaded Success"
   },
   "FontUploadFailed": {
     "message": "Font Uploaded Failed"
+  },
+  "FontWriteFailed": {
+    "message": "Failed to save font setting"
   },
   "UploadFont": {
     "message": "Upload Font"
@@ -62,9 +68,6 @@
   "FontPlaceholder": {
     "message": "Please input valid font name"
   },
-  "Save": {
-    "message": "Save"
-  },
   "Cancel": {
     "message": "Cancel"
   },
@@ -74,14 +77,8 @@
   "ChooseAFont": {
     "message": "Choose a font"
   },
-  "SaveSuccess": {
-    "message": "Save Success"
-  },
-  "SaveSuccessContent": {
-    "message": "Please refresh the page to see the saved content"
-  },
-  "SaveFailed": {
-    "message": "Save Failed"
+  "SelectFont": {
+    "message": "Select"
   },
   "OptionPageTitle": {
     "message": "Excali Local Customization"
