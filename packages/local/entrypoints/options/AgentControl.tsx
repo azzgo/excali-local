@@ -25,7 +25,7 @@ import { probeDaemonHealth } from "../lib/bridge-probe";
  * Active control route segmented control (Wayfinder 043/044 Variant B), and
  * the ws+daemon daemon-stop pill (Wayfinder 040/045).
  *
- * Persisted via chrome.storage.local, DEFAULT OFF. OFF is a kill-switch: it hides
+ * Persisted via chrome.storage.local, DEFAULT ON for new installs. OFF is a kill-switch: it hides
  * all agent UI in the popup + editor and tears down any pairing/activation (the
  * background SW reacts to the same storage change and clears its registry).
  *

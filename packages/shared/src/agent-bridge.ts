@@ -8,7 +8,7 @@
  * drop the manual mirror is a tracked follow-up).
  *
  * Three-layer consent (Wayfinder Ticket 003 + click-through):
- *   Layer 0  master   Options, GLOBAL, PERSISTED via chrome.storage, default OFF
+ *   Layer 0  master   Options, GLOBAL, PERSISTED via chrome.storage, default ON (new installs)
  *   Gate 1   pairing  popup/options, GLOBAL, persisted via chrome.storage
  *   Gate 2   activate editor page (Local only), per-canvas, EPHEMERAL (SW memory)
  *
@@ -43,7 +43,7 @@ export const PROFILE_ID_STORAGE_KEY = "agentBridgeProfileId";
 export const WS_PROFILE_ID_FIELD = "profileId";
 
 export interface AgentBridgeStorage {
-  /** Layer 0 — feature master switch (Options). Default OFF = kill-switch. */
+  /** Layer 0 — feature master switch (Options). Default ON for new installs; OFF is a kill-switch. */
   master: boolean;
   /** Gate 1 — paired connection (canvas button). Gates ALL agent control. */
   pairing: boolean;
@@ -69,8 +69,14 @@ export type AgentBridgeMode = "ws+daemon" | "webmcp";
 export const AGENT_BRIDGE_MODE_WS = "ws+daemon" as const;
 export const AGENT_BRIDGE_MODE_WEBMCP = "webmcp" as const;
 
+/**
+ * Fresh-install default (used whenever chrome.storage holds no value). master
+ * ON so the Agent button is visible out of the box — but pairing (Gate 1) and
+ * per-canvas activation (Gate 2) still require the user's explicit consent.
+ * Existing installs keep whatever they persisted (OFF stays OFF).
+ */
 export const AGENT_BRIDGE_DEFAULT_STORAGE: AgentBridgeStorage = {
-  master: false,
+  master: true,
   pairing: false,
   hideButton: false,
   mode: "ws+daemon",

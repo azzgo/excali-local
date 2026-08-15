@@ -21,8 +21,10 @@ editor tab). This is the canvas the agent will drive.
 
 ## Part B — Enable the Agent Bridge (consent gates)
 
-The bridge is **off by default**. The fastest path is a single action from the
-canvas; the Options page is a conservative kill-switch.
+For new installs the bridge master switch is **on by default** (the Agent button is
+visible out of the box); pairing and per-canvas activation still require your
+explicit consent. The fastest path is a single action from the canvas; the Options
+page is a conservative kill-switch.
 
 1. **Turn on + pair + activate (from the canvas button).** In the **Local editor**
    tab, click the **Agent** button (top-right toolbar) → confirm **"Turn on agent

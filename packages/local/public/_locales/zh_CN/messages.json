@@ -102,7 +102,7 @@
     "message": "Agent 控制"
   },
   "AgentControlDescription": {
-    "message": "允许本地 Agent 连接到你的画布并进行绘制。默认关闭；关闭时所有 Agent 界面均隐藏。"
+    "message": "允许本地 Agent 连接到你的画布并进行绘制。新装默认开启；关闭时所有 Agent 界面均隐藏。"
   },
   "AgentControlOn": {
     "message": "已启用"

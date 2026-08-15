@@ -102,7 +102,7 @@
     "message": "Agent control"
   },
   "AgentControlDescription": {
-    "message": "Allow a local agent to connect to and drive your canvases. Off by default; when off, all agent UI is hidden."
+    "message": "Allow a local agent to connect to and drive your canvases. On by default for new installs; when off, all agent UI is hidden."
   },
   "AgentControlOn": {
     "message": "Enabled"

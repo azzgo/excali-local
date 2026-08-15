@@ -273,11 +273,11 @@ beforeEach(() => {
 });
 
 describe("useAgentBridge", () => {
-  test("default: master OFF → kill-switch — no agent UI state, registers with SW only", async () => {
+  test("default (fresh install): master ON → Agent UI ready, but NO auto-pairing / auto-activation", async () => {
     const { result } = renderLocal();
     await waitFor(() => expect(harness.swState.sendMessages.length).toBeGreaterThan(0));
     expect(harness.swState.sendMessages[0]).toEqual({ type: AB_READY });
-    expect(result.current.masterOn).toBe(false);
+    expect(result.current.masterOn).toBe(true);
     expect(result.current.paired).toBe(false);
     expect(result.current.canActivate).toBe(false);
     expect(result.current.isActive).toBe(false);

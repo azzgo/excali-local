@@ -93,7 +93,7 @@ function runAreaCaptureScript(tabId: number) {
 // restart (swInstanceId regenerates per boot). The page owns the WS data path;
 // the SW only grants/revokes activation and broadcasts state.
 //
-//   Layer 0  master   chrome.storage (persisted, default OFF)  -> kill-switch
+//   Layer 0  master   chrome.storage (persisted, default ON)   -> kill-switch
 //   Gate 1   pairing  chrome.storage (persisted)               -> gates all control
 //   Gate 2   activate this SW registry (ephemeral)             -> per-canvas
 // =============================================================================
