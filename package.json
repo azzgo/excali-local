@@ -1,7 +1,7 @@
 {
   "name": "excali",
   "private": true,
-  "version": "1.7.7",
+  "version": "1.8.0",
   "type": "module",
   "packageManager": "pnpm@10.25.0",
   "scripts": {
@@ -9,6 +9,7 @@
     "page:build": "BUILD_FOR_EXTENSION=1 pnpm --filter ./packages/page build",
     "local:dev": "pnpm --filter ./packages/local dev",
     "page:test": "pnpm --filter ./packages/page test",
+    "collab:test": "pnpm --filter ./packages/collab-core test && pnpm --filter ./packages/collab-relay test",
     "local:clean": "tsx scripts/clean.ts",
     "local:build": "tsx scripts/build.ts",
     "local:tar": "tsx scripts/tar.ts",
@@ -16,7 +17,8 @@
     "typecheck:shared": "pnpm --filter ./packages/shared typecheck",
     "typecheck:page": "pnpm --filter ./packages/page exec tsc -p tsconfig.json --noEmit",
     "typecheck:local": "pnpm --filter ./packages/local exec tsc -p tsconfig.json --noEmit",
-    "typecheck": "pnpm typecheck:shared && pnpm typecheck:page && pnpm typecheck:local",
+    "typecheck:collab": "pnpm --filter ./packages/collab-core typecheck && pnpm --filter ./packages/collab-relay typecheck",
+    "typecheck": "pnpm typecheck:shared && pnpm typecheck:page && pnpm typecheck:local && pnpm typecheck:collab",
     "skill:pack": "tsx scripts/skill-pack.ts",
     "skill:check": "tsx scripts/check-skill-commands.ts",
     "sync:version": "bash ./scripts/sync-version.sh",

@@ -1,7 +1,7 @@
 {
   "name": "excali-local",
   "private": true,
-  "version": "1.7.7",
+  "version": "1.8.0",
   "scripts": {
     "dev": "vite",
     "build": "BUILD_FOR_EXTENSION=1 vite build --outDir=../local/public/editor --emptyOutDir",

@@ -1,7 +1,7 @@
 {
   "name": "collab-relay",
   "private": true,
-  "version": "1.7.7",
+  "version": "1.8.0",
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
