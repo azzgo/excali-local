@@ -22,8 +22,9 @@
  * n · every {interval}". Fatal errors (049 §1: ADMISSION_INVALID,
  * PROTOCOL_VERSION, ROOM_CLAIM_MISMATCH, MESSAGE_TOO_LARGE) stop reconnecting
  * — the relay closes after them and the client does not re-dial. Local edits
- * made during a gap are the hook's rebroadcast: it listens for onReconnect +
- * onWelcome and re-sends its current scene via sendScene (full-scene).
+ * made during a gap are recovered on the reconnect welcome: the client
+ * auto-rebroadcasts its last local scene (full-scene, 061 §2); the hook may
+ * merge via merge.ts and send a newer scene through sendScene.
  *
  * Data plane (050/058): content frames (seed/scene/pointer) in encrypted
  * rooms arrive with p = {c, iv, sig, signer}; the client decrypts via
