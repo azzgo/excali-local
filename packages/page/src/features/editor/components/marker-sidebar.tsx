@@ -105,7 +105,7 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
   const currentStrokeColor = appState?.currentItemStrokeColor;
   const currentBackgroundColor = appState?.currentItemBackgroundColor;
   const currentStorkeStyle = appState?.currentItemStrokeStyle;
-  const currentStrokeWidth = appState?.currentItemStrokeWidth;
+  const currentStrokeWidth = appState?.currentItemStrokeWidthKey;
   const currentItemRoughness = appState?.currentItemRoughness;
   const currentRoundness = appState?.currentItemRoundness;
   const currentStartArrowhead = appState?.currentItemStartArrowhead;
@@ -176,10 +176,10 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
     forceUpdate({});
   };
 
-  const changeStrokeWidth = (width: number) => {
+  const changeStrokeWidth = (widthKey: "thin" | "medium" | "bold") => {
     excalidrawAPI?.updateScene({
       appState: {
-        currentItemStrokeWidth: width,
+        currentItemStrokeWidthKey: widthKey,
       },
     });
     forceUpdate({});
@@ -320,20 +320,20 @@ const QuickMarkSidebar = ({ excalidrawAPI }: QuickMarkSidebarProps) => {
               </h3>
               <div className="flex box-border gap-2">
                 <IconButton
-                  active={currentStrokeWidth === 1}
-                  onClick={() => changeStrokeWidth(1)}
+                  active={currentStrokeWidth === "thin"}
+                  onClick={() => changeStrokeWidth("thin")}
                   title={libI18n.t("labels.thin")}
                   icon={<IconMinus className="stroke-[1]" />}
                 />
                 <IconButton
-                  active={currentStrokeWidth === 2}
-                  onClick={() => changeStrokeWidth(2)}
+                  active={currentStrokeWidth === "medium"}
+                  onClick={() => changeStrokeWidth("medium")}
                   title={libI18n.t("labels.bold")}
                   icon={<IconMinus className="stroke-[3]" />}
                 />
                 <IconButton
-                  active={currentStrokeWidth === 4}
-                  onClick={() => changeStrokeWidth(4)}
+                  active={currentStrokeWidth === "bold"}
+                  onClick={() => changeStrokeWidth("bold")}
                   title={libI18n.t("labels.extraBold")}
                   icon={<IconMinus className="stroke-[5]" />}
                 />

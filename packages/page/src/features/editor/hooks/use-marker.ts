@@ -9,6 +9,9 @@ import { useAtom } from "jotai";
 
 const defaultMarkerSize = 50;
 const defaultMarkerFontSize = 20;
+// csp.14 tgz: AppState carries currentItemStrokeWidthKey (thin/medium/bold),
+// not a numeric width — map to the STROKE_WIDTH values (1/2/4).
+const markerStrokeWidths: Record<string, number> = { thin: 1, medium: 2, bold: 4 };
 
 export const useMarker = (excalidrawAPI: ExcalidrawImperativeAPI | null) => {
   const [isMarkerMode, updateMarkMode] = useAtom(isMarkingModeAtom);
@@ -52,7 +55,7 @@ export const useMarker = (excalidrawAPI: ExcalidrawImperativeAPI | null) => {
                   strokeColor: appState.currentItemStrokeColor,
                   backgroundColor: appState.currentItemBackgroundColor,
                   fillStyle: appState.currentItemFillStyle,
-                  strokeWidth: appState.currentItemStrokeWidth,
+                  strokeWidth: markerStrokeWidths[appState.currentItemStrokeWidthKey ?? "medium"] ?? 2,
                   roughness: appState.currentItemRoughness,
                   opacity: appState.currentItemOpacity,
                   strokeStyle: appState.currentItemStrokeStyle,
