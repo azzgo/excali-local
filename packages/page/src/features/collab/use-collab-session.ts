@@ -72,6 +72,7 @@ import { getBrowser } from "@/lib/utils";
 import { useThumbnail } from "@/features/gallery/hooks/use-thumbnail";
 import { saveDrawing } from "@/features/editor/utils/indexdb";
 import { COLLAB_SERVER_CONFIG, type ServerConfig } from "./storage";
+import type { LabelMode } from "./labels";
 import { debounce } from "radash";
 
 /* ------------------------------------------------------------------ */
@@ -260,6 +261,9 @@ export interface CollabResetNotice {
   count: number;
   ids: string[];
   at: number;
+  /** 061: conflict breakdown — edit-edit/edit-vs-delete vs delete-vs-edit. */
+  editN: number;
+  delN: number;
 }
 
 export interface UseCollabSessionOptions {
@@ -267,6 +271,9 @@ export interface UseCollabSessionOptions {
   server: ServerConfig | null;
   room: CollabRoomMeta | null;
   excalidrawAPI: ExcalidrawImperativeAPI | null;
+  /** 055 presence label mode — quiet omits `username` from the
+   * collaborators map (local rendering only, zero wire change). */
+  labelMode?: LabelMode;
   /** test/override seam: skip identity minting + storage */
   identity?: CollabIdentity;
   /** test seam: inject a WebSocket factory (collab-core transport) */
@@ -306,6 +313,13 @@ export interface CollabSessionHandle {
     appState: AppState,
     files: BinaryFiles,
   ) => void;
+  /** Excalidraw onPointerUpdate — own-cursor broadcast (055), trailing-edge
+   * throttled here (~1 frame; collab-core's sendPointer itself is immediate).
+   * The local cursor is never rendered as a collaborator (055). */
+  onLocalPointer: (payload: {
+    pointer: { x: number; y: number; tool: "pointer" | "laser" };
+    button: "up" | "down";
+  }) => void;
 }
 
 /** Deep scene equality (canonical JSON, key order irrelevant — merge.ts
@@ -365,6 +379,7 @@ export function useCollabSession({
   excalidrawAPI,
   identity: identityOverride,
   wsFactory,
+  labelMode = "full",
 }: UseCollabSessionOptions): CollabSessionHandle {
   const [identity, setIdentity] = useState<CollabIdentity | null>(null);
   const [ready, setReady] = useState(false);
@@ -385,6 +400,7 @@ export function useCollabSession({
   // --- refs (stable closures for client callbacks) -------------------
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
   apiRef.current = excalidrawAPI;
+  const labelModeRef = useRef<LabelMode>("full");
   const roomRef = useRef(room);
   roomRef.current = room;
   const clientRef = useRef<CollabClient | null>(null);
@@ -394,6 +410,14 @@ export function useCollabSession({
   const seqRef = useRef(0);
   const firstSceneRef = useRef(false);
   const applyingRemoteRef = useRef(false);
+  /** own-pointer broadcast throttle (055 — latest wins, one per ~frame) */
+  const pointerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPointerRef = useRef<{
+    x: number;
+    y: number;
+    tool: "pointer" | "laser";
+    button?: "up" | "down";
+  } | null>(null);
   /** cached session at connect — the 061 §3 merge inputs */
   const pendingMergeRef = useRef<{
     base: CollabScene | null;
@@ -442,7 +466,8 @@ export function useCollabSession({
         if (m.self) continue; // 055: the local cursor is never a collaborator
         map.set(m.profileId as SocketId, {
           id: m.profileId,
-          username: m.name,
+          // 055 label mode: quiet omits username → no canvas name chip
+          ...(labelModeRef.current === "full" ? { username: m.name } : {}),
           color: { background: m.color, stroke: m.color },
           socketId: m.profileId as SocketId,
         });
@@ -628,6 +653,11 @@ export function useCollabSession({
       disposed = true;
       clientRef.current?.close();
       clientRef.current = null;
+      if (pointerTimerRef.current !== null) {
+        clearTimeout(pointerTimerRef.current);
+        pointerTimerRef.current = null;
+      }
+      pendingPointerRef.current = null;
       firstSceneRef.current = false;
       pendingMergeRef.current = null;
       setReady(false);
@@ -651,6 +681,8 @@ export function useCollabSession({
             count: merged.resets.length,
             ids: merged.resets.map((r) => r.id),
             at: Date.now(),
+            editN: merged.resets.filter((r) => r.kind !== "delete-vs-edit").length,
+            delN: merged.resets.filter((r) => r.kind === "delete-vs-edit").length,
           });
         }
         const mergedScene: CollabScene = {
@@ -768,6 +800,43 @@ export function useCollabSession({
     [debouncedPersist],
   );
 
+  // --- presence label mode: rebuild the collaborators map on change ------
+  useEffect(() => {
+    labelModeRef.current = labelMode;
+    rebuildCollaborators(peersRef.current);
+  }, [labelMode, rebuildCollaborators]);
+
+  /** Own-cursor broadcast (055): Excalidraw's onPointerUpdate → sendPointer.
+   * Trailing-edge throttle (~1 frame, latest wins) — the wire send itself
+   * is immediate (collab-core sendPointer). */
+  const onLocalPointer = useCallback(
+    (payload: {
+      pointer: { x: number; y: number; tool: "pointer" | "laser" };
+      button: "up" | "down";
+    }) => {
+      pendingPointerRef.current = {
+        x: payload.pointer.x,
+        y: payload.pointer.y,
+        tool: payload.pointer.tool,
+        ...(payload.button !== undefined ? { button: payload.button } : {}),
+      };
+      if (pointerTimerRef.current !== null) return;
+      pointerTimerRef.current = setTimeout(() => {
+        pointerTimerRef.current = null;
+        const pending = pendingPointerRef.current;
+        pendingPointerRef.current = null;
+        if (pending === null) return;
+        clientRef.current?.sendPointer(
+          pending.x,
+          pending.y,
+          pending.tool,
+          pending.button,
+        );
+      }, 16);
+    },
+    [],
+  );
+
   return {
     ready,
     conn,
@@ -783,6 +852,7 @@ export function useCollabSession({
     seed,
     saveToGallery,
     onLocalChange,
+    onLocalPointer,
   };
 }
 

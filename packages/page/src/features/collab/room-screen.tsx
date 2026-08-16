@@ -29,6 +29,7 @@ import { useEditorTheme } from "@/features/editor/hooks/use-editor-theme";
 import Excalidraw from "@/features/editor/lib/excalidraw";
 import { getRoom } from "@/features/editor/utils/indexdb";
 import { useServerConfig } from "./hooks/use-server-config";
+import { useLabelMode } from "./labels";
 import { ROUTES } from "./routes";
 import { SessionChrome } from "./session-chrome";
 import type { CollabRoomMeta } from "./use-collab-session";
@@ -174,7 +175,10 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
   const [t] = useTranslation();
   const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawImperativeAPI | null>(null);
   const { theme, handleThemeChange } = useEditorTheme();
-  const session = useCollabSession({ shareId, server, room, excalidrawAPI, wsFactory });
+  // 055 presence label mode — shared with the feed/chrome; the session hook
+  // omits `username` from the collaborators map in quiet mode.
+  const { mode: labelMode } = useLabelMode();
+  const session = useCollabSession({ shareId, server, room, excalidrawAPI, wsFactory, labelMode });
 
   const onExcalidrawAPI = useCallback((api: ExcalidrawImperativeAPI | null) => {
     setExcalidrawAPI(api);
@@ -196,6 +200,7 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
           onThemeChange={handleThemeChange}
           showDeprecatedFonts={false}
           onExcalidrawAPI={onExcalidrawAPI}
+          onPointerUpdate={session.onLocalPointer}
           onChange={(elements, appState, files) =>
             session.onLocalChange(elements, appState, files)
           }

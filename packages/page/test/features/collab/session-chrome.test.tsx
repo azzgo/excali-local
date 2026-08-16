@@ -58,6 +58,7 @@ function makeSession(overrides: Partial<CollabSessionHandle> = {}): CollabSessio
     seed: vi.fn(),
     saveToGallery: vi.fn(async () => true),
     onLocalChange: vi.fn(),
+    onLocalPointer: vi.fn(),
     ...overrides,
   };
 }

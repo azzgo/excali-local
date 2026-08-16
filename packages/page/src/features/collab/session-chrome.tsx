@@ -23,17 +23,24 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, Copy, DoorOpen, Save } from "lucide-react";
+import { Check, Copy, DoorOpen, Save, Users } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { copyInvite } from "./invite";
+import { formatLabel, useLabelMode } from "./labels";
+import { PresenceFeed } from "./presence";
 import { ROUTES } from "./routes";
 import type { CollabRoomMeta, CollabSessionHandle, RosterMember } from "./use-collab-session";
 
@@ -42,16 +49,12 @@ interface SessionChromeProps {
   session: CollabSessionHandle;
 }
 
-/** 055: short id in the roster hover — 3 chars, e.g. "Ada·a3f". */
-export function shortProfileId(profileId: string): string {
-  return profileId.slice(0, 3);
-}
-
 /** Fade-out window for departed roster dots (055: ~250ms both ways). */
 const ROSTER_FADE_MS = 250;
 
 export function SessionChrome({ room, session }: SessionChromeProps) {
   const [t] = useTranslation();
+  const { mode: labelMode } = useLabelMode();
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
@@ -217,7 +220,7 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
               />
             </TooltipTrigger>
             <TooltipContent>
-              {m.self ? t("CollabYou") : `${m.name} · ${shortProfileId(m.profileId)}`}
+              {m.self ? t("CollabYou") : formatLabel(m.name, m.profileId, labelMode)}
             </TooltipContent>
           </Tooltip>
         ))}
@@ -225,6 +228,23 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
 
       <span className="flex-1" />
 
+      {/* presence feed — the fuller collaborators list (055); the label-mode
+          setting lives inside it; the roster dots stay the compact form */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            data-testid="collab-feed-trigger"
+            variant="ghost"
+            size="sm"
+            className="shrink-0 px-2 text-xs"
+          >
+            <Users className="size-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="p-2">
+          <PresenceFeed session={session} />
+        </DropdownMenuContent>
+      </DropdownMenu>
       {/* copy invite (054: the invite IS the room — always re-copyable) */}
       <Button
         data-testid="collab-copy-invite"
