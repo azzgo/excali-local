@@ -78,3 +78,29 @@ export type {
   PointerPayload,
   WsFactory,
 } from "./client"
+export {
+  FILE_CACHE_BUDGET_BYTES,
+  FILE_RETRY_DELAY_MS,
+  MAX_FILE_BYTES,
+  FileHydrator,
+  FileTooLargeError,
+  FileConfigError,
+  bytesToDataURL,
+  createFileCache,
+  dataURLToBytes,
+  decryptFile,
+  encryptFile,
+  fileIdFor,
+  requestFileGet,
+  sendFilePut,
+} from "./files"
+export type {
+  FileAvailableInfo,
+  FileCache,
+  FileCacheEntry,
+  FileDataEnvelope,
+  FileFetchResult,
+  FileHydratorOptions,
+  FilePutMeta,
+  FileReadyInfo,
+} from "./files"
