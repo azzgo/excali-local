@@ -24,6 +24,25 @@ importers:
         specifier: ^4.23.8
         version: 4.23.8
 
+  packages/collab-core:
+    dependencies:
+      idb:
+        specifier: ^8.0.0
+        version: 8.0.3
+      partysocket:
+        specifier: ^1
+        version: 1.3.0(react@19.2.8)
+    devDependencies:
+      '@types/node':
+        specifier: ^26.1.2
+        version: 26.1.2
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@26.1.2)(happy-dom@20.11.1)(vite@8.2.0(@types/node@26.1.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.8))
+
   packages/local:
     dependencies:
       '@tabler/icons-react':
@@ -3396,6 +3415,9 @@ packages:
     resolution: {integrity: sha512-kVscqXk4OCp68SZ0dkgEKVi6/8ij300KBWTJq32P/dYeWTSwK41WyTxalN1eRmA5Z9UU/LX9D7FWSmV9SAYx6g==}
     engines: {node: '>=0.10.0'}
 
+  event-target-polyfill@0.0.4:
+    resolution: {integrity: sha512-Gs6RLjzlLRdT8X9ZipJdIZI/Y6/HhRLyq9RdDlCsnpxr/+Nn6bU2EFGuC94GjxqhM+Nmij2Vcq98yoHrU8uNFQ==}
+
   expect-type@1.4.0:
     resolution: {integrity: sha512-KfYbmpRm0VbLjEvVa9yGwCi9GI34xvi7A/HXYWQO65CSD2u3MczUJSuwXKFIxlGsgBQizV9q5J9NHj4VG0n+pA==}
     engines: {node: '>=12.0.0'}
@@ -4249,6 +4271,14 @@ packages:
 
   parse5@7.3.0:
     resolution: {integrity: sha512-IInvU7fabl34qmi9gY8XOVxhYyMyuH2xUNpb2q8/Y+7552KlejkRvqvD19nMoUW/uQGGbqNpA6Tufu5FL5BZgw==}
+
+  partysocket@1.3.0:
+    resolution: {integrity: sha512-1zToNyolZFK/7nuAw/K2bZrNzFqaZyRoCEkS+9vG6WSC5ikrN6qWRe96q6ImU51uptz2r+dAwSkwhJVdQi4LiA==}
+    peerDependencies:
+      react: '>=17'
+    peerDependenciesMeta:
+      react:
+        optional: true
 
   path-data-parser@0.1.0:
     resolution: {integrity: sha512-NOnmBpt5Y2RWbuv0LMzsayp3lVylAHLPUTut412ZA3l+C4uw4ZVkQbjShYCQ8TCpUMdPapr4YjUqLYD6v68j+w==}
@@ -8303,6 +8333,8 @@ snapshots:
 
   esutils@2.0.3: {}
 
+  event-target-polyfill@0.0.4: {}
+
   expect-type@1.4.0: {}
 
   exsolve@1.1.1: {}
@@ -9049,6 +9081,12 @@ snapshots:
   parse5@7.3.0:
     dependencies:
       entities: 6.0.1
+
+  partysocket@1.3.0(react@19.2.8):
+    dependencies:
+      event-target-polyfill: 0.0.4
+    optionalDependencies:
+      react: 19.2.8
 
   path-data-parser@0.1.0: {}
 
