@@ -17,3 +17,12 @@ export { mergeScene } from "./merge"
 export type { Element, MergeInput, MergeResult, ResetKind, ResetRecord } from "./merge"
 export { saveSession, loadSession, clearSession, saveRoomMeta, listRooms, deleteRoom } from "./cache"
 export type { CollabScene, CollabSession, RoomEntry } from "./cache"
+export {
+  INVITE_TOKEN_RE,
+  encodeRoomInvite,
+  encodeServerInvite,
+  parseInvite,
+  parsePreview,
+  validateRelayUrl,
+} from "./invites"
+export type { InvitePreview, ParseInviteResult, RoomInvite, ServerInvite } from "./invites"
