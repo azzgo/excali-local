@@ -23,7 +23,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { RoomEntry } from "collab-core";
-import { parseInvite } from "collab-core";
+import { fileIdFor, parseInvite } from "collab-core";
 import { Button } from "@/components/ui/button";
 import { useEditorTheme } from "@/features/editor/hooks/use-editor-theme";
 import Excalidraw from "@/features/editor/lib/excalidraw";
@@ -182,6 +182,13 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
   const { mode: labelMode } = useLabelMode();
   const session = useCollabSession({ shareId, server, room, excalidrawAPI, wsFactory, labelMode });
 
+  // 052: content-addressed ids for newly inserted images (fileId =
+  // base64url(sha256(bytes)), 051 §3) so the element's fileId matches the
+  // wire id — the relay is content-blind and keys by the claimed id, and
+  // the upload path refuses mismatched ids (see use-collab-files).
+  const generateIdForFile = useCallback(async (file: File): Promise<string> => {
+    return fileIdFor(new Uint8Array(await file.arrayBuffer()));
+  }, []);
   const onExcalidrawAPI = useCallback((api: ExcalidrawImperativeAPI | null) => {
     setExcalidrawAPI(api);
   }, []);
@@ -219,6 +226,10 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
           onPointerUpdate={session.onLocalPointer}
           onChange={(elements, appState, files) =>
             session.onLocalChange(elements, appState, files)
+          }
+          generateIdForFile={generateIdForFile}
+          onScrollChange={(scrollX, scrollY, zoom) =>
+            session.onLocalViewportChange(scrollX, scrollY, zoom)
           }
         />
         {/* seed prompt — empty room, no cache (053/061 rule C). Minimal

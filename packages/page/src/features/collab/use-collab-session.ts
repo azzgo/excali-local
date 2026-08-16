@@ -55,6 +55,7 @@ import type {
   CollabError,
   CollabScene,
   Element as MergeElement,
+  FileHydrator,
   HelloPayload,
   IncomingPointer,
   IncomingScene,
@@ -64,7 +65,7 @@ import type {
   WsFactory,
 } from "collab-core";
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
-import type { AppState, BinaryFiles } from "@excalidraw/excalidraw/types";
+import type { AppState, BinaryFiles, DataURL, Zoom } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { Collaborator, SocketId } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
@@ -73,6 +74,7 @@ import { useThumbnail } from "@/features/gallery/hooks/use-thumbnail";
 import { saveDrawing } from "@/features/editor/utils/indexdb";
 import { COLLAB_SERVER_CONFIG, type ServerConfig } from "./storage";
 import type { LabelMode } from "./labels";
+import { createRoomFileHydrator, fileIdsInRect, uploadNewLocalFiles, visibleSceneRect } from "./use-collab-files";
 import { debounce } from "radash";
 
 /* ------------------------------------------------------------------ */
@@ -327,6 +329,13 @@ export interface CollabSessionHandle {
     pointer: { x: number; y: number; tool: "pointer" | "laser" };
     button: "up" | "down";
   }) => void;
+  /** 052: fileIds the relay answered FILE_NOT_FOUND for — the native
+   *  missing-image placeholder renders; the single automatic retry lives
+   *  inside the hydrator (051 §4). */
+  missingFileIds: ReadonlySet<string>;
+  /** 052: Excalidraw onScrollChange wiring — debounced lazy hydration of
+   *  image refs that enter the viewport (051 §4). */
+  onLocalViewportChange: (scrollX: number, scrollY: number, zoom: Zoom) => void;
 }
 
 /** Deep scene equality (canonical JSON, key order irrelevant — merge.ts
@@ -402,6 +411,7 @@ export function useCollabSession({
   const [peers, setPeers] = useState<RosterMember[]>([]);
   const [hadOfflineEdits, setHadOfflineEdits] = useState(false);
   const [resets, setResets] = useState<CollabResetNotice | null>(null);
+  const [missingFileIds, setMissingFileIds] = useState<ReadonlySet<string>>(new Set());
 
   // --- 056 Q6: admission snapshot ------------------------------------
   // A config change under a live session must NEVER re-dial (no auto-
@@ -424,6 +434,11 @@ export function useCollabSession({
   const roomRef = useRef(room);
   roomRef.current = room;
   const clientRef = useRef<CollabClient | null>(null);
+  /** 052: the room FileHydrator (created once the client exists; disposed
+   *  on leave/unmount — pending hydrates resolve not-found on teardown). */
+  const hydratorRef = useRef<FileHydrator | null>(null);
+  /** 052: fileIds the relay answered FILE_NOT_FOUND for — placeholder state. */
+  const missingRef = useRef<Set<string>>(new Set());
   const peersRef = useRef<RosterMember[]>([]);
   const collaboratorsRef = useRef<Map<SocketId, Collaborator>>(new Map());
   const connIdToProfileRef = useRef<Map<string, string>>(new Map());
@@ -461,6 +476,102 @@ export function useCollabSession({
       applyingRemoteRef.current = false;
     });
   }, []);
+
+  // --- 052 file sync --------------------------------------------------
+  const addMissingFile = useCallback((fileId: string) => {
+    if (missingRef.current.has(fileId)) return;
+    const next = new Set(missingRef.current);
+    next.add(fileId);
+    missingRef.current = next;
+    setMissingFileIds(next);
+  }, []);
+
+  const removeMissingFile = useCallback((fileId: string) => {
+    if (!missingRef.current.has(fileId)) return;
+    const next = new Set(missingRef.current);
+    next.delete(fileId);
+    missingRef.current = next;
+    setMissingFileIds(next);
+  }, []);
+
+  /** Tracked hydrate: a FILE_NOT_FOUND resolution lands in missingFileIds
+   *  (placeholder state, 051 §4); the automatic retry's success arrives via
+   *  onFileReady, which clears it. */
+  const hydrateTracked = useCallback(
+    (fileId: string) => {
+      const hydrator = hydratorRef.current;
+      if (hydrator === null) return;
+      void hydrator.hydrate(fileId).then((result) => {
+        if (result.status === "not-found") addMissingFile(fileId);
+      });
+    },
+    [addMissingFile],
+  );
+
+  /** Prefetch every known-uncached fileId (051 §4 scene-load policy) — the
+   *  page-side tracked equivalent of hydrator.hydrateMissing(). */
+  const prefetchMissingFiles = useCallback(() => {
+    const hydrator = hydratorRef.current;
+    if (hydrator === null) return;
+    for (const fileId of hydrator.knownFileIds()) {
+      if (hydrator.needsFile(fileId)) void hydrateTracked(fileId);
+    }
+  }, [hydrateTracked]);
+
+  /** Lazy viewport scan (051 §4: hydrate when an element enters view).
+   *  `scroll` carries the onScrollChange values (the patched tgz has
+   *  onScrollChange, not onViewportChange); null → read the live viewport
+   *  from the imperative API (post-apply scans). When the geometry is
+   *  unavailable (stub API / early boot) it degrades to
+   *  prefetchMissingFiles. Width/height always come from getAppState. */
+  const scanViewportFiles = useCallback(
+    (scroll: { scrollX: number; scrollY: number; zoomValue: number } | null) => {
+      const hydrator = hydratorRef.current;
+      const api = apiRef.current;
+      if (hydrator === null || api === null) return;
+      const appState = api.getAppState() as {
+        scrollX?: unknown;
+        scrollY?: unknown;
+        zoom?: { value?: unknown } | null;
+        width?: unknown;
+        height?: unknown;
+      };
+      const zoomValue = scroll?.zoomValue ?? appState.zoom?.value;
+      const scrollX = scroll?.scrollX ?? appState.scrollX;
+      const scrollY = scroll?.scrollY ?? appState.scrollY;
+      if (
+        typeof scrollX !== "number" ||
+        typeof scrollY !== "number" ||
+        typeof zoomValue !== "number" ||
+        zoomValue <= 0 ||
+        typeof appState.width !== "number" ||
+        typeof appState.height !== "number"
+      ) {
+        prefetchMissingFiles();
+        return;
+      }
+      const rect = visibleSceneRect(scrollX, scrollY, zoomValue, appState.width, appState.height);
+      for (const fileId of fileIdsInRect(api.getSceneElements(), rect)) {
+        if (hydrator.needsFile(fileId)) void hydrateTracked(fileId);
+      }
+    },
+    [prefetchMissingFiles, hydrateTracked],
+  );
+
+  const debouncedViewportScan = useMemo(
+    () => debounce({ delay: 120 }, scanViewportFiles),
+    [scanViewportFiles],
+  );
+
+  /** Excalidraw onScrollChange wiring — the 052 "onViewportChange
+   *  equivalent" in the patched tgz (scroll/zoom flow into the debounced
+   *  scan; width/height are read fresh from the imperative API). */
+  const onLocalViewportChange = useCallback(
+    (scrollX: number, scrollY: number, zoom: Zoom) => {
+      debouncedViewportScan({ scrollX, scrollY, zoomValue: zoom.value });
+    },
+    [debouncedViewportScan],
+  );
 
   const updateCollaborators = useCallback(
     (map: Map<SocketId, Collaborator>) => {
@@ -629,8 +740,14 @@ export function useCollabSession({
           const isFirst = !firstSceneRef.current;
           firstSceneRef.current = true;
           seqRef.current = Math.max(seqRef.current, scene.seq);
+          // 052: register referenced fileIds on EVERY apply (snapshot AND
+          // live — 051 §1 scenes carry references only).
+          hydratorRef.current?.observeElements(elements);
           if (isFirst) {
             handleFirstScene(scene, elements);
+            // 052: scene-load prefetch (051 §4) — covers the merged scene
+            // too (handleFirstScene observed ours-only refs).
+            prefetchMissingFiles();
             return;
           }
           // live scene → apply directly; base := this scene (last synced).
@@ -638,6 +755,9 @@ export function useCollabSession({
           const synced: CollabScene = { elements, appState: {} };
           baseSceneRef.current = synced;
           persistSession(synced);
+          // 052: a live apply may bring NEW image refs — hydrate the ones
+          // currently in view (lazy on-demand, 051 §4).
+          scanViewportFiles(null);
         },
       };
 
@@ -656,6 +776,53 @@ export function useCollabSession({
         }
         clientRef.current = client;
         setReady(true);
+        // 052: the room FileHydrator — created BEFORE connect() so no
+        // welcome/scene can beat it to the wire (onScene observes refs
+        // through hydratorRef). Private rooms derive the 050 content key +
+        // member signer here; FileConfigError degrades file sync off while
+        // the session itself keeps running.
+        let hydrator: FileHydrator | null = null;
+        try {
+          hydrator = await createRoomFileHydrator({
+            client,
+            room,
+            shareId,
+            identity,
+            onFileReady: (file) => {
+              // A blob arrived (first fetch or the 051 §4 automatic
+              // retry) — feed it to the editor so the native placeholder
+              // re-renders as the image. Fire-and-forget; the blob is
+              // cached, so the onChange echo never re-uploads.
+              removeMissingFile(file.fileId);
+              const api = apiRef.current;
+              if (api === null) return;
+              api.addFiles([
+                { id: file.fileId, mimeType: file.mimeType, dataURL: file.dataURL as DataURL, created: Date.now() },
+              ]);
+            },
+            onError: (err) => {
+              // Fetch-side failures (a GcmAuthError is the 054 stale-key
+              // signal — 046/047 banner wiring is a later task).
+              console.warn("[collab] file hydrate error:", err);
+            },
+          });
+        } catch (err) {
+          console.warn("[collab] file sync unavailable:", err);
+        }
+        if (disposed) {
+          hydrator?.dispose();
+          client.close();
+          return;
+        }
+        hydratorRef.current = hydrator;
+        if (hydrator !== null) {
+          // Cache-paint / pre-existing scene: register refs + prefetch
+          // (the relay snapshot's first apply runs the same path via
+          // onScene — created-before-connect makes either arrival order
+          // safe).
+          hydrator.observeElements([...(apiRef.current?.getSceneElements() ?? [])]);
+          prefetchMissingFiles();
+        }
         client.connect();
       } catch (err) {
         // Admission cannot be constructed locally (bad org seed / missing
@@ -674,6 +841,10 @@ export function useCollabSession({
       disposed = true;
       clientRef.current?.close();
       clientRef.current = null;
+      hydratorRef.current?.dispose();
+      hydratorRef.current = null;
+      missingRef.current = new Set();
+      setMissingFileIds(new Set());
       if (pointerTimerRef.current !== null) {
         clearTimeout(pointerTimerRef.current);
         pointerTimerRef.current = null;
@@ -696,6 +867,9 @@ export function useCollabSession({
           ours: pending.edited.elements as MergeElement[],
           theirs: elements as MergeElement[],
         });
+        // 052: the merged scene may keep image refs unique to ours —
+        // register them so the first-apply prefetch can hydrate them.
+        hydratorRef.current?.observeElements(merged.scene);
         applyScene(merged.scene);
         if (merged.resets.length > 0) {
           setResets({
@@ -733,10 +907,11 @@ export function useCollabSession({
     if (api === null || client === null) return Promise.resolve();
     const elements = api.getSceneElements();
     const appState = api.getAppState();
-    const files = api.getFiles();
     seqRef.current += 1;
     client.sendSeed([...elements] as unknown[], seqRef.current);
-    const scene: CollabScene = { elements: [...elements] as unknown[], appState, files };
+    // 052: the session cache stays refs-only — the gallery is the durable
+    // blob record; the ephemeral room cache never stores dataURLs.
+    const scene: CollabScene = { elements: [...elements] as unknown[], appState };
     baseSceneRef.current = scene;
     setEmptyRoom(false);
     persistSession(scene);
@@ -752,6 +927,10 @@ export function useCollabSession({
   const leave = useCallback(() => {
     clientRef.current?.close();
     clientRef.current = null;
+    hydratorRef.current?.dispose();
+    hydratorRef.current = null;
+    missingRef.current = new Set();
+    setMissingFileIds(new Set());
     setConn("idle");
     setPeers([]);
     peersRef.current = [];
@@ -817,7 +996,18 @@ export function useCollabSession({
         // edge, 049 §5) — the latest scene wins.
         client.sendScene([...elements] as unknown[], seqRef.current);
       }
-      debouncedPersist({ elements: [...elements] as unknown[], appState, files });
+      // 052: upload blobs newly inserted on THIS device (fire-and-forget;
+      // FileTooLargeError and friends are warn'd inside, never thrown into
+      // React). The element already carries the fileId ref — the scene
+      // broadcast carries references only. Cached entries dedup, so
+      // hydrated blobs (addFiles echo) never re-upload.
+      const hydrator = hydratorRef.current;
+      if (hydrator !== null && Object.keys(files).length > 0) {
+        void uploadNewLocalFiles(hydrator, files);
+      }
+      // 052: the session cache stays refs-only — the gallery is the durable
+      // blob record; the ephemeral room cache never stores dataURLs.
+      debouncedPersist({ elements: [...elements] as unknown[], appState });
     },
     [debouncedPersist],
   );
@@ -877,6 +1067,8 @@ export function useCollabSession({
     saveToGallery,
     onLocalChange,
     onLocalPointer,
+    missingFileIds,
+    onLocalViewportChange,
   };
 }
 
