@@ -132,6 +132,17 @@ function waitForPort(port: number, timeoutMs: number): Promise<boolean> {
   return tick()
 }
 
+function waitForPortFree(port: number, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  const tick = async (): Promise<void> => {
+    if (!(await portBusy(port))) return
+    if (Date.now() > deadline) throw new Error(`port ${port} did not free within ${timeoutMs}ms`)
+    await new Promise((r) => setTimeout(r, 300))
+    return tick()
+  }
+  return tick()
+}
+
 class DevProcess {
   private child: ReturnType<typeof spawn> | null = null
   private out = ""
@@ -165,6 +176,7 @@ class DevProcess {
       onLog(`[dev] exited with code ${code}`)
     })
 
+    await waitForPortFree(DEV_PORT, 15_000) // never bind over a live socket (rotation restarts)
     const ready = await waitForPort(DEV_PORT, 90_000)
     if (!ready) {
       dev.stop()
@@ -399,6 +411,7 @@ function fail(name: string, detail: string): void {
 async function runCase(name: string, fn: () => Promise<void>): Promise<void> {
   try {
     await fn()
+    pass(name, "ok")
   } catch (e) {
     fail(name, `exception: ${e instanceof Error ? e.message : String(e)}`)
   }
