@@ -63,6 +63,7 @@ function makeSession(overrides: Partial<CollabSessionHandle> = {}): CollabSessio
     live: true,
     reconnect: null,
     lastError: null,
+    lastSyncedAt: null,
     snapshotAvailable: true,
     emptyRoom: false,
     peers: PEERS,

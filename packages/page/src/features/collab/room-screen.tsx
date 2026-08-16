@@ -33,6 +33,7 @@ import { useLabelMode } from "./labels";
 import { ROUTES } from "./routes";
 import { SessionChrome } from "./session-chrome";
 import { ConfigPropagationBanner } from "./config-banner";
+import { ConnHealthBanners } from "./conn-health";
 import type { CollabRoomMeta } from "./use-collab-session";
 import type { WsFactory } from "collab-core";
 import { useCollabSession } from "./use-collab-session";
@@ -195,6 +196,16 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
           change under a live session raises it (no auto-reconnect). */}
       <div data-testid="collab-conn-banner-slot" className="min-h-0">
         <ConfigPropagationBanner live={session.live} />
+        {/* 047: conn-health edges — re-entry card, degraded hint, fatal banner
+            (061 Q4/Q5/Q7) share the strip with the offline banner + reset
+            notice; 056's propagation banner stays above them (config change
+            under a live session is a different concern). */}
+        <ConnHealthBanners
+          session={session}
+          excalidrawAPI={excalidrawAPI}
+          roomLabel={room.label}
+          relay={server.relay}
+        />
       </div>
       <div className="relative flex-1 overflow-hidden">
         <Excalidraw

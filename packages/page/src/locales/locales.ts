@@ -338,6 +338,18 @@ export function initI18n() {
           "CollabConnResetBody": "{{editN}} edited · {{delN}} deleted — online wins",
           "CollabConnResetShow": "Show me",
           "CollabConnResetOk": "Got it",
+          // 061 conn-health (task 047): re-entry card, degraded hint, fatal banner
+          // copy — locked 061 copy table; fatal = 054 stale.admit / stale.gcm verbatim.
+          "CollabConnUnstableTitle": "Connection is unstable",
+          "CollabConnUnstableBody": "Edits are still syncing, but the link to your team server keeps dropping. Nothing for you to do — shown once, just so you know.",
+          "CollabReentryDownTitle": "Can't reach your team server",
+          "CollabReentryDownBody": "{{room}} · {{relay}} · nothing answered for {{timeout}}s. The room isn't lost — the server may be redeploying or asleep.",
+          "CollabReentryLastSynced": "Last synced {{time}} · from your local session cache",
+          "CollabReentryOpenCache": "Open last synced copy",
+          "CollabConnFatalTitle": "The server rejected this member key",
+          "CollabConnFatalBody": "The invite is probably outdated. Paste a fresh server invite in Options → Collaboration. Your edits stay in this tab — save them to your gallery before leaving.",
+          "CollabConnFatalGcmTitle": "This room's key doesn't match",
+          "CollabConnFatalGcmBody": "The room may have been recreated. Ask the host to copy the full room invite again. Your edits stay in this tab — save them to your gallery before leaving.",
           "CollabSeedNote": "You're the first one in — seed it with a canvas or start blank. The first seed becomes the room's starting point.",
           // --- presence (055: collaborators feed, label mode, native cursors) ---
           "CollabPresenceTitle": "Collaborators",
@@ -681,6 +693,18 @@ export function initI18n() {
           "CollabConnResetBody": "{{editN}} 处编辑 · {{delN}} 处删除——在线优先",
           "CollabConnResetShow": "指给我看",
           "CollabConnResetOk": "知道了",
+          // 061 conn-health (task 047): re-entry card, degraded hint, fatal banner
+          // copy — locked 061 copy table; fatal = 054 stale.admit / stale.gcm verbatim.
+          "CollabConnUnstableTitle": "连接不稳定",
+          "CollabConnUnstableBody": "编辑仍在同步，但与团队服务器的连接反复中断。无需操作 —— 仅提示一次，让你心里有数。",
+          "CollabReentryDownTitle": "无法连接你的团队服务器",
+          "CollabReentryDownBody": "{{room}} · 服务器无响应（{{timeout}} 秒）。房间没有丢 —— 服务器可能正在重新部署或休眠。",
+          "CollabReentryLastSynced": "上次同步 {{time}} · 来自本地会话缓存",
+          "CollabReentryOpenCache": "打开最后同步副本",
+          "CollabConnFatalTitle": "服务器拒绝了此成员密钥",
+          "CollabConnFatalBody": "邀请可能已过期。请在“选项 → 协作”重新粘贴服务器邀请。你的编辑仍在此页 — 离开前请先存入画廊。",
+          "CollabConnFatalGcmTitle": "房间密钥不匹配",
+          "CollabConnFatalGcmBody": "房间可能已被重建。请让房主重新复制完整房间邀请。你的编辑仍在此页 — 离开前请先存入画廊。",
           "CollabSeedNote": "你是第一个进入者——用一个画布播种，或从空白开始。首次播种的内容将成为房间的起点。",
           // --- presence (055: collaborators feed, label mode, native cursors) ---
           "CollabPresenceTitle": "协作者",

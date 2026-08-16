@@ -293,6 +293,9 @@ export interface CollabSessionHandle {
   reconnect: { attempt: number; delayMs: number } | null;
   /** last wire/client error (fatal → 046/047 stale.admit / stale.gcm banners) */
   lastError: CollabError | null;
+  /** 047: the session cache's updatedAt — the re-entry card's
+   * "Last synced {time}" footer (061 Q4). null when nothing is cached. */
+  lastSyncedAt: number | null;
   /** welcome said the relay has a snapshot (null before the first welcome) */
   snapshotAvailable: boolean | null;
   /** welcome said the room is empty — seed prompt position (053/061 C) */
@@ -393,6 +396,7 @@ export function useCollabSession({
     delayMs: number;
   } | null>(null);
   const [lastError, setLastError] = useState<CollabError | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
   const [snapshotAvailable, setSnapshotAvailable] = useState<boolean | null>(null);
   const [emptyRoom, setEmptyRoom] = useState(false);
   const [peers, setPeers] = useState<RosterMember[]>([]);
@@ -544,6 +548,7 @@ export function useCollabSession({
         pendingMergeRef.current = { base: cached.base, edited: cached.edited };
         baseSceneRef.current = cached.base;
         applyScene(cached.edited.elements);
+        setLastSyncedAt(cached.updatedAt);
         const offlineEdits =
           cached.base !== null && !scenesEqual(cached.edited, cached.base);
         setHadOfflineEdits(offlineEdits);
@@ -752,6 +757,7 @@ export function useCollabSession({
     peersRef.current = [];
     setEmptyRoom(false);
     setSnapshotAvailable(null);
+    setLastSyncedAt(null);
     setReady(false);
     void clearSession(shareId);
   }, [shareId]);
@@ -859,6 +865,7 @@ export function useCollabSession({
     conn,
     reconnect,
     lastError,
+    lastSyncedAt,
     snapshotAvailable,
     emptyRoom,
     peers,
