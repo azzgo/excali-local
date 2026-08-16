@@ -25,7 +25,8 @@
     "bridge:build": "cd packages/bridge && go build -buildvcs=false -o bin/excali-bridge .",
     "bridge:test": "cd packages/bridge && go test ./...",
     "relay:dev": "tsx scripts/relay-dev.ts",
-    "relay:dev:https": "tsx scripts/relay-dev.ts --https"
+    "relay:dev:https": "tsx scripts/relay-dev.ts --https",
+    "relay:integration": "tsx scripts/relay-integration.ts"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",

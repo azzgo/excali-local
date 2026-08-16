@@ -35,6 +35,9 @@
  */
 import { CHUNK_THRESHOLD, ChunkAssembler, serializeEnvelope } from "collab-core"
 import type { ChunkFrame, ErrorCode, HelloPayload, Member, WireEnvelope } from "collab-core"
+import type { FileStore } from "./files"
+import { MAX_CHUNKS_PER_MESSAGE } from "./guards"
+import type { MemberKey, SignedContentEnvelope } from "./verify"
 
 /** room.storage key holding the room's snapshot record (052 §4). */
 export const SNAPSHOT_KEY = "snapshot"
@@ -65,6 +68,17 @@ export interface RoomStateOptions {
   roomId: string
   hooks: RoomHooks
   storage: RoomStorage
+  /**
+   * Optional file-domain wiring (task 041 — files.ts's documented consumer):
+   * when present, file-put / file-get / file-data messages route into the
+   * FileStore instead of being dropped (051).
+   */
+  fileStore?: FileStore
+  /**
+   * connId → admitted member key (058 §3.2 store-verify identity): populated
+   * by join() from hello.key when a fileStore is wired.
+   */
+  memberKeys?: Map<string, MemberKey>
 }
 
 /** Pre-stamp full-scene envelope stored by the relay (058 §1.3: `t` preserved, no `from`). */
@@ -155,6 +169,8 @@ export class RoomState {
   readonly roomId: string
   private readonly hooks: RoomHooks
   private readonly storage: RoomStorage
+  private readonly fileStore?: FileStore
+  private readonly memberKeys?: Map<string, MemberKey>
   /** Transparent chunk reassembly (049 §3) — one assembler per room. */
   private readonly assembler = new ChunkAssembler()
   /** In-memory roster — session state only, never persisted (052 §4). */
@@ -165,6 +181,8 @@ export class RoomState {
     this.roomId = options.roomId
     this.hooks = options.hooks
     this.storage = options.storage
+    this.fileStore = options.fileStore
+    this.memberKeys = options.memberKeys
   }
 
   /** Current roster (connId → Member) — empty after a DO wake (052 §4). */
@@ -192,6 +210,10 @@ export class RoomState {
       connId, // relay-stamped — never taken from client data (049 §1)
     }
     this.roster.set(connId, member)
+    if (this.fileStore !== undefined && this.memberKeys !== undefined) {
+      // 058 §3.2 store-verify identity — hello.key is org-sig-pinned (057 §3)
+      this.memberKeys.set(connId, { profileId: hello.profileId, key: hello.key })
+    }
     this.hooks.send(
       connId,
       JSON.stringify({
@@ -220,6 +242,8 @@ export class RoomState {
     const member = this.roster.get(connId)
     if (member === undefined) return
     this.roster.delete(connId)
+    this.memberKeys?.delete(connId)
+    this.fileStore?.leave(connId)
     this.hooks.broadcast(JSON.stringify({ v: 1, t: "peer", p: { kind: "leave", member } }))
   }
 
@@ -252,6 +276,18 @@ export class RoomState {
       return
     }
     if (env.t === "chunk") {
+      // 052 §5: n total chunks per logical message is bounded (≤ 256). A
+      // frame declaring more is a protocol violation — drop + CHUNK_INVALID
+      // (the partial buffer ages out via the assembler's 30s GC).
+      const n = (env.p as { n?: unknown }).n
+      if (typeof n === "number" && n > MAX_CHUNKS_PER_MESSAGE) {
+        this.sendError(
+          connId,
+          "CHUNK_INVALID",
+          `chunk message declares ${n} chunks — over the ${MAX_CHUNKS_PER_MESSAGE}-chunk cap (052 §5)`,
+        )
+        return
+      }
       const out = this.assembler.feed(env as unknown as ChunkFrame)
       if (out === null) return // partial / duplicate / malformed — wait for the rest, or drop
       await this.route(connId, out)
@@ -273,6 +309,25 @@ export class RoomState {
       case "pointer":
         this.relayPointer(connId, env.p as PointerPayload)
         return
+      case "file-put":
+        // 051 §2: register the in-flight upload header (one per conn, 059 §4)
+        this.fileStore?.beginPut(connId, env.p)
+        return
+      case "file-get": {
+        const fileId = (env.p as { fileId?: unknown }).fileId
+        if (this.fileStore !== undefined && typeof fileId === "string") {
+          void this.fileStore.getFile(fileId, connId)
+        }
+        return
+      }
+      case "file-data": {
+        // 058 §3.2 store-verify vs the SENDING member's key; pointer is never stored
+        const member = this.memberKeys?.get(connId)
+        if (this.fileStore !== undefined && member !== undefined) {
+          await this.fileStore.putFile(connId, env as unknown as SignedContentEnvelope, member)
+        }
+        return
+      }
       default:
         return // unknown type — drop (052 §3)
     }

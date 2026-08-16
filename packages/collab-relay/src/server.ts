@@ -25,6 +25,7 @@
 import type { Connection, PartyKitServer, Room } from "partykit/server"
 import { PROTOCOL_VERSION, b64urlToBytes } from "collab-core"
 import type { ErrorCode, HelloPayload, RelayMessage } from "collab-core"
+import type { FrameGuardResult } from "./guards"
 
 /** First-message grace window (052 §3): hello MUST arrive within 2s. */
 export const HELLO_GRACE_MS = 2_000
@@ -35,8 +36,10 @@ export const ADMISSION_REJECT_REASON =
 
 /**
  * Close codes for fatal errors (059 §3): 1003 = unsupported protocol
- * version, 1008 = policy violation (admission / room claim). Non-fatal
- * codes never reach `refuse` and stay undefined.
+ * version, 1008 = policy violation (admission / room claim), 1009 =
+ * message too big (RFC 6455 — the task-041 MESSAGE_TOO_LARGE close,
+ * 049 §1 fatal set). Non-fatal codes never reach `refuse` and stay
+ * undefined.
  */
 const CLOSE_CODES: Record<ErrorCode, number | undefined> = {
   ADMISSION_INVALID: 1008,
@@ -44,7 +47,7 @@ const CLOSE_CODES: Record<ErrorCode, number | undefined> = {
   ROOM_CLAIM_MISMATCH: 1008,
   SEED_REJECTED: undefined,
   CHUNK_INVALID: undefined,
-  MESSAGE_TOO_LARGE: undefined,
+  MESSAGE_TOO_LARGE: 1009,
   FILE_NOT_FOUND: undefined,
 }
 
@@ -337,14 +340,25 @@ export function parseFirstMessage(raw: string): FirstMessageParse {
 
 // ─── connection plumbing ────────────────────────────────────────────────────
 
-/** Extract the `<shareId>` from a `/room/<shareId>` WS URL (049 §2 route). */
+/**
+ * Extract the `<shareId>` from a `/room/<shareId>` WS URL (049 §2 route)
+ * or from partykit 0.0.115's own room routes — `/party/<shareId>` (the
+ * main worker) and `/parties/main/<shareId>` (task 041 finding, verified
+ * against the dev runtime: the facade's `getRoomAndPartyFromPathname`
+ * only maps `/party/` and `/parties/` paths to a room DO, so the wire
+ * contract's `/room/` path is NOT servable by this runtime; kept for
+ * gateway compatibility and the unit tests).
+ */
 export function deriveShareId(uri: string): string | null {
   try {
     const pathname = new URL(uri).pathname.replace(/\/+$/, "")
-    const match = /^\/room\/([^/]+)$/.exec(pathname)
-    if (!match) return null
+    const room = /^\/room\/([^/]+)$/.exec(pathname)?.[1]
+    const party = /^\/party\/([^/]+)$/.exec(pathname)?.[1]
+    const partiesMain = /^\/parties\/main\/([^/]+)$/.exec(pathname)?.[1]
+    const match = [room, party, partiesMain].find((m) => m !== undefined)
+    if (match === undefined) return null
     try {
-      return decodeURIComponent(match[1])
+      return decodeURIComponent(match)
     } catch {
       return null
     }
@@ -370,6 +384,31 @@ interface PendingConnection {
 }
 
 /**
+ * Task-041 composition seam (index.ts): optional hooks that replace the
+ * stub-welcome + drop-post-welcome behavior with the room DO (RoomState +
+ * FileStore) and the guards. All callbacks are optional — a hook-less
+ * server behaves exactly as before (the unit-test contract).
+ */
+export interface RelayServerHooks {
+  /**
+   * Runs on EVERY string frame before anything else (pre- AND post-welcome).
+   * Return a failed FrameGuardResult to refuse: fatal results send
+   * error{fatal:true} + close; non-fatal send error{fatal:false} and keep
+   * the connection (041 guards.ts).
+   */
+  frameGuard?(conn: Connection, frame: string): FrameGuardResult | undefined
+  /**
+   * Admission success — REPLACES the stub welcome. The room DO joins here
+   * (RoomState.join sends the real welcome with snapshot + peers).
+   */
+  onAdmitted?(conn: Connection, room: Room, hello: HelloPayload): void | Promise<void>
+  /** Post-welcome frame routing — the room DO's message path (038/041). */
+  onMessage?(frame: string, conn: Connection, room: Room): void | Promise<void>
+  /** Connection teardown — the room DO's leave path (038/041). */
+  onClose?(conn: Connection): void
+}
+
+/**
  * Build the relay PartyKit server (module/object-literal form — callbacks
  * receive the room, giving access to room.env). A fresh instance per call
  * keeps per-connection pending state isolated (tests create their own).
@@ -379,15 +418,16 @@ interface PendingConnection {
  * MUST be hello. Admission failures send `error { fatal: true }` and then
  * close (1003 for PROTOCOL_VERSION, 1008 for ADMISSION_INVALID /
  * ROOM_CLAIM_MISMATCH). Success emits `welcome` with
- * `snapshotAvailable: false` and `peers: []` — roster/snapshot are task
- * 038's room DO; post-welcome frames are dropped here.
+ * `snapshotAvailable: false` and `peers: []` — or, when task 041's
+ * hooks are wired, hands off to the room DO via onAdmitted/onMessage/
+ * onClose.
  */
-export function createRelayServer(): PartyKitServer {
+export function createRelayServer(hooks: RelayServerHooks = {}): PartyKitServer {
   const pending = new Map<string, PendingConnection>()
 
-  const refuse = (conn: Connection, code: ErrorCode, reason: string): void => {
-    const closeCode = CLOSE_CODES[code]
-    conn.send(JSON.stringify({ v: 1, t: "error", p: { code, reason, fatal: true } } satisfies RelayMessage))
+  const refuse = (conn: Connection, code: ErrorCode, reason: string, fatal = true): void => {
+    const closeCode = fatal ? CLOSE_CODES[code] : undefined
+    conn.send(JSON.stringify({ v: 1, t: "error", p: { code, reason, fatal } } satisfies RelayMessage))
     if (closeCode !== undefined) conn.close(closeCode, code)
   }
 
@@ -412,7 +452,22 @@ export function createRelayServer(): PartyKitServer {
     async onMessage(message, conn, room) {
       const rec = pending.get(conn.id)
       if (rec === undefined) return // unknown connection
-      if (rec.welcomed) return // post-welcome routing is task 038's room DO — drop here
+
+      // task 041 guard seam: size + rate on EVERY string frame, pre- and post-welcome
+      if (typeof message === "string") {
+        const guard = hooks.frameGuard?.(conn, message)
+        if (guard !== undefined && !guard.ok) {
+          refuse(conn, guard.code, guard.reason, guard.fatal)
+          if (guard.fatal) pending.delete(conn.id)
+          return
+        }
+      }
+
+      if (rec.welcomed) {
+        // post-welcome routing is task 038/041's room DO — hand off when wired
+        if (typeof message === "string") await hooks.onMessage?.(message, conn, room)
+        return
+      }
       clearTimeout(rec.timer)
 
       if (typeof message !== "string") {
@@ -435,21 +490,26 @@ export function createRelayServer(): PartyKitServer {
         return
       }
 
-      // Admitted — welcome (049 §1); snapshot/peers land with task 038.
+      // Admitted — welcome (049 §1); the room DO (041) sends the real
+      // welcome with snapshot + peers; the hook-less stub stays for tests.
       const hello = result.hello
-      const welcome: RelayMessage = {
-        v: 1,
-        t: "welcome",
-        p: {
-          profileId: hello.profileId,
-          connId: conn.id,
-          room: hello.room,
-          privacy: hello.privacy,
-          snapshotAvailable: false,
-          peers: [],
-        },
+      if (hooks.onAdmitted !== undefined) {
+        await hooks.onAdmitted(conn, room, hello)
+      } else {
+        const welcome: RelayMessage = {
+          v: 1,
+          t: "welcome",
+          p: {
+            profileId: hello.profileId,
+            connId: conn.id,
+            room: hello.room,
+            privacy: hello.privacy,
+            snapshotAvailable: false,
+            peers: [],
+          },
+        }
+        conn.send(JSON.stringify(welcome))
       }
-      conn.send(JSON.stringify(welcome))
       rec.welcomed = true
     },
 
@@ -459,7 +519,8 @@ export function createRelayServer(): PartyKitServer {
         clearTimeout(rec.timer)
         pending.delete(conn.id)
       }
-      // peer{leave} broadcast lands with task 038's roster machinery.
+      // peer{leave} broadcast lands with task 038/041's roster machinery.
+      hooks.onClose?.(conn)
     },
 
     onRequest() {

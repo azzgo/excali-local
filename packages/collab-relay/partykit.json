@@ -1,0 +1,7 @@
+{
+  "$schema": "https://raw.githubusercontent.com/partykit/partykit/main/schema.json",
+  "name": "excali-local-collab-relay",
+  "main": "./src/index.ts",
+  "port": 1999,
+  "compatibilityDate": "2024-07-18"
+}
