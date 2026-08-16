@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useState } from "react";
 import {
-  parseInvite,
   parsePreview,
   type InvitePreview,
   type ServerInvite,
@@ -10,15 +9,17 @@ import { Button } from "@/components/ui/button";
 import { getBrowser } from "@/lib/utils";
 import { ROUTES } from "./routes";
 import { isLoopbackRelay, maskKey, type ServerConfig } from "./storage";
+import { parsePastedInvite, pasteSeverity } from "./invite";
 import { useServerConfig } from "./hooks/use-server-config";
 interface LandingScreenProps {
   lang: string;
 }
 
 /**
- * Landing paste outcome (054 severity grammar — inline parse via collab-core;
- * the full clipboard helpers live in task 050's invite module and the trust →
- * storage write belongs to 049's mirror; this screen only previews).
+ * Landing paste outcome (054 severity grammar — parsing + severity via task 050's
+ * invite module: parsePastedInvite accepts sentence+code or bare code (054 Q1) and
+ * pasteSeverity classifies no-key / fp-mismatch / unreachable / error (054 Q4/Q5/Q9).
+ * The trust → storage write belongs to 049's mirror; this screen only previews).
  */
 type PasteOutcome =
   | {
@@ -34,7 +35,8 @@ type PasteOutcome =
   | { kind: "error"; titleKey: "CollabNoInviteFound" | "CollabInvalidInvite"; detail?: string };
 
 function parsePaste(text: string, current: ServerConfig | null): PasteOutcome {
-  const result = parseInvite(text);
+  const result = parsePastedInvite(text);
+  const severity = pasteSeverity(result, { server: current });
   if (result.kind === "server") {
     const preview = parsePreview(result);
     if (preview.kind !== "server") return { kind: "error", titleKey: "CollabInvalidInvite" };
@@ -48,14 +50,20 @@ function parsePaste(text: string, current: ServerConfig | null): PasteOutcome {
       replaces: current !== null && !sameServer,
     };
   }
+  // 054 Q4: no-key = red + Join disabled (parse succeeded; the key is genuinely missing)
+  if (severity.kind === "no-key") return { kind: "room", tier: "private", hasKey: false };
+  // Room invites here render the amber join-instead hint; the fp-mismatch and
+  // unreachable cards belong to the join flow (043) — this landing is server-invite
+  // first and never dials (054 Q9 dial happens at trust/adoption in 049).
   if (result.kind === "room") {
     return { kind: "room", tier: result.tier, hasKey: Boolean(result.roomSecret) };
   }
-  if (result.kind === "error") {
+  if (severity.kind === "error") {
+    const reason = severity.reason === "none" ? undefined : severity.reason;
     return {
       kind: "error",
-      titleKey: "CollabInvalidInvite",
-      detail: `${result.field}: ${result.reason}`,
+      titleKey: severity.reason === "none" ? "CollabNoInviteFound" : "CollabInvalidInvite",
+      detail: reason,
     };
   }
   return { kind: "error", titleKey: "CollabNoInviteFound" };
