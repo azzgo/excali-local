@@ -2,6 +2,7 @@ import "@excalidraw/excalidraw/index.css";
 import { getLang } from "@/lib/utils";
 import LocalEditor from "./local-editor";
 import QuickEditor from "./quick-editor";
+import CollabEditor from "@/features/collab/collab-editor";
 
 const Editor = () => {
   const urlParams = new URLSearchParams(window.location.search);
@@ -14,6 +15,10 @@ const Editor = () => {
 
   if (pageType === "quick") {
     return <QuickEditor lang={lang} />;
+  }
+
+  if (pageType === "collab") {
+    return <CollabEditor lang={lang} />;
   }
 
   return <></>;
