@@ -1,0 +1,25 @@
+{
+  "name": "collab-relay",
+  "private": true,
+  "version": "1.7.7",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    "import": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "collab-core": "workspace:*",
+    "partykit": "^0.0.115"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "fake-indexeddb": "^6",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}
