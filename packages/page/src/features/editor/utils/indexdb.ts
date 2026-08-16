@@ -3,10 +3,12 @@ import { BinaryFileData } from "@excalidraw/excalidraw/types";
 import { openDB } from "idb";
 
 const DB_NAME = "excali";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_NAME = "files";
 const DRAWINGS_STORE = "drawings";
 const COLLECTIONS_STORE = "collections";
+const ROOMS_STORE = "rooms";
+const COLLAB_SESSION_STORE = "collab-session";
 
 async function initDB() {
   return openDB(DB_NAME, DB_VERSION, {
@@ -27,6 +29,19 @@ async function initDB() {
         if (!db.objectStoreNames.contains(COLLECTIONS_STORE)) {
           const collectionsStore = db.createObjectStore(COLLECTIONS_STORE, { keyPath: "id" });
           collectionsStore.createIndex("createdAt", "createdAt");
+        }
+      }
+
+      // v3: rooms + collab-session stores (Wayfinder 048 room list; 053/061
+      // persistent per-room session cache with base scene for the three-way merge)
+      if (oldVersion < 3) {
+        if (!db.objectStoreNames.contains(ROOMS_STORE)) {
+          const roomsStore = db.createObjectStore(ROOMS_STORE, { keyPath: "id" });
+          roomsStore.createIndex("lastJoined", "lastJoined");
+        }
+
+        if (!db.objectStoreNames.contains(COLLAB_SESSION_STORE)) {
+          db.createObjectStore(COLLAB_SESSION_STORE, { keyPath: "roomId" });
         }
       }
     },
@@ -219,5 +234,105 @@ export async function clearGalleryData(): Promise<void> {
   await tx.objectStore(STORE_NAME).clear();
   await tx.objectStore(DRAWINGS_STORE).clear();
   await tx.objectStore(COLLECTIONS_STORE).clear();
+  await tx.done;
+}
+
+// ---------------------------------------------------------------------------
+// v3: collab room list + per-room session cache (Wayfinder 048 / 053 / 061)
+//
+// These stores are the storage owner for the collab feature. collab-core
+// mirrors this DB layout (packages/collab-core/src/cache.ts) and must stay in
+// sync — the page module here is the source of truth.
+// ---------------------------------------------------------------------------
+
+/**
+ * Collab room list entry (Wayfinder 048: `excali` DB v3 `rooms` store).
+ * One entry per room the user has created or joined on this install.
+ */
+export interface RoomEntry {
+  /** shareId — the room's public id (also the invite's room claim). */
+  id: string;
+  /** human label for the My Rooms list. */
+  label: string;
+  /** privacy tier: team = org-visible, private = room key. */
+  tier: "team" | "private";
+  /** server fingerprint (048): staleness signal only, warn-only, never routing. */
+  fp?: string;
+  pinned: boolean;
+  lastJoined: number;
+  /** the full invite payload string — the invite IS the room (053). */
+  invite: string;
+}
+
+/** A collab scene snapshot: elements + appState (+ optional embedded files). */
+export interface CollabScene {
+  elements: unknown[];
+  appState: unknown;
+  files?: Record<string, unknown>;
+}
+
+/**
+ * Per-room collab session cache (Wayfinder 053/061: `excali` DB v3
+ * `collab-session` store). `edited` is the working scene; `base` is the last
+ * synced scene retained for the client-side three-way merge (061 Q4b) — null
+ * when nothing has been synced yet.
+ */
+export interface CollabSession {
+  roomId: string;
+  edited: CollabScene;
+  base: CollabScene | null;
+  updatedAt: number;
+}
+
+export async function getRoom(shareId: string): Promise<RoomEntry | undefined> {
+  const db = await initDB();
+  const tx = db.transaction(ROOMS_STORE, "readonly");
+  const room = await tx.store.get(shareId);
+  await tx.done;
+  return room;
+}
+
+export async function putRoom(room: RoomEntry): Promise<void> {
+  const db = await initDB();
+  const tx = db.transaction(ROOMS_STORE, "readwrite");
+  await tx.store.put(room);
+  await tx.done;
+}
+
+export async function deleteRoom(shareId: string): Promise<void> {
+  const db = await initDB();
+  const tx = db.transaction(ROOMS_STORE, "readwrite");
+  await tx.store.delete(shareId);
+  await tx.done;
+}
+
+/** All room entries, most recently joined first. */
+export async function listRooms(): Promise<RoomEntry[]> {
+  const db = await initDB();
+  const tx = db.transaction(ROOMS_STORE, "readonly");
+  const rooms = await tx.store.getAll();
+  await tx.done;
+  return rooms.sort((a, b) => b.lastJoined - a.lastJoined);
+}
+
+export async function getSession(roomId: string): Promise<CollabSession | undefined> {
+  const db = await initDB();
+  const tx = db.transaction(COLLAB_SESSION_STORE, "readonly");
+  const session = await tx.store.get(roomId);
+  await tx.done;
+  return session;
+}
+
+export async function putSession(session: CollabSession): Promise<void> {
+  const db = await initDB();
+  const tx = db.transaction(COLLAB_SESSION_STORE, "readwrite");
+  await tx.store.put(session);
+  await tx.done;
+}
+
+export async function deleteSession(roomId: string): Promise<void> {
+  const db = await initDB();
+  const tx = db.transaction(COLLAB_SESSION_STORE, "readwrite");
+  await tx.store.delete(roomId);
   await tx.done;
 }
