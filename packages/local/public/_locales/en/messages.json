@@ -166,5 +166,179 @@
   },
   "AgentRouteWebmcp": {
     "message": "WebMCP"
+  },
+  "CollabSection": {
+    "message": "Collaboration"
+  },
+  "CollabSectionDescription": {
+    "message": "Connect to your team's self-hosted relay to enable realtime collaboration."
+  },
+  "CollabNoServer": {
+    "message": "No server connected"
+  },
+  "CollabNoServerHint": {
+    "message": "Paste a server invite from your admin to get started."
+  },
+  "CollabNotConnected": {
+    "message": "not connected"
+  },
+  "CollabLearnMore": {
+    "message": "How to deploy a relay"
+  },
+  "CollabPasteLabel": {
+    "message": "Server invite"
+  },
+  "CollabPastePlaceholder": {
+    "message": "Paste the server invite — excali-collab:v1:srv:…"
+  },
+  "CollabPasteAction": {
+    "message": "Review invite"
+  },
+  "CollabPastedLabel": {
+    "message": "Pasted"
+  },
+  "CollabPreviewTitle": {
+    "message": "Invite parsed — review"
+  },
+  "CollabParsedOrg": {
+    "message": "Organization"
+  },
+  "CollabParsedRelay": {
+    "message": "Relay address"
+  },
+  "CollabParsedKeys": {
+    "message": "Member signing key + content key included"
+  },
+  "CollabContinue": {
+    "message": "Continue"
+  },
+  "CollabTrustTitle": {
+    "message": "Trust and connect to this server?"
+  },
+  "CollabTrustWill": {
+    "message": "Excali Local will trust"
+  },
+  "CollabTrustAdmission": {
+    "message": "everyone in this org shares one admission key"
+  },
+  "CollabTrustBody": {
+    "message": "This extension will connect to the relay above, send encrypted canvas traffic through it, and trust it for your team's rooms."
+  },
+  "CollabTrustOk": {
+    "message": "Reachable"
+  },
+  "CollabTrustConnect": {
+    "message": "Trust & connect"
+  },
+  "CollabUnreachableTitle": {
+    "message": "Can't reach this server"
+  },
+  "CollabUnreachableBody": {
+    "message": "Nothing answered (timeout). Check the address with whoever sent the invite — the server may not be deployed yet. You can still save this config and connect later."
+  },
+  "CollabRetry": {
+    "message": "Retry"
+  },
+  "CollabSaveAnyway": {
+    "message": "Save anyway"
+  },
+  "CollabStatusOk": {
+    "message": "Reachable · just now"
+  },
+  "CollabStatusDown": {
+    "message": "No answer"
+  },
+  "CollabDialing": {
+    "message": "Checking…"
+  },
+  "CollabCheckAgain": {
+    "message": "Check again"
+  },
+  "CollabKeySk": {
+    "message": "Member signing key"
+  },
+  "CollabKeyCk": {
+    "message": "Content key"
+  },
+  "CollabReveal": {
+    "message": "Reveal"
+  },
+  "CollabHide": {
+    "message": "Hide"
+  },
+  "CollabCopyInvite": {
+    "message": "Copy member invite"
+  },
+  "CollabCopyCaution": {
+    "message": "Anyone with this invite can join your team’s relay — share it only with teammates."
+  },
+  "CollabMemberInviteSentence": {
+    "message": "Connect to「$1」in Excali Local → Options → Collaboration:"
+  },
+  "CollabCopied": {
+    "message": "Copied"
+  },
+  "CollabCopyFailed": {
+    "message": "Copy failed — select the invite text and copy it manually."
+  },
+  "CollabPasteNew": {
+    "message": "Paste a new invite"
+  },
+  "CollabSwitchTitle": {
+    "message": "Switch team server?"
+  },
+  "CollabSwitchBodyA": {
+    "message": "This replaces $1 with $2."
+  },
+  "CollabSwitchBodyB": {
+    "message": "Your rooms stay in My Rooms, grayed out — nothing is deleted. Rooms from the old server reconnect if you switch back."
+  },
+  "CollabSwitchAction": {
+    "message": "Switch server"
+  },
+  "CollabKeepCurrent": {
+    "message": "Keep current"
+  },
+  "CollabForget": {
+    "message": "Forget this server"
+  },
+  "CollabForgetTitle": {
+    "message": "Forget this server?"
+  },
+  "CollabForgetBody": {
+    "message": "Realtime collaboration stops working. Your rooms stay in My Rooms, grayed out — paste a server invite anytime to reconnect."
+  },
+  "CollabForgetAction": {
+    "message": "Forget"
+  },
+  "CollabStatusStale": {
+    "message": "Server rejected this member key"
+  },
+  "CollabStaleBody": {
+    "message": "The invite is probably outdated. Paste a fresh server invite in Options → Collaboration."
+  },
+  "CollabRejected": {
+    "message": "rejected"
+  },
+  "CollabPasteFreshInvite": {
+    "message": "Paste fresh invite"
+  },
+  "CollabLocalRelay": {
+    "message": "local relay"
+  },
+  "CollabInviteNotFound": {
+    "message": "No server invite found in this text. Paste the full invite from your admin."
+  },
+  "CollabInvalidInvite": {
+    "message": "This invite is invalid: $1"
+  },
+  "CollabRoomInviteHere": {
+    "message": "This is a room invite — paste it in the editor's Collaborate panel instead."
+  },
+  "CollabWriteFailed": {
+    "message": "Failed to save collaboration settings"
+  },
+  "CollabLastCheck": {
+    "message": "last check"
   }
 }

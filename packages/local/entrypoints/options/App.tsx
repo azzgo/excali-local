@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { IconX } from "@tabler/icons-react";
 
 import AgentControl from "./AgentControl";
+import CollabSection from "./CollabSection";
 const OptionsPage = () => {
   const [fontConfig, setFontConfig] = useState<FontConfig>({
     handwriting: null,
@@ -101,6 +102,9 @@ const OptionsPage = () => {
               onChange={(v) => applySlot("code", v)}
             />
           </div>
+        </div>
+        <div className="mb-4">
+          <CollabSection />
         </div>
       </div>
     </div>

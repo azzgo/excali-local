@@ -166,5 +166,179 @@
   },
   "AgentRouteWebmcp": {
     "message": "WebMCP"
+  },
+  "CollabSection": {
+    "message": "协作"
+  },
+  "CollabSectionDescription": {
+    "message": "连接团队自建的中继服务器以使用实时协作。"
+  },
+  "CollabNoServer": {
+    "message": "尚未连接服务器"
+  },
+  "CollabNoServerHint": {
+    "message": "粘贴管理员提供的服务器邀请即可开始。"
+  },
+  "CollabNotConnected": {
+    "message": "未连接"
+  },
+  "CollabLearnMore": {
+    "message": "如何部署中继服务器"
+  },
+  "CollabPasteLabel": {
+    "message": "服务器邀请"
+  },
+  "CollabPastePlaceholder": {
+    "message": "粘贴服务器邀请 — excali-collab:v1:srv:…"
+  },
+  "CollabPasteAction": {
+    "message": "审阅邀请"
+  },
+  "CollabPastedLabel": {
+    "message": "粘贴内容"
+  },
+  "CollabPreviewTitle": {
+    "message": "邀请已解析 — 审阅"
+  },
+  "CollabParsedOrg": {
+    "message": "组织"
+  },
+  "CollabParsedRelay": {
+    "message": "中继地址"
+  },
+  "CollabParsedKeys": {
+    "message": "包含成员签名密钥和内容密钥"
+  },
+  "CollabContinue": {
+    "message": "继续"
+  },
+  "CollabTrustTitle": {
+    "message": "信任并连接此服务器？"
+  },
+  "CollabTrustWill": {
+    "message": "Excali Local 将信任"
+  },
+  "CollabTrustAdmission": {
+    "message": "此组织中的所有成员共享一个准入密钥"
+  },
+  "CollabTrustBody": {
+    "message": "此扩展将连接上述中继、经它收发加密画布流量，并信任它承载你们团队的房间。"
+  },
+  "CollabTrustOk": {
+    "message": "可连接"
+  },
+  "CollabTrustConnect": {
+    "message": "信任并连接"
+  },
+  "CollabUnreachableTitle": {
+    "message": "无法连接此服务器"
+  },
+  "CollabUnreachableBody": {
+    "message": "没有任何响应（超时）。请与发送邀请的人核对地址 — 服务器可能还没部署好。也可以先保存此配置，稍后再连接。"
+  },
+  "CollabRetry": {
+    "message": "重试"
+  },
+  "CollabSaveAnyway": {
+    "message": "仍要保存"
+  },
+  "CollabStatusOk": {
+    "message": "可连接 · 刚刚"
+  },
+  "CollabStatusDown": {
+    "message": "无响应"
+  },
+  "CollabDialing": {
+    "message": "正在检查…"
+  },
+  "CollabCheckAgain": {
+    "message": "重新检查"
+  },
+  "CollabKeySk": {
+    "message": "成员签名密钥"
+  },
+  "CollabKeyCk": {
+    "message": "内容密钥"
+  },
+  "CollabReveal": {
+    "message": "显示"
+  },
+  "CollabHide": {
+    "message": "隐藏"
+  },
+  "CollabCopyInvite": {
+    "message": "复制成员邀请"
+  },
+  "CollabCopyCaution": {
+    "message": "任何持有此邀请的人都能加入你们团队的中继 — 仅分享给团队成员。"
+  },
+  "CollabMemberInviteSentence": {
+    "message": "在 Excali Local → 选项 → 协作 中连接「$1」："
+  },
+  "CollabCopied": {
+    "message": "已复制"
+  },
+  "CollabCopyFailed": {
+    "message": "复制失败 — 请手动选择邀请文本进行复制。"
+  },
+  "CollabPasteNew": {
+    "message": "粘贴新邀请"
+  },
+  "CollabSwitchTitle": {
+    "message": "切换团队服务器？"
+  },
+  "CollabSwitchBodyA": {
+    "message": "将以 $2 替换 $1。"
+  },
+  "CollabSwitchBodyB": {
+    "message": "房间仍保留在“我的房间”中并显示为灰色 — 不会被删除。切回旧服务器后，旧房间会重新可用。"
+  },
+  "CollabSwitchAction": {
+    "message": "切换"
+  },
+  "CollabKeepCurrent": {
+    "message": "保留当前"
+  },
+  "CollabForget": {
+    "message": "忘记此服务器"
+  },
+  "CollabForgetTitle": {
+    "message": "忘记此服务器？"
+  },
+  "CollabForgetBody": {
+    "message": "实时协作将停止使用。房间仍保留在“我的房间”中并显示为灰色 — 随时粘贴服务器邀请即可重连。"
+  },
+  "CollabForgetAction": {
+    "message": "忘记"
+  },
+  "CollabStatusStale": {
+    "message": "服务器拒绝了此成员密钥"
+  },
+  "CollabStaleBody": {
+    "message": "邀请可能已过期。请在“选项 → 协作”重新粘贴服务器邀请。"
+  },
+  "CollabRejected": {
+    "message": "已拒绝"
+  },
+  "CollabPasteFreshInvite": {
+    "message": "粘贴新邀请"
+  },
+  "CollabLocalRelay": {
+    "message": "本地"
+  },
+  "CollabInviteNotFound": {
+    "message": "未在此文本中找到服务器邀请。请粘贴管理员发送的完整邀请。"
+  },
+  "CollabInvalidInvite": {
+    "message": "此邀请无效：$1"
+  },
+  "CollabRoomInviteHere": {
+    "message": "这是房间邀请 — 请改在编辑器中粘贴。"
+  },
+  "CollabWriteFailed": {
+    "message": "协作设置保存失败"
+  },
+  "CollabLastCheck": {
+    "message": "上次检查"
   }
 }
