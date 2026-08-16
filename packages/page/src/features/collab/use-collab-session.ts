@@ -283,6 +283,10 @@ export interface UseCollabSessionOptions {
 export interface CollabSessionHandle {
   /** identity resolved + client constructed (else null — boot state) */
   ready: boolean;
+  /** true while the session is CONNECTED — the 056 Q6 propagation-banner
+   * gate (a config change under a live session raises the banner instead
+   * of re-dialing; see the admission freeze below). */
+  live: boolean;
   /** conn dot state (061 §1 vocabulary; 046 refines the full health copy) */
   conn: CollabClientState;
   /** last scheduled reconnect — rides the conn-dot tooltip (061 §1) */
@@ -394,6 +398,18 @@ export function useCollabSession({
   const [peers, setPeers] = useState<RosterMember[]>([]);
   const [hadOfflineEdits, setHadOfflineEdits] = useState(false);
   const [resets, setResets] = useState<CollabResetNotice | null>(null);
+
+  // --- 056 Q6: admission snapshot ------------------------------------
+  // A config change under a live session must NEVER re-dial (no auto-
+  // reconnect, no auto-close): the session keeps running on the admission
+  // it booted with, local edits keep working on that snapshot, and the
+  // amber banner + manual Reload is the only path to the new config.
+  // `server` is deliberately NOT a session-effect dep — it only feeds this
+  // freeze, which is set once at first boot.
+  const [admission, setAdmission] = useState<ServerConfig | null>(null);
+  useEffect(() => {
+    if (admission === null && server !== null) setAdmission(server);
+  }, [admission, server]);
 
   const { generateThumbnail } = useThumbnail();
 
@@ -511,7 +527,7 @@ export function useCollabSession({
   // --- the session: cache paint + connect (one path, 061 §3) ----------
   useEffect(() => {
     if (
-      server === null ||
+      admission === null ||
       room === null ||
       identity === null ||
       excalidrawAPI === null
@@ -623,7 +639,7 @@ export function useCollabSession({
       try {
         const client = await buildClient({
           shareId,
-          server,
+          server: admission,
           room,
           identity,
           wsFactory,
@@ -663,7 +679,7 @@ export function useCollabSession({
       setReady(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [server, room, identity, excalidrawAPI, shareId]);
+  }, [admission, room, identity, excalidrawAPI, shareId]);
 
   const handleFirstScene = useCallback(
     (scene: IncomingScene, elements: readonly unknown[]) => {
@@ -839,6 +855,7 @@ export function useCollabSession({
 
   return {
     ready,
+    live: ready && conn === "connected",
     conn,
     reconnect,
     lastError,

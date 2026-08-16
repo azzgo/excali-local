@@ -26,10 +26,10 @@ describe("CollabEditor hash routing (053 round 3)", () => {
     expect(screen.getByTestId("collab-landing")).toBeTruthy();
   });
 
-  test("#config → config screen", () => {
+  test("#config → config screen", async () => {
     setHash("#config");
     render(<CollabEditor lang="en" />);
-    expect(screen.getByTestId("collab-config")).toBeTruthy();
+    expect(await screen.findByTestId("collab-config")).toBeTruthy();
   });
 
   test("#create → create shell", () => {

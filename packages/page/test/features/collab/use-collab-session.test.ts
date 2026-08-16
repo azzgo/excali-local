@@ -490,3 +490,60 @@ describe("use-collab-session — seed + saveToGallery", () => {
     unmount();
   });
 });
+
+describe("use-collab-session — 056 Q6 admission freeze + live gate", () => {
+  test("live is false until the socket opens, true once connected (banner gate)", async () => {
+    const api = makeApi();
+    const { result, unmount } = renderHook(() =>
+      useCollabSession(makeHookOptions(api)),
+    );
+    await waitFor(() => expect(lastSocket()).toBeDefined());
+    expect(result.current.live).toBe(false);
+    const ws = lastSocket();
+    await act(async () => {
+      ws.open();
+    });
+    await act(async () => {
+      ws.message(welcomeMessage());
+    });
+    await waitFor(() => expect(result.current.live).toBe(true));
+    unmount();
+  });
+
+  test("config change under a live session does NOT re-dial (admission frozen)", async () => {
+    const api = makeApi();
+    const OTHER: ServerConfig = {
+      relay: "https://other.example.com",
+      org: "other",
+      sk: KEY43,
+      ck: KEY43,
+    };
+    const { result, rerender, unmount } = renderHook(
+      (props: { server: ServerConfig }) =>
+        useCollabSession({ ...makeHookOptions(api), server: props.server }),
+      { initialProps: { server: SERVER } },
+    );
+    await waitFor(() => expect(lastSocket()).toBeDefined());
+    const ws = lastSocket();
+    await act(async () => {
+      ws.open();
+    });
+    await act(async () => {
+      ws.message(welcomeMessage());
+    });
+    await waitFor(() => expect(result.current.live).toBe(true));
+    expect(isEnvelope(ws.sent[0] ?? "", "hello")).toBe(true);
+
+    // Options switched servers while this session was live — the hook
+    // must NOT tear down or re-dial (056 Q6: no auto-reconnect, no auto-
+    // close; the amber banner + manual Reload is the only path).
+    const socketsBefore = StubSocket.instances.length;
+    await act(async () => {
+      rerender({ server: OTHER });
+    });
+    expect(StubSocket.instances).toHaveLength(socketsBefore);
+    expect(result.current.conn).toBe("connected");
+    expect(result.current.live).toBe(true);
+    unmount();
+  });
+});

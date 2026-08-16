@@ -32,6 +32,7 @@ import { useServerConfig } from "./hooks/use-server-config";
 import { useLabelMode } from "./labels";
 import { ROUTES } from "./routes";
 import { SessionChrome } from "./session-chrome";
+import { ConfigPropagationBanner } from "./config-banner";
 import type { CollabRoomMeta } from "./use-collab-session";
 import type { WsFactory } from "collab-core";
 import { useCollabSession } from "./use-collab-session";
@@ -189,8 +190,12 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
       {/* the exclusive one-row session chrome above the canvas (053) */}
       <SessionChrome room={room} session={session} />
       {/* 046/047 seam: conn-health banner strip renders here (061 §8 — a
-          conditional one-row strip under the chrome, pushes the canvas down) */}
-      <div data-testid="collab-conn-banner-slot" className="min-h-0" />
+          conditional one-row strip under the chrome, pushes the canvas down).
+          056 Q6 config-change propagation banner shares the strip: a config
+          change under a live session raises it (no auto-reconnect). */}
+      <div data-testid="collab-conn-banner-slot" className="min-h-0">
+        <ConfigPropagationBanner live={session.live} />
+      </div>
       <div className="relative flex-1 overflow-hidden">
         <Excalidraw
           autoFocus

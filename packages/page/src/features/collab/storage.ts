@@ -26,6 +26,15 @@ export interface ServerConfig {
   sk: string;
   /** org content key, 43-char b64url (32 bytes) — never rendered raw */
   ck: string;
+  /** optional server fingerprint from the invite (warn-only, 048) */
+  fp?: string;
+  /** epoch ms of the last adoption (056 configured summary). */
+  configuredAt?: number;
+  /** member Ed25519 keypair (057 §3) — minted by Options at adoption,
+   * preserved on rewrite so the session reuses it (mint-once). */
+  member?: { seed: string; pub: string };
+  /** last-known admission rejection (epoch ms) — 056 Q8 rotation line. */
+  rejectedAt?: number;
 }
 
 export function isServerConfig(value: unknown): value is ServerConfig {
@@ -93,5 +102,37 @@ export function isLoopbackRelay(relay: string): boolean {
     return host === "127.0.0.1" || host === "::1" || host === "[::1]";
   } catch {
     return false;
+  }
+}
+
+/**
+ * Write (or clear) the server admission config — the WRITER both forms use
+ * (the Options section writes chrome.storage directly; the webapp mirror,
+ * task 049, calls this). Routes by getBrowser(): chrome.storage.local in the
+ * extension, localStorage in the webapp form (getBrowser() null) — SAME key
+ * literal + SAME stored shape, so every reader (use-server-config,
+ * use-collab-session's readRawServerConfig) works unchanged on both.
+ *
+ * `null` clears the key (Forget this server, 056 Q7). Throws on storage
+ * failure — callers surface the CollabWriteFailed toast.
+ */
+export async function writeServerConfig(config: ServerConfig | null): Promise<void> {
+  const browser = getBrowser();
+  if (browser?.storage?.local) {
+    if (config === null) {
+      await browser.storage.local.remove(COLLAB_SERVER_CONFIG);
+    } else {
+      await browser.storage.local.set({ [COLLAB_SERVER_CONFIG]: config });
+    }
+    return;
+  }
+  try {
+    if (config === null) {
+      globalThis.localStorage?.removeItem(COLLAB_SERVER_CONFIG);
+    } else {
+      globalThis.localStorage?.setItem(COLLAB_SERVER_CONFIG, JSON.stringify(config));
+    }
+  } catch (err) {
+    throw err instanceof Error ? err : new Error(String(err));
   }
 }
