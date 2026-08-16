@@ -28,3 +28,10 @@ packages/bridge/bin/
 
 # excali-local-test skill — generated scratch (pids, logs, materialized wxt config)
 .agents/skills/excali-local-test/.excali-test/
+
+# collab-relay dev loop (060 §2) — idempotent dev identity, seeded env, mkcert certs
+.dev-keys.json
+.env
+.dev-cert.pem
+.dev-key.pem
+.partykit/

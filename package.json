@@ -21,7 +21,9 @@
     "skill:check": "tsx scripts/check-skill-commands.ts",
     "sync:version": "bash ./scripts/sync-version.sh",
     "bridge:build": "cd packages/bridge && go build -buildvcs=false -o bin/excali-bridge .",
-    "bridge:test": "cd packages/bridge && go test ./..."
+    "bridge:test": "cd packages/bridge && go test ./...",
+    "relay:dev": "tsx scripts/relay-dev.ts",
+    "relay:dev:https": "tsx scripts/relay-dev.ts --https"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
