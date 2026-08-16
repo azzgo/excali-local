@@ -1,3 +1,9 @@
+// Real in-memory IndexedDB for every test (collab session cache, gallery
+// drawings, room list — 048/053/061 store in the `excali` DB v3).
+// fake-indexeddb is declared in page/package.json (043) — imported here so
+// collab screens (rooms list, room session) run against a real IDB.
+import "fake-indexeddb/auto";
+
 import { vi, beforeEach } from 'vitest';
 
 // Mock localStorage
