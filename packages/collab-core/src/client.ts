@@ -289,6 +289,10 @@ export class CollabClient {
   private assembler: ChunkAssembler
   private connIdValue: string | null = null
   private stateValue: CollabClientState = "idle"
+  /** wire-envelope listeners (task 051 file layer) — fire in registration order */
+  private readonly messageListeners = new Set<(env: WireEnvelope & { from?: string }) => void>()
+  /** socket-open listeners (task 051 offline queue drain) — fire after opts.onOpen */
+  private readonly openListeners = new Set<() => void>()
 
   constructor(private readonly opts: CollabClientOptions) {
     this.assembler = new ChunkAssembler()
@@ -385,6 +389,39 @@ export class CollabClient {
     })
   }
 
+  /**
+   * Generic send seam (task 051): file-put/file-get/file-data envelopes from
+   * the file layer. Behaves exactly like the typed senders — transparent
+   * chunk framing, dropped silently while disconnected (the file layer
+   * queues offline fetches; scene loss is covered by the reconnect resync).
+   */
+  send(env: WireEnvelope): void {
+    this.sendEnvelope(env)
+  }
+
+  /**
+   * Register a listener for every decoded wire envelope (post chunk
+   * reassembly, pre typed dispatch) — the seam the file layer uses to see
+   * file-available / file / file-data / error frames. Returns an unsubscribe
+   * function.
+   */
+  addMessageListener(fn: (env: WireEnvelope & { from?: string }) => void): () => void {
+    this.messageListeners.add(fn)
+    return () => this.messageListeners.delete(fn)
+  }
+
+  /**
+   * Register a listener that fires on every socket open — the INITIAL dial
+   * and every reconnect. Fires AFTER hello has been sent on the same ordered
+   * channel, so the relay (roster gate, 052 §3) admits any frames the
+   * listener sends (the file layer's offline-queue drain). Returns an
+   * unsubscribe function.
+   */
+  addOpenListener(fn: () => void): () => void {
+    this.openListeners.add(fn)
+    return () => this.openListeners.delete(fn)
+  }
+
   // --- connection lifecycle --------------------------------------------------
 
   private dial(): void {
@@ -415,7 +452,10 @@ export class CollabClient {
       this.clearDialTimer()
       this.setState("connected")
       this.opts.onOpen?.()
-      this.sendHello(ws)
+      this.sendHello(ws) // hello FIRST on the ordered channel — open listeners
+      // (file-layer queue drain) fire after it, so the relay admits their
+      // frames before they arrive (roster gate, 052 §3)
+      for (const fn of this.openListeners) fn()
     }
     const onMessage = (event: unknown) => {
       if (this.ws !== ws) return
@@ -503,7 +543,7 @@ export class CollabClient {
   }
 
   /** Send one wire envelope; transparent chunk framing (049 §3). */
-  private sendEnvelope(env: ClientMessage): void {
+  private sendEnvelope(env: WireEnvelope): void {
     const ws = this.ws
     if (ws === null || ws.readyState !== WS_OPEN) return // drop — resync covers loss
     const res = serializeEnvelope(env)
@@ -536,6 +576,7 @@ export class CollabClient {
   private handleEnvelope(env: WireEnvelope): void {
     if (env.v !== PROTOCOL_VERSION) return // future protocol / relay bug — drop
     this.opts.onMessage?.(env as WireEnvelope & { from?: string })
+    for (const fn of this.messageListeners) fn(env as WireEnvelope & { from?: string })
     switch (env.t) {
       case "welcome": {
         const welcome = env.p as WelcomePayload
