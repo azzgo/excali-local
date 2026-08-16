@@ -69,3 +69,89 @@ for extension pages is not verifiable from here.
 extension page can call `document.modelContext.registerTool` without flags; if
 yes, remove the probe's catch-all `return false` on throw (or keep it — a real
 SecurityError on web origins would still be a regression to surface).
+
+## Realtime collaboration (1.8.0)
+
+Design and platform limits of the collaboration feature ([COLLAB.md](COLLAB.md),
+[ADR 0003](adr/0003-byo-relay-realtime-collab.md)). Each entry states the
+limitation, why it exists, and what the code does in response.
+
+### 20MB per-file cap, no resumable upload
+
+**What**: files synced in a collab room (images, attachments) are capped at
+**20MB per file**, and uploads are not resumable — a dropped upload restarts.
+
+**Why**: the relay chunks every message under the DO 256KB cap (20MB / 200KB =
+100 chunks per file), and v1 deliberately ships no resumable-upload machinery.
+
+**What the code does**: the file-put path rejects larger files at the client
+with a clear error; the room keeps working for everything below the cap.
+
+### One relay per extension
+
+**What**: the extension connects to exactly one relay at a time — permanently.
+Accepting a server invite replaces the stored config; there is no multi-relay
+list.
+
+**Why**: multi-relay support was rejected permanently in ADR 0003 (design
+exclusion, not a deferral) — it removes the routing ambiguity that room invites
+rely on.
+
+**What the code does**: the server-invite parser and the Options → Collaboration
+surface enforce the single-config invariant; room invites never carry a server
+address.
+
+### No per-member revocation
+
+**What**: a compromised member key cannot be revoked individually; ejection uses
+the org-level path — rotate the org keys, re-issue server invites, and have the
+affected member reinstall.
+
+**Why**: identity is self-asserted (no PKI) by ADR 0003; a mini-CA was
+explicitly rejected.
+
+**What the code does**: stored content signed under an old member key remains
+verifiable via its self-contained `signer` field, so rotation does not corrupt
+history.
+
+### Relay has no rate limiting (v1)
+
+**What**: the relay reference does not rate-limit or throttle traffic.
+
+**Why**: v1 targets org-private, small-team deployments where the operator
+trusts the membership; bandwidth abuse is not part of the v1 threat model.
+
+**What the code does**: documented behavior — the relay is not intended for
+public/multi-tenant operation.
+
+### Rooms die when empty
+
+**What**: a room's snapshot and files are deleted when the room is empty and the
+Durable Object is evicted (~70–140s of inactivity). Nothing user-visible
+persists server-side.
+
+**Why**: by design — a room is an ephemeral overlay; the local gallery is the
+durable record (ADR 0003).
+
+**What the code does**: the room list stores invite payloads locally; re-entering
+a dead room prompts the first member to reseed from their gallery.
+
+### Presentation mode × collaboration deferred
+
+**What**: presentation mode does not interact with collab rooms in 1.8.0
+(follow-a-collaborator / whole-room presentation is out of scope).
+
+**Why**: human decision 2026-08-16 — revisit only after the collab model matures
+in real use.
+
+**What the code does**: the two modes are separate editor forms; nothing
+prevents presenting a drawing you saved from a collab session.
+
+### Laser pointer sync not in v1
+
+**What**: the `tool: "laser"` pointer mode is not synced to collaborators.
+
+**Why**: ADR 0003 consequence list — laser sync is a 1.9 candidate.
+
+**What the code does**: laser strokes stay local-only; the pointer message type
+carries the tool field, so the wire contract already supports it.

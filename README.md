@@ -10,6 +10,10 @@
 
 Excali Local is a browser extension that brings **Excalidraw fully offline**: screenshot annotation, a complete local editor, a private gallery, and presentation mode — with no backend, no account, no uploads. Every drawing stays in your browser.
 
+## New in v1.8.0
+
+- **Realtime collaboration** — hostless, end-to-end-encrypted rooms over a relay you deploy yourself (a ~150-line PartyKit reference; no Excali Local backend — the relay forwards ciphertext only). Team rooms are E2E to your org, private rooms E2E per room; file sync included. → [Collaboration Guide](docs/COLLAB.md) · [ADR 0003](docs/adr/0003-byo-relay-realtime-collab.md)
+
 ## New in v1.7.0
 
 - **Import your gallery from a ZIP** — bring a previously exported archive (even one edited outside the app) back into your gallery.
