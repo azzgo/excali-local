@@ -53,6 +53,16 @@ function genManifest(env: ConfigEnv) {
     // token here before a release targeting Chrome 157+ (dev builds use the
     // --enable-webmcp-testing flag instead; Firefox ignores trial_tokens).
     trial_tokens: [],
+    // Locked CSP v4 (Wayfinder 047): connect-src widened for realtime collab
+    // (remote TLS-only) while keeping the agent-bridge Leg B loopback dial
+    // (ws://127.0.0.1:* + http://127.0.0.1:* health pre-probe) intact. Bare
+    // scheme-sources accepted + enforced identically on Chrome & Firefox.
+    // Dev builds get http://localhost:3000 appended to script-src by WXT
+    // automatically (serve command) — never hardcode it here.
+    content_security_policy: {
+      extension_pages:
+        "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' http://127.0.0.1:* ws://127.0.0.1:* wss: https:",
+    },
   };
 
   if (env.browser === "firefox") {
