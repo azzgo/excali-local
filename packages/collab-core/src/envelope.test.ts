@@ -28,9 +28,12 @@ import {
   decryptContent,
   deriveContentKey,
   encryptContent,
+  signHello,
+  verifyEd25519,
   verifyFrameSig,
 } from "./envelope"
 import type { ContentFrame, ContentSigner, ContentType, SignedFrame } from "./envelope"
+import { helloCanon, seedToPkcs8, type HelloPayload } from "./wire"
 
 // ─── documented KAT vector ───────────────────────────────────────────────────
 
@@ -659,7 +662,11 @@ describe("verifyFrameSig (058 §2.1/§2.3, §3.1 step 2)", () => {
       plaintext: scenePayload,
       signer,
     })
-    const flip = (s: string) => (s[s.length - 1] === "A" ? s.slice(0, -1) + "B" : s.slice(0, -1) + "A")
+    // flip the FIRST char: base64url has no leading pad, so the first char
+    // always encodes 6 data bits (the last char can carry only pad bits,
+    // e.g. an 86-char Ed25519 sig has 4 trailing pad bits — flipping those
+    // would decode to the same bytes and verify true)
+    const flip = (s: string) => (s[0] === "A" ? "B" + s.slice(1) : "A" + s.slice(1))
 
     await expect(verifyFrameSig({ ...asFrame("scene", "room-1", frame), c: flip(frame.c) })).resolves.toBe(false)
     await expect(verifyFrameSig({ ...asFrame("scene", "room-1", frame), iv: flip(frame.iv) })).resolves.toBe(false)
@@ -731,5 +738,134 @@ describe("verifyFrameSig (058 §2.1/§2.3, §3.1 step 2)", () => {
     await expect(
       decryptContent({ key: key2, t: "scene", room: "room-1", shareId: "room-1", frame }),
     ).rejects.toBeInstanceOf(GcmAuthError) // old key is gone ⇒ stale-key signal
+  })
+})
+
+describe("verifyEd25519 (detached sig vs raw b64url pubkey)", () => {
+  const canon = 'excali-collab/v1:hello:{"v":1,"t":"hello","p":{}}'
+
+  async function rawPk(kp: CryptoKeyPair): Promise<string> {
+    return bytesToB64url(new Uint8Array(await crypto.subtle.exportKey("raw", kp.publicKey)))
+  }
+
+  async function signWith(kp: CryptoKeyPair): Promise<string> {
+    const sig = new Uint8Array(
+      await crypto.subtle.sign({ name: "Ed25519" }, kp.privateKey, new TextEncoder().encode(canon)),
+    )
+    return bytesToB64url(sig)
+  }
+
+  it("passes a valid detached sig against the matching raw pubkey", async () => {
+    const kp = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])
+    await expect(verifyEd25519(canon, await signWith(kp), await rawPk(kp))).resolves.toBe(true)
+  })
+
+  it("fails when the signed bytes differ (tampered canon)", async () => {
+    const kp = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])
+    await expect(verifyEd25519(canon + "tampered", await signWith(kp), await rawPk(kp))).resolves.toBe(false)
+  })
+
+  it("fails for a different public key (rotation cutover)", async () => {
+    const kp = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])
+    const other = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])
+    await expect(verifyEd25519(canon, await signWith(kp), await rawPk(other))).resolves.toBe(false)
+  })
+
+  it("returns false — never throws — on malformed input", async () => {
+    const kp = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])
+    const pk = await rawPk(kp)
+    const sig = await signWith(kp)
+    await expect(verifyEd25519(canon, "!!!not-b64!!!", pk)).resolves.toBe(false) // bad sig b64
+    await expect(verifyEd25519(canon, bytesToB64url(new Uint8Array(32)), pk)).resolves.toBe(false) // sig ≠ 64B
+    await expect(verifyEd25519(canon, sig, "!!!not-b64!!!")).resolves.toBe(false) // bad key b64
+    await expect(verifyEd25519(canon, sig, bytesToB64url(new Uint8Array(31)))).resolves.toBe(false) // key ≠ 32B
+  })
+
+  it("round-trips through the 057 §1 seed path (pkcs8 export → seedToPkcs8 → import → sign)", async () => {
+    const kp = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])
+    const pkcs8 = new Uint8Array(await crypto.subtle.exportKey("pkcs8", kp.privateKey))
+    const seed = pkcs8.slice(16) // fixed 16-byte DER prefix (057 §1)
+    expect(seed).toHaveLength(32)
+    const orgKey = await crypto.subtle.importKey(
+      "pkcs8",
+      seedToPkcs8(seed),
+      { name: "Ed25519" },
+      false,
+      ["sign"],
+    )
+    const sig = new Uint8Array(
+      await crypto.subtle.sign({ name: "Ed25519" }, orgKey, new TextEncoder().encode(canon)),
+    )
+    await expect(verifyEd25519(canon, bytesToB64url(sig), await rawPk(kp))).resolves.toBe(true)
+  })
+})
+
+describe("hello admission signature (057 §3)", () => {
+  function makeHello(overrides: Partial<HelloPayload> = {}): HelloPayload {
+    return {
+      profileId: "prof-0001",
+      name: "Ada",
+      color: { background: "hsl(10, 100%, 83%)", stroke: "hsl(10, 100%, 50%)" },
+      privacy: "team",
+      room: "share-123",
+      admit: { org: "acme", sig: "" },
+      key: "pubkey-b64",
+      ...overrides,
+    }
+  }
+
+  it("helloCanon is the verbatim 057 §3 canonical string (fixed order, org hoisted, sig excluded)", () => {
+    expect(helloCanon(makeHello())).toBe(
+      "excali-collab/v1:hello:{\"v\":1,\"t\":\"hello\",\"p\":{\"profileId\":\"prof-0001\",\"name\":\"Ada\"," +
+      "\"color\":{\"background\":\"hsl(10, 100%, 83%)\",\"stroke\":\"hsl(10, 100%, 50%)\"},\"privacy\":\"team\"," +
+      "\"room\":\"share-123\",\"org\":\"acme\",\"key\":\"pubkey-b64\"}}",
+    )
+    const canon = helloCanon(makeHello())
+    // the signature is NOT part of the canon — a filled sig changes nothing
+    expect(helloCanon(makeHello({ admit: { org: "acme", sig: "FILLED-SIG" } }))).toBe(canon)
+    expect(canon).not.toContain("admit") // org is hoisted, admit object is gone
+    expect(canon).not.toContain("sig")
+    // order-sensitive check: org sits between room and key (fixed property order)
+    expect(canon.indexOf("\"room\":\"share-123\",\"org\":\"acme\",\"key\":\"pubkey-b64\"")).toBeGreaterThan(-1)
+  })
+
+  it("signHello produces an 86-char b64url Ed25519 sig that verifies against the org pk", async () => {
+    const kp = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])
+    const hello = makeHello()
+    const sig = await signHello(hello, kp.privateKey)
+    expect(sig).toMatch(/^[A-Za-z0-9_-]{86}$/) // 64B ⇒ 86 chars, unpadded b64url
+    const pk = bytesToB64url(new Uint8Array(await crypto.subtle.exportKey("raw", kp.publicKey)))
+    await expect(verifyEd25519(helloCanon(hello), sig, pk)).resolves.toBe(true)
+  })
+
+  it("the sig binds the whole payload — any field change breaks verification", async () => {
+    const kp = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])
+    const pk = bytesToB64url(new Uint8Array(await crypto.subtle.exportKey("raw", kp.publicKey)))
+    const hello = makeHello()
+    const sig = await signHello(hello, kp.privateKey)
+    await expect(verifyEd25519(helloCanon(hello), sig, pk)).resolves.toBe(true)
+    const tampered: Array<Partial<HelloPayload>> = [
+      { name: "Eve" }, // display name
+      { profileId: "prof-0002" }, // identity
+      { room: "share-456" }, // room claim
+      { key: "other-pubkey" }, // pinned member key
+      { privacy: "private" },
+      { admit: { org: "other-org", sig: "" } }, // org label
+    ]
+    for (const patch of tampered) {
+      const t = { ...hello, ...patch }
+      await expect(verifyEd25519(helloCanon(t), sig, pk)).resolves.toBe(false)
+    }
+  })
+
+  it("round-trips through the 057 §1 seed path (pkcs8 → seedToPkcs8 → import → signHello)", async () => {
+    const kp = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])
+    const pkcs8 = new Uint8Array(await crypto.subtle.exportKey("pkcs8", kp.privateKey))
+    const seed = pkcs8.slice(16) // fixed 16-byte DER prefix (057 §1)
+    const orgKey = await crypto.subtle.importKey("pkcs8", seedToPkcs8(seed), { name: "Ed25519" }, false, ["sign"])
+    const hello = makeHello()
+    const sig = await signHello(hello, orgKey)
+    const pk = bytesToB64url(new Uint8Array(await crypto.subtle.exportKey("raw", kp.publicKey)))
+    await expect(verifyEd25519(helloCanon(hello), sig, pk)).resolves.toBe(true)
   })
 })

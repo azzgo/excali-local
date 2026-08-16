@@ -1,6 +1,6 @@
 export { CHUNK_THRESHOLD, ChunkAssembler, serializeEnvelope } from "./chunk"
 export type { ChunkFrame, SerializeEnvelopeResult } from "./chunk"
-export { PROTOCOL_VERSION, deriveColor, seedToPkcs8 } from "./wire"
+export { PROTOCOL_VERSION, deriveColor, helloCanon, seedToPkcs8 } from "./wire"
 export type {
   ProtocolVersion,
   WireEnvelope,
@@ -41,7 +41,9 @@ export {
   decryptContent,
   deriveContentKey,
   encryptContent,
+  signHello,
   verifyFrameSig,
+  verifyEd25519,
 } from "./envelope"
 export type {
   ContentFrame,
@@ -54,3 +56,25 @@ export type {
   SignedFrame,
   SignerRef,
 } from "./envelope"
+export {
+  CollabClient,
+  DIAL_TIMEOUT_MS,
+  FATAL_ERROR_CODES,
+  RECONNECT_BASE_MS,
+  RECONNECT_MAX_MS,
+  SCENE_THROTTLE_MS,
+  buildRoomUrl,
+  defaultWsFactory,
+} from "./client"
+export type {
+  ClientErrorCode,
+  CollabBackoffOptions,
+  CollabClientOptions,
+  CollabClientState,
+  CollabError,
+  CollabWs,
+  IncomingPointer,
+  IncomingScene,
+  PointerPayload,
+  WsFactory,
+} from "./client"

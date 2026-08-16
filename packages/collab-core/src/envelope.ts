@@ -32,6 +32,7 @@
  *
  * WebCrypto only — dependency-free (collab-core constraint).
  */
+import { helloCanon, type HelloPayload } from "./wire"
 
 // ─── protocol constants ──────────────────────────────────────────────────────
 
@@ -279,6 +280,22 @@ export function contentCanon(
   return `excali-collab/v1:sign:${JSON.stringify({ t, room, c, iv })}`
 }
 
+// ─── hello admission signature (057 §3) ─────────────────────────────────────
+
+/**
+ * Sign a hello's admission proof (057 §3): Ed25519 detached signature over
+ * wire.helloCanon (the SINGLE 057 §3 implementation — wire.ts), returned
+ * b64url (64B ⇒ 86 chars) for `hello.admit.sig`. `privateKey` must be the
+ * org Ed25519 private key imported from the 057 §1 seed (seedToPkcs8) with
+ * usages ["sign"] — hello membership is proven by signature, never by a
+ * shared secret.
+ */
+export async function signHello(hello: HelloPayload, privateKey: CryptoKey): Promise<string> {
+  const canon = new TextEncoder().encode(helloCanon(hello))
+  const sig = new Uint8Array(await crypto.subtle.sign({ name: "Ed25519" }, privateKey, canon))
+  return bytesToB64url(sig)
+}
+
 // ─── content key derivation (050 §2 / 057 §1 / 058 §1.1) ─────────────────────
 
 const keyCache = new Map<string, Promise<CryptoKey>>()
@@ -504,6 +521,41 @@ export async function verifyFrameSig(frame: ContentFrame): Promise<boolean> {
       "verify",
     ])
     return crypto.subtle.verify({ name: "Ed25519" }, pubKey, sigBytes, canon)
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Verify a detached Ed25519 signature over an arbitrary canonical string
+ * against a raw 32-byte Ed25519 public key (b64url). Returns false — never
+ * throws — on any failure (bad b64, wrong key/sig length, verify failure),
+ * mirroring verifyFrameSig's drop-silently contract (058 §3.3).
+ *
+ * Used by the relay's hello admission loop (059 §3 step 4: one pk at a
+ * time, any pass admits) and by the client's send-path self-verify (058
+ * §3.1). The caller supplies the canonical string — for hello admission
+ * that is wire.helloCanon, for content frames contentCanon.
+ */
+export async function verifyEd25519(
+  canon: string,
+  sigB64url: string,
+  publicKeyB64url: string,
+): Promise<boolean> {
+  try {
+    const sigBytes = b64urlToBytes(sigB64url)
+    if (sigBytes.length !== 64) return false // Ed25519 sigs are 64 bytes
+    const keyBytes = b64urlToBytes(publicKeyB64url)
+    if (keyBytes.length !== 32) return false // Ed25519 pubkeys are 32 bytes
+    const pubKey = await crypto.subtle.importKey("raw", keyBytes, { name: "Ed25519" }, false, [
+      "verify",
+    ])
+    return crypto.subtle.verify(
+      { name: "Ed25519" },
+      pubKey,
+      sigBytes,
+      new TextEncoder().encode(canon),
+    )
   } catch {
     return false
   }

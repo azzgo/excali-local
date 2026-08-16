@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { PROTOCOL_VERSION, deriveColor, seedToPkcs8 } from "./wire"
+import { PROTOCOL_VERSION, deriveColor, helloCanon, seedToPkcs8 } from "./wire"
 import type { ClientMessage, HelloPayload, Member, RelayMessage } from "./wire"
 
 const member: Member = {
@@ -145,5 +145,50 @@ describe("seedToPkcs8", () => {
     const seed = new Uint8Array([1, 2, 3])
     seedToPkcs8(seed)
     expect(Array.from(seed)).toEqual([1, 2, 3])
+  })
+})
+
+describe("helloCanon (057 §3)", () => {
+  it("is the exact canonical string: fixed property order, org hoisted, sig excluded", () => {
+    expect(helloCanon(hello)).toBe(
+      "excali-collab/v1:hello:{\"v\":1,\"t\":\"hello\",\"p\":{\"profileId\":\"profile-1\",\"name\":\"Ada\"," +
+        "\"color\":{\"background\":\"#ffc9c9\",\"stroke\":\"#e03131\"},\"privacy\":\"team\"," +
+        "\"room\":\"shareId-abc\",\"org\":\"acme\",\"key\":\"cHVibGljLWtleQ\"}}"
+    )
+  })
+
+  it("hoists admit.org to p.org and never includes admit.sig", () => {
+    const canon = helloCanon(hello)
+    expect(canon).toContain('"org":"acme"')
+    expect(canon).not.toContain("admit")
+    expect(canon).not.toContain('"sig"')
+  })
+
+  it("is deterministic and survives a wire round-trip (signer/verifier agreement)", () => {
+    // JSON.parse preserves the sender's property order, so the relay's canon
+    // rebuild from received fields is byte-identical to the signer's.
+    const parsed = JSON.parse(JSON.stringify(hello)) as HelloPayload
+    expect(helloCanon(parsed)).toBe(helloCanon(hello))
+  })
+
+  it("signs and verifies end-to-end with a WebCrypto Ed25519 key (057 §1 seed path)", async () => {
+    const kp = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])
+    const pkcs8 = new Uint8Array(await crypto.subtle.exportKey("pkcs8", kp.privateKey))
+    const orgKey = await crypto.subtle.importKey(
+      "pkcs8",
+      seedToPkcs8(pkcs8.slice(16)), // strip DER prefix → seed → rewrap (057 §1)
+      { name: "Ed25519" },
+      false,
+      ["sign"],
+    )
+    const canon = new TextEncoder().encode(helloCanon(hello))
+    const sig = new Uint8Array(await crypto.subtle.sign({ name: "Ed25519" }, orgKey, canon))
+    const pk = new Uint8Array(await crypto.subtle.exportKey("raw", kp.publicKey))
+    const pubKey = await crypto.subtle.importKey("raw", pk, { name: "Ed25519" }, false, ["verify"])
+    await expect(crypto.subtle.verify({ name: "Ed25519" }, pubKey, sig, canon)).resolves.toBe(true)
+    // tamper: the sig must NOT verify against a modified canon
+    await expect(
+      crypto.subtle.verify({ name: "Ed25519" }, pubKey, sig, new TextEncoder().encode(helloCanon(hello) + "x")),
+    ).resolves.toBe(false)
   })
 })

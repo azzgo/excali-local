@@ -136,9 +136,44 @@ const PKCS8_PREFIX = new Uint8Array([
  * Wrap a 32-byte RFC 8032 Ed25519 seed in PKCS#8 (057 §1) so WebCrypto
  * `importKey("pkcs8", …)` can consume it: fixed 16-byte DER prefix || seed.
  */
-export function seedToPkcs8(seed: Uint8Array): Uint8Array {
+export function seedToPkcs8(seed: Uint8Array): Uint8Array<ArrayBuffer> {
   const out = new Uint8Array(PKCS8_PREFIX.length + seed.length)
   out.set(PKCS8_PREFIX, 0)
   out.set(seed, PKCS8_PREFIX.length)
   return out
+}
+
+/**
+ * 057 §3 canonical hello string — the exact bytes the org seed signs:
+ *
+ *   `excali-collab/v1:hello:` + JSON.stringify({ v:1, t:"hello",
+ *     p:{ profileId, name, color, privacy, room, org, key } })
+ *
+ * i.e. the full hello payload minus `admit.sig`, with `admit.org` hoisted
+ * to `org`, fixed property order, plain `JSON.stringify`, UTF-8. SINGLE
+ * implementation shared by the signing client and the verifying relay
+ * (057 §3: "single collab-core implementation" — the zero-drift rule).
+ *
+ * Plain JSON.stringify is safe because signer and verifier are the same
+ * package (no RFC 8785 needed, 057 §3 precedent); the wire-parsed object
+ * preserves the sender's property order, so a hello round-trips byte-
+ * identically through JSON.parse/JSON.stringify.
+ */
+export function helloCanon(hello: HelloPayload): string {
+  return (
+    "excali-collab/v1:hello:" +
+    JSON.stringify({
+      v: 1,
+      t: "hello",
+      p: {
+        profileId: hello.profileId,
+        name: hello.name,
+        color: hello.color,
+        privacy: hello.privacy,
+        room: hello.room,
+        org: hello.admit.org,
+        key: hello.key,
+      },
+    })
+  )
 }
