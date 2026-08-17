@@ -20,11 +20,11 @@
  *
  * IMPORTANT path finding (task 041): partykit 0.0.115 only routes WS upgrades
  * to the main worker's room DO via `/party/<shareId>` (or `/parties/main/…`)
- * — the wire contract's `/room/<shareId>` path is 404'd by the dev server.
- * The relay therefore accepts `/party/` (server.ts deriveShareId) and the
- * clients here dial `ws://127.0.0.1:1999/party/<shareId>`. collab-core's
- * CollabClient constructor hardcodes `/room/`, so this script drives the
- * wire protocol directly on top of the collab-core codec instead.
+ * — the legacy `/room/<shareId>` path is 404'd by the dev server. The relay
+ * accepts `/party/` (server.ts deriveShareId), and collab-core's buildRoomUrl
+ * + CollabClient now emit/validate the `/party/` main-route (fixed after a
+ * 404-retry loop surfaced in manual testing); this script builds its room
+ * URLs through buildRoomUrl so client and matrix can never drift apart.
  *
  * Matrix (041 spec):
  *   C1 two-client join    — both hello with a valid org sig → both welcomed,
@@ -48,6 +48,7 @@ import net from "node:net"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import {
+  buildRoomUrl,
   ChunkAssembler,
   PROTOCOL_VERSION,
   b64urlToBytes,
@@ -430,7 +431,7 @@ function identity(org: string, orgKey: CryptoKey, tag: string) {
 }
 
 function roomUrl(shareId: string): string {
-  return `ws://127.0.0.1:${DEV_PORT}${ROOM_PATH_PREFIX}${shareId}`
+  return buildRoomUrl(`http://127.0.0.1:${DEV_PORT}`, shareId)
 }
 
 // C1 — two-client join

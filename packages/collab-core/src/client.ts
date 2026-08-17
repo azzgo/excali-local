@@ -6,7 +6,7 @@
  * Transport is injectable (`wsFactory`) so tests stub the socket.
  *
  * Connection & seeding (049 §2):
- *   C1 ──(WS ws(s)://relay/room/<shareId>)──▶ R
+ *   C1 ──(WS ws(s)://relay/party/<shareId>)──▶ R
  *   C1 ── hello {profileId,name,color,privacy,room,admit{org,sig},key} ──▶ R
  *   R  ── welcome {connId, privacy, snapshotAvailable, peers} ──▶ C1
  *   if snapshotAvailable: R ── stored signed envelope verbatim, t preserved
@@ -85,7 +85,12 @@ export const defaultWsFactory: WsFactory = (url) => {
 const WS_OPEN = 1
 
 /**
- * Build the room WS URL `ws(s)://relay/room/<shareId>` (049 §2) from a stored
+ * Build the room WS URL `ws(s)://relay/party/<shareId>` (049 §2; the
+ * /party/ main-route is what partykit 0.0.115 actually maps to the room
+ * DO — /room/ is 404'd by the platform router before the DO ever runs)
+ * from a stored relay URL (`http(s)://` or `ws(s)://`). Accepts the loopback
+ * dev relay `http://127.0.0.1:1999` (ticket 060) — scheme-only rewrite, no
+ * validation of what may be stored (that is the invites module's job).
  * relay URL (`http(s)://` or `ws(s)://`). Accepts the loopback dev relay
  * `http://127.0.0.1:1999` (ticket 060) — scheme-only rewrite, no validation
  * of what may be stored (that is the invites module's job).
@@ -101,7 +106,7 @@ export function buildRoomUrl(relay: string, shareId: string): string {
   }
   if (shareId === "") throw new Error("shareId must not be empty")
   const wsRelay = relay.startsWith("http") ? relay.replace(/^http/, "ws") : relay
-  return `${wsRelay.replace(/\/+$/, "")}/room/${shareId}`
+  return `${wsRelay.replace(/\/+$/, "")}/party/${shareId}`
 }
 
 // ---------------------------------------------------------------------------
@@ -213,7 +218,7 @@ export interface CollabClientOptions extends CollabBackoffOptions {
   color: ColorPair
   /** room tier — carried in hello; the relay echoes it in welcome */
   privacy: "team" | "private"
-  /** asserted shareId — must match the `/room/<shareId>` path */
+  /** asserted shareId — must match the `/party/<shareId>` path */
   room: string
   /** admission proof: org label + b64url Ed25519 sig over the 057 §3 canon */
   admit: { org: string; sig: string }
@@ -297,15 +302,16 @@ export class CollabClient {
   constructor(private readonly opts: CollabClientOptions) {
     this.assembler = new ChunkAssembler()
     // 060 §1: https:/wss: any host; http:/ws: loopback IP literals only, plus
-    // the /room/<shareId> path (049 §2) — validated at construction time
+    // the /party/<shareId> path (049 §2 — partykit main-route; /room/ is
+    // 404'd by the platform router) — validated at construction time
     const urlErr = validateRelayUrl(opts.url)
     if (urlErr !== null) {
       throw new Error(`CollabClient: invalid relay URL: ${urlErr}`)
     }
     const path = new URL(opts.url).pathname
-    if (!/^\/room\/[^/]+$/.test(path)) {
+    if (!/^\/party\/[^/]+$/.test(path)) {
       throw new Error(
-        `CollabClient: url must be ws(s)://relay/room/<shareId> — got "${opts.url}"`,
+        `CollabClient: url must be ws(s)://relay/party/<shareId> — got "${opts.url}"`,
       )
     }
   }

@@ -62,7 +62,7 @@ class StubSocket {
   }
 }
 
-const URL = "ws://127.0.0.1:1999/room/room-1" // loopback dev relay (060 §1)
+const URL = "ws://127.0.0.1:1999/party/room-1" // loopback dev relay (060 §1), partykit main-route
 
 function makeClient(overrides: Partial<CollabClientOptions> = {}) {
   const wsFactory = (url: string) => new StubSocket(url)
@@ -642,10 +642,10 @@ describe("encrypted content frames", () => {
 
 describe("buildRoomUrl", () => {
   it("rewrites http(s) relay URLs to ws(s) room URLs", () => {
-    expect(buildRoomUrl("http://127.0.0.1:1999", "room-abc")).toBe("ws://127.0.0.1:1999/room/room-abc")
-    expect(buildRoomUrl("https://relay.example.com", "room-abc")).toBe("wss://relay.example.com/room/room-abc")
-    expect(buildRoomUrl("wss://relay.example.com/", "room-abc")).toBe("wss://relay.example.com/room/room-abc")
-    expect(buildRoomUrl("ws://relay.example.com", "room-abc")).toBe("ws://relay.example.com/room/room-abc")
+    expect(buildRoomUrl("http://127.0.0.1:1999", "room-abc")).toBe("ws://127.0.0.1:1999/party/room-abc")
+    expect(buildRoomUrl("https://relay.example.com", "room-abc")).toBe("wss://relay.example.com/party/room-abc")
+    expect(buildRoomUrl("wss://relay.example.com/", "room-abc")).toBe("wss://relay.example.com/party/room-abc")
+    expect(buildRoomUrl("ws://relay.example.com", "room-abc")).toBe("ws://relay.example.com/party/room-abc")
   })
 
   it("rejects non-ws schemes and empty shareIds", () => {
@@ -742,7 +742,7 @@ describe("061 health surface (onStateChange, 1008, rebroadcast, seed offer)", ()
     client.close()
   })
 
-  it("constructs only for valid relay URLs (060 §1 + /room/<shareId> path)", () => {
+  it("constructs only for valid relay URLs (060 §1 + /party/<shareId> partykit main-route)", () => {
     const base = {
       profileId: "profile-1",
       name: "Alice",
@@ -752,11 +752,11 @@ describe("061 health surface (onStateChange, 1008, rebroadcast, seed offer)", ()
       admit: { org: "dev", sig: "s" },
       key: "k",
     }
-    expect(() => new CollabClient({ ...base, url: "wss://relay.example.com/room/room-1" })).not.toThrow()
-    expect(() => new CollabClient({ ...base, url: "ws://127.0.0.1:1999/room/room-1" })).not.toThrow()
-    expect(() => new CollabClient({ ...base, url: "http://relay.example.com/room/room-1" })).toThrow()
-    expect(() => new CollabClient({ ...base, url: "ws://localhost:1999/room/room-1" })).toThrow()
-    expect(() => new CollabClient({ ...base, url: "wss://relay.example.com/party/room-1" })).toThrow()
-    expect(() => new CollabClient({ ...base, url: "wss://relay.example.com/room/" })).toThrow()
+    expect(() => new CollabClient({ ...base, url: "wss://relay.example.com/party/room-1" })).not.toThrow()
+    expect(() => new CollabClient({ ...base, url: "ws://127.0.0.1:1999/party/room-1" })).not.toThrow()
+    expect(() => new CollabClient({ ...base, url: "http://relay.example.com/party/room-1" })).toThrow()
+    expect(() => new CollabClient({ ...base, url: "ws://localhost:1999/party/room-1" })).toThrow()
+    expect(() => new CollabClient({ ...base, url: "wss://relay.example.com/room/room-1" })).toThrow()
+    expect(() => new CollabClient({ ...base, url: "wss://relay.example.com/party/" })).toThrow()
   })
 })

@@ -214,7 +214,7 @@ function makeRelay(): { state: RelayState; wsFactory: (url: string) => StubSocke
 // Helpers
 // ---------------------------------------------------------------------------
 
-const URL = "ws://127.0.0.1:1999/room/room-1"
+const URL = "ws://127.0.0.1:1999/party/room-1"
 const ROOM = "room-1"
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
