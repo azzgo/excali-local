@@ -26,3 +26,27 @@
   font-style: normal;
   font-display: swap;
 }
+
+/* Custom scrollbar */
+.scroll-view::-webkit-scrollbar {
+  width: 6px;
+}
+.scroll-view::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-view::-webkit-scrollbar-thumb {
+  background: #c4c4c4;
+  border-radius: 3px;
+}
+.scroll-view::-webkit-scrollbar-thumb:hover {
+  background: #a0a0a0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .scroll-view::-webkit-scrollbar-thumb {
+    background: #555;
+  }
+  .scroll-view::-webkit-scrollbar-thumb:hover {
+    background: #777;
+  }
+}

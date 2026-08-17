@@ -63,13 +63,13 @@ const OptionsPage = () => {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-screen p-4 bg-gray-100 dark:bg-gray-900">
+      <div className="flex justify-center items-start min-h-screen p-4 bg-gray-100 dark:bg-gray-900 scroll-view">
         <div className="text-gray-700 dark:text-gray-300">{t("Loading")}</div>
       </div>
     );
   }
   return (
-    <div className="flex justify-center items-center h-screen p-4 bg-gray-100 dark:bg-gray-900 transition-colors duration-200">
+    <div className="flex justify-center items-start min-h-screen p-4 overflow-y-auto bg-gray-100 dark:bg-gray-900 transition-colors duration-200 scroll-view">
       <div className="w-full min-w-xl max-w-2xl bg-white dark:bg-gray-800 shadow-md rounded-xl p-6 border border-gray-200 dark:border-gray-700 transition-colors duration-200">
         <div className="mb-6">
           <AgentControl />
