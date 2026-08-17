@@ -344,6 +344,13 @@ function scenesEqual(a: CollabScene, b: CollabScene): boolean {
   return canonicalJson(a) === canonicalJson(b);
 }
 
+/** Equality for wire scenes. AppState is deliberately excluded: the relay
+ * transports elements only, so local viewport/UI changes must not keep a
+ * session marked dirty forever. */
+function elementsEqual(a: readonly unknown[], b: readonly unknown[]): boolean {
+  return canonicalJson(a) === canonicalJson(b);
+}
+
 function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) {
     return `[${value.map((v) => canonicalJson(v)).join(",")}]`;
@@ -468,6 +475,20 @@ export function useCollabSession({
   } | null>(null);
   /** last synced scene — the three-way merge base (061) */
   const baseSceneRef = useRef<CollabScene | null>(null);
+  /** Last sequence accepted from each relay source. Live scenes are keyed by
+   * relay connId; served snapshots (which intentionally have no `from`) use
+   * one separate source. This prevents an older frame from the same sender,
+   * or an out-of-order decrypt, from replacing a newer local scene. */
+  const lastAppliedSeqRef = useRef<Map<string, number>>(new Map());
+  /** Scene at session boot, used to recognize edits made before the first
+   * relay snapshot arrives. */
+  const localBaselineRef = useRef<CollabScene | null>(null);
+  /** Latest scene reported by Excalidraw as a genuine local edit. */
+  const localSceneRef = useRef<CollabScene | null>(null);
+  const localDirtyRef = useRef(false);
+  /** A local edit made before the first remote scene must not be discarded by
+   * the initial snapshot; handleFirstScene merges it against the boot scene. */
+  const pendingLocalSceneRef = useRef<CollabScene | null>(null);
 
   const applyScene = useCallback((elements: readonly unknown[]) => {
     const api = apiRef.current;
@@ -670,10 +691,24 @@ export function useCollabSession({
       const cached = await loadSession(shareId).catch(() => undefined);
       if (disposed) return;
 
+      const bootElements = [...(apiRef.current?.getSceneElements() ?? [])];
+      localBaselineRef.current = { elements: bootElements, appState: {} };
+      localSceneRef.current = { elements: bootElements, appState: {} };
+      localDirtyRef.current = false;
+      pendingLocalSceneRef.current = null;
+
       // Local-first: paint the cached edited scene before the relay answers.
       if (cached !== undefined) {
         pendingMergeRef.current = { base: cached.base, edited: cached.edited };
         baseSceneRef.current = cached.base;
+        // The cached edited scene is the visible boot baseline. Any change
+        // after this point is a real local edit and must survive the first
+        // relay snapshot, even when cached.base is null (pure cache).
+        localBaselineRef.current = {
+          elements: [...cached.edited.elements],
+          appState: cached.edited.appState,
+        };
+        localSceneRef.current = cached.edited;
         applyScene(cached.edited.elements);
         setLastSyncedAt(cached.updatedAt);
         const offlineEdits =
@@ -749,6 +784,14 @@ export function useCollabSession({
           updateCollaborators(map);
         },
         onScene: (scene) => {
+          const source = scene.from ?? "relay-snapshot";
+          const previousSeq = lastAppliedSeqRef.current.get(source);
+          // A reconnect/decrypt race can deliver an older scene after a
+          // newer one from the same relay source. Never let it replace the
+          // newer canvas state. `seq` is per sender, so the gate is scoped
+          // by `from` rather than comparing unrelated peers' counters.
+          if (previousSeq !== undefined && scene.seq <= previousSeq) return;
+          lastAppliedSeqRef.current.set(source, scene.seq);
           setSnapshotAvailable(true);
           // 058 §1.3: seed and scene are the SAME resync path for the
           // receiver — normalize the union.
@@ -766,15 +809,28 @@ export function useCollabSession({
             prefetchMissingFiles();
             return;
           }
-          // live scene → apply directly; base := this scene (last synced).
+          const synced: CollabScene = { elements: [...elements], appState: {} };
+          // A local edit can be created before its first throttled scene
+          // reaches the relay. If the relay now sends the exact last-synced
+          // scene back, it is stale relative to the local canvas; applying it
+          // would erase the in-progress first Pencil stroke.
+          if (
+            localDirtyRef.current &&
+            baseSceneRef.current !== null &&
+            elementsEqual(elements, baseSceneRef.current.elements)
+          ) {
+            return;
+          }
+          // live scene → apply; base := this scene (last synced).
           applyScene(elements);
-          const synced: CollabScene = { elements, appState: {} };
           baseSceneRef.current = synced;
+          localSceneRef.current = synced;
+          localDirtyRef.current = false;
           persistSession(synced);
           // 052: a live apply may bring NEW image refs — hydrate the ones
           // currently in view (lazy on-demand, 051 §4).
           scanViewportFiles(null);
-        },
+        }
       };
 
       try {
@@ -867,6 +923,11 @@ export function useCollabSession({
       }
       pendingPointerRef.current = null;
       firstSceneRef.current = false;
+      lastAppliedSeqRef.current.clear();
+      localBaselineRef.current = null;
+      localSceneRef.current = null;
+      localDirtyRef.current = false;
+      pendingLocalSceneRef.current = null;
       pendingMergeRef.current = null;
       setReady(false);
     };
@@ -876,11 +937,28 @@ export function useCollabSession({
   const handleFirstScene = useCallback(
     (scene: IncomingScene, elements: readonly unknown[]) => {
       const pending = pendingMergeRef.current;
-      if (pending !== null && pending.base !== null) {
-        // 061 §3: offline edits → three-way merge, online wins on conflict.
+      const pendingLocal = pendingLocalSceneRef.current;
+      // A local edit may land before the relay's first snapshot. Use the
+      // cached edited scene (or the boot scene) as the merge base so the
+      // snapshot cannot erase a newly-created first stroke. Existing
+      // reconnect/offline edits keep their established 061 merge path.
+      const shouldMergeLocal = pendingLocal !== null;
+      const mergeBase = shouldMergeLocal
+        ? pending?.base?.elements ??
+          pending?.edited.elements ??
+          localBaselineRef.current?.elements ??
+          []
+        : pending?.base?.elements ?? null;
+      const mergeOurs = shouldMergeLocal
+        ? pendingLocal.elements
+        : pending?.edited.elements ?? null;
+      if (mergeBase !== null && mergeOurs !== null) {
+        // 061 §3: offline/local edits → three-way merge, online wins on
+        // conflicts; local-only creates (including a first Pencil stroke)
+        // survive the snapshot.
         const merged = mergeScene({
-          base: pending.base.elements as MergeElement[],
-          ours: pending.edited.elements as MergeElement[],
+          base: mergeBase as MergeElement[],
+          ours: mergeOurs as MergeElement[],
           theirs: elements as MergeElement[],
         });
         // 052: the merged scene may keep image refs unique to ours —
@@ -898,19 +976,32 @@ export function useCollabSession({
         }
         const mergedScene: CollabScene = {
           elements: merged.scene,
-          appState: pending.edited.appState,
+          appState: pendingLocal?.appState ?? pending?.edited.appState ?? {},
         };
-        baseSceneRef.current = mergedScene;
+        const synced: CollabScene = { elements: [...elements], appState: {} };
+        baseSceneRef.current = synced;
+        localSceneRef.current = mergedScene;
+        localDirtyRef.current = !elementsEqual(merged.scene, elements);
+        pendingLocalSceneRef.current = null;
+        pendingMergeRef.current = null;
         persistSession(mergedScene);
-        // Rebroadcast the merged scene so the room converges (061 §2/§3).
-        seqRef.current += 1;
-        clientRef.current?.sendScene([...merged.scene], seqRef.current);
+        // Reconnect/offline merges are rebroadcast even when the online
+        // version won. A pending first-stroke merge is sent only when it
+        // adds content that survived the online-wins conflict rule.
+        if ((pending !== null && !shouldMergeLocal) || localDirtyRef.current) {
+          seqRef.current += 1;
+          clientRef.current?.sendScene([...merged.scene], seqRef.current);
+        }
         return;
       }
       // Pure cache / no cache → relay snapshot wins (053 rule A).
       applyScene(elements);
       const synced: CollabScene = { elements: [...elements], appState: {} };
       baseSceneRef.current = synced;
+      localSceneRef.current = synced;
+      localDirtyRef.current = false;
+      pendingLocalSceneRef.current = null;
+      pendingMergeRef.current = null;
       persistSession(synced);
     },
     [applyScene, persistSession],
@@ -954,6 +1045,13 @@ export function useCollabSession({
     setSnapshotAvailable(null);
     setLastSyncedAt(null);
     setReady(false);
+    firstSceneRef.current = false;
+    lastAppliedSeqRef.current.clear();
+    localBaselineRef.current = null;
+    localSceneRef.current = null;
+    localDirtyRef.current = false;
+    pendingLocalSceneRef.current = null;
+    pendingMergeRef.current = null;
     void clearSession(shareId);
   }, [shareId]);
 
@@ -1009,6 +1107,17 @@ export function useCollabSession({
       // render commit) — recognize the echo by content instead.
       if (applyingRemoteRef.current) return;
       if (JSON.stringify(elements) === lastRemoteSceneRef.current) return;
+      const localScene: CollabScene = {
+        elements: [...elements] as unknown[],
+        appState,
+      };
+      localSceneRef.current = localScene;
+      const dirtyBase = baseSceneRef.current ?? localBaselineRef.current;
+      localDirtyRef.current =
+        dirtyBase !== null && !elementsEqual(localScene.elements, dirtyBase.elements);
+      if (!firstSceneRef.current && localDirtyRef.current) {
+        pendingLocalSceneRef.current = localScene;
+      }
       const client = clientRef.current;
       if (client !== null) {
         seqRef.current += 1;

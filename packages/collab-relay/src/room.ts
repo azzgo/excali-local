@@ -25,9 +25,9 @@
  *   re-chunks with the standard framing at store time. The resulting chunk
  *   set is kept in the stored record, so every serve reuses the same frames
  *   and chunk id.
- * - 049 §0's relay-stamped `from` cannot ride chunk frames under the committed
- *   `ChunkFrame` shape (no `from` field) — a wire gap: chunked live relays are
- *   from-less. Flagged for the wire contract.
+ * - Live chunk broadcasts now carry the optional relay-stamped `from` on each
+ *   chunk frame; the assembler restores it after reassembly. Stored snapshot
+ *   chunks remain pre-stamp and are served without `from`.
  *
  * PartyKit seam: this class never imports the PartyKit runtime. The host
  * (task 041's party.config wiring) injects `send`/`broadcast`/`storage` and
@@ -108,6 +108,7 @@ function isChunkFrame(x: unknown): x is ChunkFrame {
   return (
     rec.v === 1 &&
     rec.t === "chunk" &&
+    (rec.from === undefined || typeof rec.from === "string") &&
     typeof f.id === "string" &&
     typeof f.n === "number" &&
     Number.isInteger(f.n) &&
@@ -184,6 +185,9 @@ export class RoomState {
   private readonly assembler = new ChunkAssembler()
   /** In-memory roster — session state only, never persisted (052 §4). */
   private readonly roster = new Map<string, Member>()
+  /** Highest scene sequence accepted from each connection. `seq` is a
+   * per-sender counter, so ordering must never be compared across peers. */
+  private readonly lastSeqByConn = new Map<string, number>()
   private snap: RoomSnapshotRecord | null = null
 
   constructor(options: RoomStateOptions) {
@@ -254,6 +258,7 @@ export class RoomState {
     this.memberKeys?.delete(connId)
     this.fileStore?.leave(connId)
     this.hooks.broadcast(JSON.stringify({ v: 1, t: "peer", p: { kind: "leave", member } }))
+    this.lastSeqByConn.delete(connId)
   }
 
   /**
@@ -356,6 +361,9 @@ export class RoomState {
       this.sendError(connId, "SEED_REJECTED", SEED_REJECT_REASON)
       return
     }
+    const previousSeq = this.lastSeqByConn.get(connId)
+    if (previousSeq !== undefined && p.seq <= previousSeq) return
+    this.lastSeqByConn.set(connId, p.seq)
     const envelope: SnapshotEnvelope = { v: 1, t: "scene", p: { elements: p.scene, seq: p.seq } }
     await this.acceptSnapshot(envelope, connId, true)
   }
@@ -371,6 +379,9 @@ export class RoomState {
       this.sendError(connId, "CHUNK_INVALID", "scene payload must be { elements: unknown[], seq: number }")
       return
     }
+    const previousSeq = this.lastSeqByConn.get(connId)
+    if (previousSeq !== undefined && p.seq <= previousSeq) return
+    this.lastSeqByConn.set(connId, p.seq)
     const envelope: SnapshotEnvelope = { v: 1, t: "scene", p }
     if (this.snap !== null && this.snap.envelope !== null && JSON.stringify(envelope) === JSON.stringify(this.snap.envelope)) {
       return // byte-identical duplicate — skip store AND broadcast
@@ -397,10 +408,12 @@ export class RoomState {
       await this.storage.delete(SNAPSHOT_KEY).catch(() => {})
       const record: RoomSnapshotRecord = { envelope: null, chunkId: serialized.id, frames: serialized.frames }
       this.snap = record
-      // Broadcast chunk frames (transport — relayed verbatim)
+      // Broadcast live chunk frames with the same relay source stamp as
+      // unchunked scenes. Stored frames remain pre-stamp and are served
+      // without `from` to preserve the snapshot record verbatim.
       const except = includeSender ? undefined : connId
       for (const frame of serialized.frames) {
-        this.hooks.broadcast(JSON.stringify(frame), except)
+        this.hooks.broadcast(JSON.stringify({ ...frame, from: connId }), except)
       }
     } else {
       // Unchunked: store envelope directly (under 100KB, fits in 128KB limit)

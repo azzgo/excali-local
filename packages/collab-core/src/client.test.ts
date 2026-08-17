@@ -497,12 +497,12 @@ describe("receive path", () => {
       v: 1 as const,
       t: "scene" as const,
       p: { elements: [{ id: "big", text: "x".repeat(250 * 1024) }], seq: 7 },
-      from: "conn-9",
     }
     const res = serializeEnvelope(env)
     expect(res.chunked).toBe(true)
     expect(res.frames.length).toBeGreaterThan(1)
-    for (const f of res.frames) socket().message(JSON.stringify(f))
+    // The relay stamps live chunk frames; the assembler must restore it.
+    for (const f of res.frames) socket().message(JSON.stringify({ ...f, from: "conn-9" }))
     await Promise.resolve()
     expect(onScene).toHaveBeenCalledTimes(1)
     expect(onScene.mock.calls[0][0]).toMatchObject({ t: "scene", seq: 7, from: "conn-9" })

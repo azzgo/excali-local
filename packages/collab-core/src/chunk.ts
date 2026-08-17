@@ -22,11 +22,14 @@ import type { WireEnvelope } from "./wire"
 /** Split point: serialize first; only messages longer than this are chunked. */
 export const CHUNK_THRESHOLD = 100 * 1024
 
-/** Chunk frame shape (049 §3): d = one fragment of the JSON-serialized envelope. */
+/** Chunk frame shape (049 §3): d = one fragment of the JSON-serialized envelope.
+ * `from` is an optional relay stamp on live broadcasts; stored snapshot
+ * chunks deliberately omit it. */
 export interface ChunkFrame {
   v: 1
   t: "chunk"
   p: { id: string; n: number; i: number; d: string }
+  from?: string
 }
 
 export type SerializeEnvelopeResult =
@@ -86,6 +89,8 @@ interface BufferState {
   received: number
   /** n declared by the first frame for this id */
   n: number
+  /** relay source stamp shared by every frame, when present */
+  from?: string
   /** injected-clock timestamp of the last frame touching this buffer */
   lastTouched: number
 }
@@ -137,12 +142,14 @@ export class ChunkAssembler {
     const state = this.buffers.get(id)
     if (state) {
       if (state.n !== n) return null // conflicting declaration — ignore
+      if (state.from !== frame.from) return null // mixed relay sources — ignore
       if (state.pieces[i] !== undefined) return null // duplicate — ignore
     } else {
       this.buffers.set(id, {
         pieces: new Array<string | undefined>(n),
         received: 0,
         n,
+        from: frame.from,
         lastTouched: this.now(),
       })
     }
@@ -154,7 +161,14 @@ export class ChunkAssembler {
       this.buffers.delete(id)
       this.armSweepIfNeeded()
       try {
-        return JSON.parse(buf.pieces.join("")) as WireEnvelope
+        const envelope = JSON.parse(buf.pieces.join("")) as WireEnvelope | null
+        if (buf.from === undefined) return envelope
+        if (envelope === null || typeof envelope !== "object" || Array.isArray(envelope)) {
+          return null
+        }
+        // Preserve the relay stamp lost from the serialized payload while
+        // retaining stored snapshot chunks as from-less frames.
+        return { ...envelope, from: buf.from } as WireEnvelope
       } catch {
         return null // corrupted payload — drop rather than crash the relay
       }

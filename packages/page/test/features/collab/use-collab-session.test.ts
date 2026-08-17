@@ -280,6 +280,55 @@ describe("use-collab-session — remote scenes", () => {
     unmount();
   });
 
+  test("first relay snapshot merges a local edit made before it arrived", async () => {
+    const api = makeApi();
+    const local = { id: "local", type: "freedraw" };
+    const { result, unmount, ws } = await dialAndWelcome(api);
+    await act(async () => {
+      result.current.onLocalChange([local] as never, {} as never, {});
+      ws.message(sceneMessage([], 1));
+    });
+    expect(api.updateScene).toHaveBeenLastCalledWith({
+      elements: [local],
+      collaborators: expect.any(Map),
+      captureUpdate: "NEVER",
+    });
+    unmount();
+  });
+
+  test("rejects an older scene from the same relay source", async () => {
+    const api = makeApi();
+    const newer = { id: "newer", type: "rectangle", version: 2, versionNonce: 2 };
+    const older = { id: "older", type: "rectangle", version: 1, versionNonce: 1 };
+    const { unmount, ws } = await dialAndWelcome(api);
+    await act(async () => {
+      ws.message(sceneMessage([newer], 5, "conn-2"));
+    });
+    (api.updateScene as ReturnType<typeof vi.fn>).mockClear();
+    await act(async () => {
+      ws.message(sceneMessage([older], 4, "conn-2"));
+    });
+    expect(api.updateScene).not.toHaveBeenCalled();
+    unmount();
+  });
+
+  test("does not apply the synced baseline over an unsent local edit", async () => {
+    const api = makeApi();
+    const base = { id: "base", type: "rectangle", version: 1, versionNonce: 1 };
+    const local = { id: "local", type: "freedraw" };
+    const { result, unmount, ws } = await dialAndWelcome(api);
+    await act(async () => {
+      ws.message(sceneMessage([base], 1, "conn-1"));
+    });
+    (api.updateScene as ReturnType<typeof vi.fn>).mockClear();
+    await act(async () => {
+      result.current.onLocalChange([base, local] as never, {} as never, {});
+      ws.message(sceneMessage([base], 2, "conn-2"));
+    });
+    expect(api.updateScene).not.toHaveBeenCalled();
+    unmount();
+  });
+
   test("remote pointer updates the collaborators map (055 native cursors)", async () => {
     const api = makeApi();
     const peer: Member = {

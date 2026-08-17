@@ -44,11 +44,11 @@ const KIB = 1024
 const MIB = 1024 * 1024
 
 describe("serializeEnvelope", () => {
-  it("exports CHUNK_THRESHOLD = 200 * 1024 (headroom under the 256KB cap)", () => {
-    expect(CHUNK_THRESHOLD).toBe(200 * 1024)
+  it("exports CHUNK_THRESHOLD = 100 * 1024 (under the PartyKit 128KB value cap)", () => {
+    expect(CHUNK_THRESHOLD).toBe(100 * 1024)
   })
 
-  it("small envelope (≤ 200KB) is NOT chunked", () => {
+  it("small envelope (≤ 100KB) is NOT chunked", () => {
     const env = { v: 1 as const, t: "pointer" as const, p: { x: 1, y: 2, tool: "laser" as const } }
     const res = serializeEnvelope(env)
     expect(res.chunked).toBe(false)
@@ -70,7 +70,7 @@ describe("serializeEnvelope", () => {
     expect(serializeEnvelope(over).chunked).toBe(true)
   })
 
-  it("250KB envelope splits into ≤200KB fragments whose concat is byte-identical", () => {
+  it("250KB envelope splits into ≤100KB fragments whose concat is byte-identical", () => {
     const env = bigEnvelope(250 * KIB)
     const json = JSON.stringify(env)
     expect(new TextEncoder().encode(json).length).toBeGreaterThan(CHUNK_THRESHOLD)
@@ -119,6 +119,18 @@ describe("ChunkAssembler", () => {
     expect(emitted).toEqual(env)
     expect(JSON.stringify(emitted)).toBe(JSON.stringify(env))
     expect(a.pending).toBe(0)
+  })
+
+  it("restores an optional relay source stamp after reassembly", () => {
+    const env = bigEnvelope(250 * KIB)
+    const { frames } = serializeEnvelope(env)
+    const a = new ChunkAssembler()
+    let emitted: unknown = null
+    for (const frame of frames) {
+      const out = a.feed({ ...frame, from: "conn-live" })
+      if (out) emitted = out
+    }
+    expect(emitted).toEqual({ ...env, from: "conn-live" })
   })
 
   it("handles out-of-order arrival", () => {

@@ -162,8 +162,8 @@ describe("RoomState seeding", () => {
     await h.room.message("conn-2", JSON.stringify({ v: 1, t: "seed", p: { scene: [{ id: "z" }], seq: 99 } }))
     const err = framesTo(h, "conn-2").filter((f) => f.t === "error").at(-1)!
     expect(err.p).toEqual({ code: "SEED_REJECTED", reason: expect.any(String), fatal: false })
-    expect(parseSnapshotRecord(await h.storage.get(SNAPSHOT_KEY))?.envelope.p.seq).toBe(1)
-    expect(h.room.snapshot?.envelope.p.seq).toBe(1)
+    expect(parseSnapshotRecord(await h.storage.get(SNAPSHOT_KEY))?.envelope?.p.seq).toBe(1)
+    expect(h.room.snapshot?.envelope?.p.seq).toBe(1)
   })
 })
 
@@ -179,10 +179,20 @@ describe("RoomState scene relay", () => {
       { v: 1, t: "scene", p: { elements: [{ id: "e1" }], seq: 5 }, from: "conn-1" },
     ])
     expect(framesTo(h, "conn-1").filter((f) => f.t === "scene")).toEqual([]) // sender excluded
-    expect(h.room.snapshot?.envelope.p.seq).toBe(5)
+    expect(h.room.snapshot?.envelope?.p.seq).toBe(5)
     // a newer scene from the other member supersedes (latest wins)
     await h.room.message("conn-2", JSON.stringify({ v: 1, t: "scene", p: { elements: [{ id: "e1" }, { id: "e2" }], seq: 6 } }))
-    expect(h.room.snapshot?.envelope.p.seq).toBe(6)
+    expect(h.room.snapshot?.envelope?.p.seq).toBe(6)
+  })
+
+  it("rejects an older scene from the same sender even when its content differs", async () => {
+    const h = makeHarness()
+    await h.room.join("conn-1", baseHello())
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "scene", p: { elements: [{ id: "new" }], seq: 8 } }))
+    const broadcastsBefore = h.broadcasts.length
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "scene", p: { elements: [{ id: "old" }], seq: 7 } }))
+    expect(h.broadcasts.length).toBe(broadcastsBefore)
+    expect(h.room.snapshot?.envelope?.p).toEqual({ elements: [{ id: "new" }], seq: 8 })
   })
 
   it("an exact-duplicate scene (same seq + same elements) is neither re-stored nor re-broadcast; a newer scene relays", async () => {
@@ -194,8 +204,8 @@ describe("RoomState scene relay", () => {
     const broadcastsBefore = h.broadcasts.length
     await h.room.message("conn-2", scene) // byte-identical duplicate
     expect(h.broadcasts.length).toBe(broadcastsBefore) // no new broadcast
-    expect(h.room.snapshot?.envelope.p.seq).toBe(7) // store untouched
-    expect(parseSnapshotRecord(await h.storage.get(SNAPSHOT_KEY))?.envelope.p.seq).toBe(7)
+    expect(h.room.snapshot?.envelope?.p.seq).toBe(7) // store untouched
+    expect(parseSnapshotRecord(await h.storage.get(SNAPSHOT_KEY))?.envelope?.p.seq).toBe(7)
     // a different scene still relays
     await h.room.message("conn-2", JSON.stringify({ v: 1, t: "scene", p: { elements: [{ id: "e1", text: "hi" }, { id: "e2" }], seq: 8 } }))
     const last = framesTo(h, "conn-1").filter((f) => f.t === "scene").at(-1)!
@@ -231,12 +241,14 @@ describe("RoomState chunked snapshot", () => {
     const live = h.broadcasts.filter((b) => b.frame.t === "chunk")
     expect(live.length).toBe(frames.length)
     expect(live.every((b) => b.except === "conn-1")).toBe(true)
+    expect(live.every((b) => b.frame.from === "conn-1")).toBe(true)
     // a late joiner is served the stored chunk set (welcome → snapshotAvailable → chunks)
     await h.room.join("conn-2", HELLO_2)
     const w2 = framesTo(h, "conn-2").find((f) => f.t === "welcome")!
     expect(w2.p.snapshotAvailable).toBe(true)
     const served = h.outbox.get("conn-2")!.filter((f) => f.t === "chunk")
     expect(served.map((f) => f.p.id)).toEqual(Array(frames.length).fill(meta.chunkId))
+    expect(served.every((f) => f.from === undefined)).toBe(true)
     // reassemble the served frames → the original envelope
     const asm = new ChunkAssembler()
     let out: unknown = null
