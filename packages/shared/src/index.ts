@@ -13,13 +13,18 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function getBrowser(): typeof chrome | null {
-  if (typeof (globalThis as any).browser !== "undefined") {
-    return (globalThis as any).browser
-  }
-  if (globalThis.chrome && typeof chrome !== "undefined") {
-    return chrome
-  }
-  return null
+  const b =
+    ((typeof (globalThis as any).browser !== "undefined"
+      ? (globalThis as any).browser
+      : null) ??
+      (globalThis.chrome && typeof chrome !== "undefined" ? chrome : null));
+  // Chromium exposes a `window.chrome` stub on every plain http(s) page —
+  // that stub must NOT read as an extension host (the webapp form of the
+  // collab screens keys off getBrowser() === null). Only an actual extension
+  // API surface counts: runtime.id on extension pages, storage.local in
+  // content-script worlds.
+  if (!b || typeof b !== "object") return null;
+  return b.runtime?.id || b.storage?.local ? (b as typeof chrome) : null;
 }
 
 export function getLang() {
