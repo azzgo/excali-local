@@ -135,8 +135,8 @@ importers:
         specifier: ^3.2.2
         version: 3.2.2(react@19.2.8)
       '@excalidraw/excalidraw':
-        specifier: file:./excalidraw-excalidraw-v0.18.0-csp.14.tgz
-        version: file:packages/page/excalidraw-excalidraw-v0.18.0-csp.14.tgz(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+        specifier: file:./excalidraw-excalidraw-v0.18.0-csp.15.tgz
+        version: file:packages/page/excalidraw-excalidraw-v0.18.0-csp.15.tgz(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       '@radix-ui/react-dropdown-menu':
         specifier: ^2.1.16
         version: 2.1.24(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
@@ -854,9 +854,9 @@ packages:
     resolution: {integrity: sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@excalidraw/excalidraw@file:packages/page/excalidraw-excalidraw-v0.18.0-csp.14.tgz':
-    resolution: {integrity: sha512-VU0tKlukZLkXTC5Yq54pB0XIAv6PxU/7HyBIeFYyfoe2ImfX2NXT99mMuZ3xchowq4zR271MKXalMnB0uHsNVw==, tarball: file:packages/page/excalidraw-excalidraw-v0.18.0-csp.14.tgz}
-    version: 0.18.0-csp.14
+  '@excalidraw/excalidraw@file:packages/page/excalidraw-excalidraw-v0.18.0-csp.15.tgz':
+    resolution: {integrity: sha512-mjOrL1H1r4Yokrb9ZShc1cz3Iuq+jWSmYiX8JjT7ujQFnyrsZrgrxkXxtBJech/LfqvuD2u5oXsQUEBAyCIQrA==, tarball: file:packages/page/excalidraw-excalidraw-v0.18.0-csp.15.tgz}
+    version: 0.18.0-csp.15
     peerDependencies:
       react: ^17.0.2 || ^18.2.0 || ^19.0.0
       react-dom: ^17.0.2 || ^18.2.0 || ^19.0.0
@@ -6003,7 +6003,7 @@ snapshots:
       '@eslint/core': 0.17.0
       levn: 0.4.1
 
-  '@excalidraw/excalidraw@file:packages/page/excalidraw-excalidraw-v0.18.0-csp.14.tgz(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
+  '@excalidraw/excalidraw@file:packages/page/excalidraw-excalidraw-v0.18.0-csp.15.tgz(@types/react-dom@19.2.4(@types/react@19.2.18))(@types/react@19.2.18)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)':
     dependencies:
       '@braintree/sanitize-url': 6.0.2
       '@codemirror/commands': 6.10.4
