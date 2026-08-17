@@ -563,10 +563,14 @@ describe("collab file sync — gallery keeps the blobs", () => {
     await act(async () => {
       ws.message(sceneMessage([el], 1));
     });
-    // local change with a blob in the onChange files map
+    // local change with a blob in the onChange files map — a GENUINE local
+    // insert: the elements must differ from the just-applied remote scene,
+    // otherwise the content echo guard correctly suppresses it as a remote
+    // echo (real inserts always create/modify an element).
+    const localEl = imageElement(fileId, 10, 10);
     await act(async () => {
       result.current.onLocalChange(
-        [el] as never,
+        [localEl] as never,
         {} as never,
         { [fileId]: { id: fileId, mimeType: "image/png", dataURL: PNG_DATA_URL, created: 1 } } as never,
       );
@@ -578,8 +582,41 @@ describe("collab file sync — gallery keeps the blobs", () => {
       await new Promise((resolve) => setTimeout(resolve, 150)); // past the 100ms persist debounce
     });
     const session = await loadSession(SHARE_ID);
-    expect(session?.edited.elements).toEqual([el]);
+    expect(session?.edited.elements).toEqual([localEl]);
     expect(session?.edited.files).toBeUndefined();
+    unmount();
+  });
+
+  test("echo guard: onChange replaying a just-applied remote scene never rebroadcasts", async () => {
+    const api = makeApi();
+    const fileId = await fileIdFor(dataURLToBytes(PNG_DATA_URL));
+    const el = imageElement(fileId);
+    const { result, unmount, ws } = await dialAndWelcome(api);
+
+    // remote scene arrives (from the other member) and is applied
+    await act(async () => {
+      ws.message(sceneMessage([el], 1));
+    });
+    // Excalidraw fires onChange for the programmatic updateScene — with the
+    // SAME elements. The content echo guard must recognize it (the timing
+    // guard may have already cleared: React commit happens after the
+    // clearing microtask) and never rebroadcast: a rebroadcast would carry
+    // seq+1, defeat the relay's byte-dup suppression, and ping-pong stale
+    // scenes back to the sender (mid-drag snap-back / typed-text backspace).
+    await act(async () => {
+      result.current.onLocalChange([el] as never, {} as never, {} as never);
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 150)); // past the 100ms sendScene throttle
+    });
+    expect(sentOfType(ws, "scene")).toHaveLength(0);
+
+    // positive control: a GENUINE local edit (elements differ) broadcasts
+    const edited = imageElement(fileId, 40, 40);
+    await act(async () => {
+      result.current.onLocalChange([edited] as never, {} as never, {} as never);
+    });
+    await waitFor(() => expect(sentOfType(ws, "scene")).toHaveLength(1));
     unmount();
   });
 });

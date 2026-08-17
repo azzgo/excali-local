@@ -445,6 +445,14 @@ export function useCollabSession({
   const seqRef = useRef(0);
   const firstSceneRef = useRef(false);
   const applyingRemoteRef = useRef(false);
+  /** Serialized elements of the last remote-applied scene — the content echo
+   * guard. The timing guard above is NOT enough: updateScene's onChange can
+   * fire after the clearing microtask (React render commit), and a rebroadcast
+   * of a just-applied REMOTE scene (seq+1) defeats the relay's byte-dup
+   * suppression and ping-pongs stale scenes between members — visually:
+   * mid-drag shapes snapping back to their start point, typed text
+   * backspacing. Content comparison is timing-proof. */
+  const lastRemoteSceneRef = useRef<string | null>(null);
   /** own-pointer broadcast throttle (055 — latest wins, one per ~frame) */
   const pointerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPointerRef = useRef<{
@@ -464,6 +472,14 @@ export function useCollabSession({
   const applyScene = useCallback((elements: readonly unknown[]) => {
     const api = apiRef.current;
     if (api === null) return;
+    // Content echo guard: remember what we are applying BEFORE updateScene so
+    // any resulting onChange (whenever it fires) can be recognized as an echo.
+    lastRemoteSceneRef.current = JSON.stringify(elements);
+    // Anti-flicker: applying a scene identical to the live one is a no-op
+    // (skips a pointless full re-render of unchanged elements).
+    if (lastRemoteSceneRef.current === JSON.stringify(api.getSceneElements())) {
+      return;
+    }
     applyingRemoteRef.current = true;
     api.updateScene(
       {
@@ -987,8 +1003,12 @@ export function useCollabSession({
       files: BinaryFiles,
     ) => {
       // Echo guard: remote applies (updateScene, captureUpdate NEVER) also
-      // fire onChange — never rebroadcast or re-cache them here.
+      // fire onChange — never rebroadcast or re-cache them here. Timing guard
+      // first (synchronous applies), then the timing-proof content guard:
+      // onChange from a remote apply may fire after the flag clears (React
+      // render commit) — recognize the echo by content instead.
       if (applyingRemoteRef.current) return;
+      if (JSON.stringify(elements) === lastRemoteSceneRef.current) return;
       const client = clientRef.current;
       if (client !== null) {
         seqRef.current += 1;
