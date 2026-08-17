@@ -217,23 +217,26 @@ describe("RoomState chunked snapshot", () => {
     expect(ser.frames.length).toBeGreaterThan(1)
     // upload as chunks — the receive path reassembles transparently
     for (const frame of ser.frames) await h.room.message("conn-1", JSON.stringify(frame))
-    // stored as a chunk set under one chunk id (058 §1.3: reassembled envelope + re-chunked form)
-    const rec = parseSnapshotRecord(await h.storage.get(SNAPSHOT_KEY))!
-    expect(rec.envelope).toEqual(env)
-    expect(rec.chunkId).toBeDefined()
-    expect(rec.frames).toBeDefined()
-    expect(rec.frames!.length).toBe(ser.frames.length)
-    expect(rec.frames!.every((f) => f.p.id === rec.chunkId)).toBe(true)
+    // stored as chunk frames in separate keys (058 §1.3: envelope omitted for storage)
+    const meta = await h.storage.get(`${SNAPSHOT_KEY}:meta`) as { chunkId: string; frameCount: number }
+    expect(meta).toBeDefined()
+    expect(meta.chunkId).toBeDefined()
+    const frames = []
+    for (let i = 0; i < meta.frameCount; i++) {
+      frames.push(await h.storage.get(`${SNAPSHOT_KEY}:frame:${i}`))
+    }
+    expect(frames.length).toBe(ser.frames.length)
+    expect(frames.every((f: any) => f.p.id === meta.chunkId)).toBe(true)
     // the live relay went out as chunk frames to the other members, sender excluded
     const live = h.broadcasts.filter((b) => b.frame.t === "chunk")
-    expect(live.length).toBe(rec.frames!.length)
+    expect(live.length).toBe(frames.length)
     expect(live.every((b) => b.except === "conn-1")).toBe(true)
     // a late joiner is served the stored chunk set (welcome → snapshotAvailable → chunks)
     await h.room.join("conn-2", HELLO_2)
     const w2 = framesTo(h, "conn-2").find((f) => f.t === "welcome")!
     expect(w2.p.snapshotAvailable).toBe(true)
     const served = h.outbox.get("conn-2")!.filter((f) => f.t === "chunk")
-    expect(served.map((f) => f.p.id)).toEqual(Array(rec.frames!.length).fill(rec.chunkId))
+    expect(served.map((f) => f.p.id)).toEqual(Array(frames.length).fill(meta.chunkId))
     // reassemble the served frames → the original envelope
     const asm = new ChunkAssembler()
     let out: unknown = null

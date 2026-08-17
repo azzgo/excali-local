@@ -91,7 +91,8 @@ export interface SnapshotEnvelope {
 
 /** room.storage record under SNAPSHOT_KEY: the reassembled envelope plus the chunk set when chunked. */
 export interface RoomSnapshotRecord {
-  envelope: SnapshotEnvelope
+  /** null when chunked — envelope is reconstructed from frames on serve (058 §1.3) */
+  envelope: SnapshotEnvelope | null
   /** chunk id of the stored chunk set — present iff `frames` is (049 §3 / 058 §1.3) */
   chunkId?: string
   /** the stored chunk set — re-served verbatim to joiners */
@@ -127,6 +128,22 @@ export function parseSnapshotRecord(raw: unknown): RoomSnapshotRecord | null {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null
   const rec = raw as Record<string, unknown>
   const env = rec.envelope
+  const hasChunkId = typeof rec.chunkId === "string" && rec.chunkId !== ""
+  const frames = rec.frames
+
+  // Chunked record: envelope may be absent (storage optimization — 058 §1.3)
+  // Reconstruct from frames when serving.
+  if (hasChunkId || frames !== undefined) {
+    if (!hasChunkId || !Array.isArray(frames) || frames.length === 0 || !frames.every(isChunkFrame)) return null
+    const record: RoomSnapshotRecord = {
+      envelope: null as unknown as SnapshotEnvelope, // reconstructed from frames on serve
+      chunkId: rec.chunkId as string,
+      frames: frames as ChunkFrame[],
+    }
+    return record
+  }
+
+  // Unchunked record: envelope is required
   if (env === null || typeof env !== "object" || Array.isArray(env)) return null
   const e = env as Record<string, unknown>
   if (e.v !== 1 || (e.t !== "seed" && e.t !== "scene")) return null
@@ -138,14 +155,6 @@ export function parseSnapshotRecord(raw: unknown): RoomSnapshotRecord | null {
   }
   const record: RoomSnapshotRecord = {
     envelope: { v: 1, t: e.t, p: { elements: payload.elements, seq: payload.seq } },
-  }
-  const hasChunkId = typeof rec.chunkId === "string" && rec.chunkId !== ""
-  const frames = rec.frames
-  if (hasChunkId || frames !== undefined) {
-    // chunked is all-or-nothing: a half-present chunk set is as corrupt as a bad envelope
-    if (!hasChunkId || !Array.isArray(frames) || frames.length === 0 || !frames.every(isChunkFrame)) return null
-    record.chunkId = rec.chunkId as string
-    record.frames = frames as ChunkFrame[]
   }
   return record
 }
@@ -363,7 +372,7 @@ export class RoomState {
       return
     }
     const envelope: SnapshotEnvelope = { v: 1, t: "scene", p }
-    if (this.snap !== null && JSON.stringify(envelope) === JSON.stringify(this.snap.envelope)) {
+    if (this.snap !== null && this.snap.envelope !== null && JSON.stringify(envelope) === JSON.stringify(this.snap.envelope)) {
       return // byte-identical duplicate — skip store AND broadcast
     }
     await this.acceptSnapshot(envelope, connId, false)
@@ -375,19 +384,41 @@ export class RoomState {
    */
   private async acceptSnapshot(envelope: SnapshotEnvelope, connId: string, includeSender: boolean): Promise<void> {
     const serialized = serializeEnvelope(envelope)
-    const record: RoomSnapshotRecord = serialized.chunked
-      ? { envelope, chunkId: serialized.id, frames: serialized.frames }
-      : { envelope }
-    await this.storage.put(SNAPSHOT_KEY, record)
-    this.snap = record
-    const except = includeSender ? undefined : connId
     if (serialized.chunked) {
-      // chunk frames are transport — relayed verbatim (the committed ChunkFrame has no `from`; see header note)
+      // 058 §1.3 storage: store each chunk frame as a separate key to stay
+      // under PartyKit's 128KB per-value limit. Store metadata separately.
+      const metaKey = `${SNAPSHOT_KEY}:meta`
+      const meta = { chunkId: serialized.id, frameCount: serialized.frames.length }
+      await this.storage.put(metaKey, meta)
+      for (let i = 0; i < serialized.frames.length; i++) {
+        await this.storage.put(`${SNAPSHOT_KEY}:frame:${i}`, serialized.frames[i])
+      }
+      // Delete old envelope key if it exists (transition from unchunked to chunked)
+      await this.storage.delete(SNAPSHOT_KEY).catch(() => {})
+      const record: RoomSnapshotRecord = { envelope: null, chunkId: serialized.id, frames: serialized.frames }
+      this.snap = record
+      // Broadcast chunk frames (transport — relayed verbatim)
+      const except = includeSender ? undefined : connId
       for (const frame of serialized.frames) {
         this.hooks.broadcast(JSON.stringify(frame), except)
       }
     } else {
-      this.hooks.broadcast(JSON.stringify({ ...envelope, from: connId }), except)
+      // Unchunked: store envelope directly (under 100KB, fits in 128KB limit)
+      // Delete old chunk keys if they exist (transition from chunked to unchunked)
+      await this.deleteChunkKeys().catch(() => {})
+      const record: RoomSnapshotRecord = { envelope }
+      await this.storage.put(SNAPSHOT_KEY, record)
+      this.snap = record
+      this.hooks.broadcast(JSON.stringify({ ...envelope, from: connId }), includeSender ? undefined : connId)
+    }
+  }
+
+  /** Delete chunk frame keys from storage (used when transitioning chunked ↔ unchunked). */
+  private async deleteChunkKeys(): Promise<void> {
+    await this.storage.delete(`${SNAPSHOT_KEY}:meta`).catch(() => {})
+    // Delete up to 10 frames (max for a 1MB scene at 100KB chunks)
+    for (let i = 0; i < 10; i++) {
+      await this.storage.delete(`${SNAPSHOT_KEY}:frame:${i}`).catch(() => {})
     }
   }
 
@@ -403,10 +434,13 @@ export class RoomState {
   private serveSnapshot(connId: string): void {
     const snap = this.snap
     if (snap === null) return
+    // Chunked record: serve the stored frames (envelope was omitted for storage, 058 §1.3)
     if (snap.frames !== undefined) {
       for (const frame of snap.frames) this.hooks.send(connId, JSON.stringify(frame))
       return
     }
+    // Unchunked record: serve the envelope directly (or re-chunk if over threshold)
+    if (snap.envelope === null) return // corrupt state — no envelope and no frames
     const json = JSON.stringify(snap.envelope)
     if (new TextEncoder().encode(json).length <= CHUNK_THRESHOLD) {
       this.hooks.send(connId, json)
@@ -426,6 +460,21 @@ export class RoomState {
    * recovers; the room re-seeds from members' local galleries instead).
    */
   private async loadSnapshot(): Promise<RoomSnapshotRecord | null> {
+    // Try new format first: meta key + individual frame keys (058 §1.3 storage optimization)
+    const metaRaw = await this.storage.get(`${SNAPSHOT_KEY}:meta`).catch(() => undefined)
+    if (metaRaw !== undefined && typeof metaRaw === 'object' && metaRaw !== null) {
+      const meta = metaRaw as { chunkId?: string; frameCount?: number }
+      if (typeof meta.chunkId === 'string' && typeof meta.frameCount === 'number' && meta.frameCount > 0) {
+        const frames: ChunkFrame[] = []
+        for (let i = 0; i < meta.frameCount; i++) {
+          const frame = await this.storage.get(`${SNAPSHOT_KEY}:frame:${i}`).catch(() => undefined)
+          if (frame === undefined || !isChunkFrame(frame)) return null // corrupt chunk set
+          frames.push(frame)
+        }
+        return { envelope: null, chunkId: meta.chunkId, frames }
+      }
+    }
+    // Fall back to old format: single envelope key
     let raw: unknown
     try {
       raw = await this.storage.get(SNAPSHOT_KEY)

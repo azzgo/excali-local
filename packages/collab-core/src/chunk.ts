@@ -7,8 +7,8 @@
  * reassembles and emits the original envelope.
  *
  * Semantics (049 §3, verbatim):
- * - Threshold: serialize first; if length > CHUNK_THRESHOLD (200KB, headroom
- *   under 256KB) → split into ≤200KB `d` pieces.
+ * - Threshold: serialize first; if length > CHUNK_THRESHOLD (100KB, under
+ *   PartyKit's 128KB per-value storage limit) → split into ≤100KB `d` pieces.
  * - Reassembly (client + relay both implement): buffer by `id`, emit original
  *   envelope when all `n` pieces arrived; GC partial buffers after 30s.
  * - Loss handling is by design = self-healing: WS per-connection delivery is
@@ -20,7 +20,7 @@
 import type { WireEnvelope } from "./wire"
 
 /** Split point: serialize first; only messages longer than this are chunked. */
-export const CHUNK_THRESHOLD = 200 * 1024
+export const CHUNK_THRESHOLD = 100 * 1024
 
 /** Chunk frame shape (049 §3): d = one fragment of the JSON-serialized envelope. */
 export interface ChunkFrame {
