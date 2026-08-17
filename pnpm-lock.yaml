@@ -252,6 +252,9 @@ importers:
       autoprefixer:
         specifier: ^10.4.21
         version: 10.5.4(postcss@8.5.25)
+      fake-indexeddb:
+        specifier: ^6
+        version: 6.2.5
       happy-dom:
         specifier: ^20.11.1
         version: 20.11.1
