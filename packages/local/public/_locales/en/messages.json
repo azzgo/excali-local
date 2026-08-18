@@ -338,6 +338,18 @@
   "CollabConfigWebappNote": {
     "message": "This configuration lives in this browser — your team's relay details are stored locally."
   },
+  "CollabDisplayName": {
+    "message": "Your display name"
+  },
+  "CollabDisplayNameLabel": {
+    "message": "Your display name"
+  },
+  "CollabDisplayNamePlaceholder": {
+    "message": "e.g. Jane Doe"
+  },
+  "CollabDisplayNameInvalid": {
+    "message": "Display names must be 1–40 characters"
+  },
   "CollabLandingNotConnected": {
     "message": "not connected"
   },

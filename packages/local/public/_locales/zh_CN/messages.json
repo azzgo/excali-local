@@ -338,6 +338,18 @@
   "CollabConfigWebappNote": {
     "message": "此配置保存在此浏览器中 — 团队的中继详情存储在本地。"
   },
+  "CollabDisplayName": {
+    "message": "你的显示名称"
+  },
+  "CollabDisplayNameLabel": {
+    "message": "你的显示名称"
+  },
+  "CollabDisplayNamePlaceholder": {
+    "message": "例如：Jane Doe"
+  },
+  "CollabDisplayNameInvalid": {
+    "message": "显示名称须为 1–40 个字符"
+  },
   "CollabLandingNotConnected": {
     "message": "未连接"
   },
