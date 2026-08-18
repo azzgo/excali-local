@@ -123,83 +123,13 @@ describe("SessionChrome — chrome bar", () => {
     expect(screen.getByTestId("collab-conn-word").textContent).toBe("CollabConnRejected");
   });
 
-  test("roster dots render from peers; self dot is outlined", () => {
+  test("roster dots are REMOVED (merged into Excalidraw's UserList)", () => {
     renderChrome();
-    const dots = screen.getAllByTestId(/^collab-roster-dot-/);
-    expect(dots).toHaveLength(3);
-    expect(screen.getByTestId(`collab-roster-dot-self-1`).dataset.self).toBe("true");
-    expect(screen.getByTestId(`collab-roster-dot-a3f9c2d1`).dataset.self).toBeUndefined();
-  });
-
-  test("roster hover pops name · short id (055)", async () => {
-    renderChrome();
-    const dot = screen.getByTestId("collab-roster-dot-a3f9c2d1");
-    fireEvent.pointerMove(dot);
-    await waitFor(() => expect(screen.getByText("Min · a3f")).toBeTruthy());
-    // self hover → localized "You"
-    const self = screen.getByTestId("collab-roster-dot-self-1");
-    fireEvent.pointerMove(self);
-    await waitFor(() => expect(screen.getByText("CollabYou")).toBeTruthy());
-  });
-
-  test("departed peers fade out (still rendered at opacity 0 for ~250ms)", async () => {
-    const session = makeSession();
-    const { rerender } = renderChrome(session);
-    expect(screen.getAllByTestId(/^collab-roster-dot-/)).toHaveLength(3);
-
-    rerender(
-      <SessionChrome
-        room={ROOM}
-        session={makeSession({ peers: PEERS.slice(0, 2) })}
-      />,
-    );
-    // the departed dot lingers for the fade window
-    expect(screen.getByTestId("collab-roster-dot-9c1d2e3f")).toBeTruthy();
-    await waitFor(
-      () =>
-        expect(screen.queryByTestId("collab-roster-dot-9c1d2e3f")).toBeNull(),
-      { timeout: 1000 },
-    );
-  });
-
-  test("duplicate same-profile peers render ONE dot (roster key invariant, resume race)", () => {
-    // Defensive: even if the session state ships the same profile twice
-    // (half-open old conn + fresh conn from a forced resume), the chrome
-    // must never produce duplicate React keys / doubled dots.
-    const dupPeers: RosterMember[] = [
-      PEERS[0],
-      { ...PEERS[1], connId: "conn-a-stale" },
-      { ...PEERS[1], connId: "conn-a-fresh" },
-    ];
-    renderChrome(makeSession({ peers: dupPeers }));
-    expect(screen.getAllByTestId(/^collab-roster-dot-/)).toHaveLength(2);
-    expect(screen.getAllByTestId("collab-roster-dot-a3f9c2d1")).toHaveLength(1);
-  });
-
-  test("rejoined live dot suppresses the departing fade entry (one dot per profile)", async () => {
-    const { rerender } = renderChrome(makeSession());
-    expect(screen.getAllByTestId(/^collab-roster-dot-/)).toHaveLength(3);
-
-    // member leaves → the fade entry appears (opacity 0)
-    rerender(
-      <SessionChrome
-        room={ROOM}
-        session={makeSession({ peers: PEERS.slice(0, 2) })}
-      />,
-    );
-    expect(screen.getAllByTestId("collab-roster-dot-9c1d2e3f")).toHaveLength(1);
-
-    // …and rejoins with a FRESH connId while the fade entry lingers — the
-    // live entry wins; exactly one dot, no duplicate key
-    const rejoined: RosterMember[] = [
-      ...PEERS.slice(0, 2),
-      { ...PEERS[2], connId: "conn-b-fresh" },
-    ];
-    rerender(
-      <SessionChrome room={ROOM} session={makeSession({ peers: rejoined })} />,
-    );
-    expect(screen.getAllByTestId("collab-roster-dot-9c1d2e3f")).toHaveLength(1);
-    expect(screen.getAllByTestId(/^collab-roster-dot-/)).toHaveLength(3);
+    // The roster dots are gone — the UserList in the top-right is the sole
+    // presence indicator. The PresenceFeed dropdown (behind the Users button)
+    // provides the detailed list + label-mode setting + self-name edit.
+    expect(screen.queryByTestId(/^collab-roster-dot-/)).toBeNull();
+    expect(screen.getByTestId("collab-feed-trigger")).toBeTruthy();
   });
 });
 
@@ -293,30 +223,11 @@ describe("SessionChrome — leave modal (053)", () => {
 });
 
 describe("SessionChrome — my-name rename (ADR 0006)", () => {
-  test("self edit affordance opens the modal prefilled with the current per-room name", () => {
+  test("self-name edit is in the PresenceFeed dropdown (not the chrome)", () => {
     renderChrome(makeSession({ selfName: "Ada Prime" }));
-    fireEvent.click(screen.getByTestId("collab-selfname-edit"));
-    expect(screen.getByTestId("collab-selfname-modal")).toBeTruthy();
-    expect((screen.getByTestId("collab-selfname-input") as HTMLInputElement).value).toBe("Ada Prime");
-  });
-
-  test("submit calls renameSelf with the trimmed name and closes on success", () => {
-    const renameSelf = vi.fn(() => true);
-    renderChrome(makeSession({ renameSelf, selfName: "Ada" }));
-    fireEvent.click(screen.getByTestId("collab-selfname-edit"));
-    fireEvent.change(screen.getByTestId("collab-selfname-input"), { target: { value: "  Ada Prime  " } });
-    fireEvent.click(screen.getByTestId("collab-selfname-save"));
-    expect(renameSelf).toHaveBeenCalledWith("Ada Prime");
-    expect(screen.queryByTestId("collab-selfname-modal")).toBeNull();
-  });
-
-  test("invalid name shows the error and does not call renameSelf", () => {
-    const renameSelf = vi.fn(() => true);
-    renderChrome(makeSession({ renameSelf, selfName: "Ada" }));
-    fireEvent.click(screen.getByTestId("collab-selfname-edit"));
-    fireEvent.change(screen.getByTestId("collab-selfname-input"), { target: { value: "   " } });
-    fireEvent.click(screen.getByTestId("collab-selfname-save"));
-    expect(screen.getByTestId("collab-selfname-error")).toBeTruthy();
-    expect(renameSelf).not.toHaveBeenCalled();
+    // The roster dots are gone — the PresenceFeed dropdown is the sole presence UI
+    expect(screen.queryByTestId(/^collab-roster-dot-/)).toBeNull();
+    expect(screen.getByTestId("collab-feed-trigger")).toBeTruthy();
+    // The edit affordance is inside the PresenceFeed (tested in presence.test.tsx)
   });
 });

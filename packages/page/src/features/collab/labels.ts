@@ -1,14 +1,17 @@
 /**
  * Presence label mode (Wayfinder 055 — decided: user-selectable display mode,
- * default 最全). Pure local rendering choice: quiet mode simply omits
+ * default 最全). Pure local rendering choice: `quiet` mode simply omits
  * `username` when the page builds Excalidraw's collaborators map — zero wire
- * changes, each user's own broadcast is unaffected.
+ * changes, each user's own broadcast is unaffected. (Task 075 — the control
+ * is now presented as a single "show user list" checkbox; quiet = hide the
+ * right-side UserList, which Excalidraw filters by `username`.)
  *
  * Modes:
- * - `full`  (default 最全): canvas name chips always-on, format `名·短id`
- *   (e.g. `Ada·a3f`); roster hover / feed show the same full label.
- * - `quiet` (安静在场): canvas labels off (username omitted), identity via
- *   roster dots + the feed only — labels degrade to the short id.
+ * - `full`  (default): the Excalidraw right-side UserList is shown; the
+ *   roster hover / presence feed always show the full `名·短id` label.
+ * - `quiet`: the collaborators map omits `username` → Excalidraw's UserList
+ *   filter drops every member, hiding the list. The feed labels stay full
+ *   (075 — the toggle's only effect is UserList visibility).
  *
  * Persistence follows the collab feature's storage pattern (use-collab-session
  * identity / storage.ts): chrome.storage.local in the extension, localStorage
@@ -33,16 +36,13 @@ export function shortProfileId(profileId: string): string {
 }
 
 /**
- * The label shown for a member in the roster hover / presence feed.
- * `full` → `名·短id`; `quiet` → short id only (username omitted, 055).
+ * The label shown for a member in the roster hover / presence feed — always
+ * the full `名·短id` form (075: the quiet mode's only effect is hiding the
+ * Excalidraw UserList; feed labels no longer degrade to the short id).
  */
-export function formatLabel(
-  name: string,
-  profileId: string,
-  mode: LabelMode,
-): string {
+export function formatLabel(name: string, profileId: string): string {
   const sid = shortProfileId(profileId);
-  return mode === "quiet" ? sid : `${name} · ${sid}`;
+  return `${name} · ${sid}`;
 }
 
 export function isLabelMode(value: unknown): value is LabelMode {

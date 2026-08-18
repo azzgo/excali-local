@@ -373,10 +373,11 @@ export function initI18n() {
           // --- presence (055: collaborators feed, label mode, native cursors) ---
           "CollabPresenceTitle": "Collaborators",
           "CollabPresenceEmpty": "No one else is here yet",
-          "CollabLabelModeTitle": "Presence labels",
-          "CollabLabelModeFull": "Full",
-          "CollabLabelModeQuiet": "Quiet",
-          "CollabLabelModeHint": "Full shows name chips (name · short id) on the canvas; quiet hides names — identity via the roster.",
+          // 075: self-row marker (real name shown, alias/代称 in parens)
+          "CollabSelfMarker": " (you)",
+          // 075: show/hide the Excalidraw right-side UserList (was full/quiet)
+          "CollabShowUserList": "Show user list",
+          "CollabShowUserListHint": "Show the collaborator list in the top-right; uncheck to hide it.",
         },
       },
       "zh-CN": {
@@ -747,10 +748,11 @@ export function initI18n() {
           // --- presence (055: collaborators feed, label mode, native cursors) ---
           "CollabPresenceTitle": "协作者",
           "CollabPresenceEmpty": "还没有其他人",
-          "CollabLabelModeTitle": "在场标签",
-          "CollabLabelModeFull": "最全",
-          "CollabLabelModeQuiet": "安静",
-          "CollabLabelModeHint": "最全：画布上显示名字标签（名·短id）；安静：隐藏名字——仅通过名单识别身份。",
+          // 075: self-row marker (真实名字 + 自己)
+          "CollabSelfMarker": "（自己）",
+          // 075: show/hide the Excalidraw right-side UserList (was full/quiet)
+          "CollabShowUserList": "显示用户列表",
+          "CollabShowUserListHint": "在右上角显示协作者列表；取消勾选以隐藏。",
         },
       },
     },

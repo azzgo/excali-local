@@ -558,7 +558,10 @@ export function useCollabSession({
     (roster: RosterMember[]) => {
       const map = new Map<SocketId, Collaborator>();
       for (const m of roster) {
-        if (m.self) continue; // 055: the local cursor is never a collaborator
+        // Include self in the collaborators map so the UserList always shows
+        // the current user's avatar (even when alone in the room). Self has
+        // no pointer field, so the local cursor is never rendered as a
+        // collaborator cursor (055 rule preserved).
         map.set(m.profileId as SocketId, {
           id: m.profileId,
           // 055 label mode: quiet omits username → no canvas name chip

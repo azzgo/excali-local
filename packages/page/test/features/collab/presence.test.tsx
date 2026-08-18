@@ -85,8 +85,8 @@ function makeSession(overrides: Partial<CollabSessionHandle> = {}): CollabSessio
   };
 }
 
-const renderFeed = (session: CollabSessionHandle = makeSession()) =>
-  render(<PresenceFeed session={session} />);
+const renderFeed = (session: CollabSessionHandle = makeSession(), props: { onEditSelfName?: () => void } = {}) =>
+  render(<PresenceFeed session={session} {...props} />);
 
 beforeEach(() => {
   vi.useRealTimers();
@@ -102,14 +102,9 @@ afterEach(() => {
 /* ------------------------------------------------------------------ */
 
 describe("presence — formatLabel", () => {
-  test("full mode → `名·短id` (e.g. Ada·a3f, CJK names included)", () => {
-    expect(formatLabel("Ada", "a3f9c2d1", "full")).toBe("Ada · a3f");
-    expect(formatLabel("王小明", "9c1d2e3f", "full")).toBe("王小明 · 9c1");
-  });
-
-  test("quiet mode → short id only (username omitted, 055)", () => {
-    expect(formatLabel("Ada", "a3f9c2d1", "quiet")).toBe("a3f");
-    expect(formatLabel("王小明", "9c1d2e3f", "quiet")).toBe("9c1");
+  test("formatLabel is always `名·短id` (075 — quiet only gates the UserList)", () => {
+    expect(formatLabel("Ada", "a3f9c2d1")).toBe("Ada · a3f");
+    expect(formatLabel("王小明", "9c1d2e3f")).toBe("王小明 · 9c1");
   });
 
   test("shortProfileId takes the first 3 chars", () => {
@@ -133,8 +128,9 @@ describe("PresenceFeed — collaborators list (055)", () => {
     // full labels: 名·短id
     expect(screen.getByTestId("collab-feed-label-a3f9c2d1").textContent).toBe("Min · a3f");
     expect(screen.getByTestId("collab-feed-label-9c1d2e3f").textContent).toBe("王小明 · 9c1");
-    // self row is labeled "You"
-    expect(screen.getByTestId("collab-feed-label-self-1").textContent).toBe("CollabYou");
+    // 075: self row shows the real per-room name + the "（自己）" marker, with
+    // NO · short-id tail. (i18n is mocked → marker renders as its key.)
+    expect(screen.getByTestId("collab-feed-label-self-1").textContent).toBe("AdaCollabSelfMarker");
   });
 
   test("self row is outlined (055)", () => {
@@ -168,36 +164,49 @@ describe("PresenceFeed — collaborators list (055)", () => {
   });
 });
 
+describe("PresenceFeed — self-name edit (ADR 0006)", () => {
+  test("self row has an edit button that calls onEditSelfName", () => {
+    const onEditSelfName = vi.fn();
+    renderFeed(makeSession({ selfName: "Ada Prime" }), { onEditSelfName });
+    const editButton = screen.getByTestId("collab-selfname-edit");
+    expect(editButton).toBeTruthy();
+    fireEvent.click(editButton);
+    expect(onEditSelfName).toHaveBeenCalledTimes(1);
+  });
+});
 /* ------------------------------------------------------------------ */
 /* label-mode toggle (055: 最全 default, quiet persists)                */
 /* ------------------------------------------------------------------ */
 
-describe("PresenceFeed — label mode toggle", () => {
-  test("default is full; toggling quiet flips chips to short ids and persists", async () => {
+describe("PresenceFeed — show-user-list checkbox (075)", () => {
+  test("default is checked (full); unchecking hides the UserList (quiet) and persists", async () => {
     renderFeed();
-    // default 最全 → full chips
-    expect(screen.getByTestId("collab-label-mode-full").dataset.active).toBe("true");
+    const checkbox = screen.getByTestId("collab-show-userlist-checkbox");
+    // default = full (checked) → feed labels stay full `名·短id`
+    expect(checkbox.getAttribute("aria-checked")).toBe("true");
+    expect(checkbox.dataset.checked).toBe("true");
     expect(screen.getByTestId("collab-feed-label-a3f9c2d1").textContent).toBe("Min · a3f");
 
-    fireEvent.click(screen.getByTestId("collab-label-mode-quiet"));
-    expect(screen.getByTestId("collab-label-mode-quiet").dataset.active).toBe("true");
-    expect(screen.getByTestId("collab-feed-label-a3f9c2d1").textContent).toBe("a3f");
+    fireEvent.click(checkbox);
+    expect(checkbox.getAttribute("aria-checked")).toBe("false");
+    expect(checkbox.dataset.checked).toBeUndefined();
+    // 075: quiet no longer shrinks the feed label — only the UserList
+    expect(screen.getByTestId("collab-feed-label-a3f9c2d1").textContent).toBe("Min · a3f");
     // persisted (localStorage on the test path — getBrowser() is null)
     expect(JSON.parse(localStorage.getItem(LABEL_MODE_KEY) ?? "")).toBe("quiet");
 
     // back to full
-    fireEvent.click(screen.getByTestId("collab-label-mode-full"));
-    expect(screen.getByTestId("collab-feed-label-a3f9c2d1").textContent).toBe("Min · a3f");
+    fireEvent.click(checkbox);
+    expect(checkbox.getAttribute("aria-checked")).toBe("true");
     expect(JSON.parse(localStorage.getItem(LABEL_MODE_KEY) ?? "")).toBe("full");
   });
 
-  test("a fresh mount hydrates the persisted mode (quiet survives)", async () => {
+  test("a fresh mount hydrates the persisted mode (quiet survives → unchecked)", async () => {
     localStorage.setItem(LABEL_MODE_KEY, JSON.stringify("quiet"));
     renderFeed();
     await waitFor(() =>
-      expect(screen.getByTestId("collab-label-mode-quiet").dataset.active).toBe("true"),
+      expect(screen.getByTestId("collab-show-userlist-checkbox").getAttribute("aria-checked")).toBe("false"),
     );
-    expect(screen.getByTestId("collab-feed-label-a3f9c2d1").textContent).toBe("a3f");
   });
 });
 
@@ -378,8 +387,11 @@ describe("presence — cursor wiring (collaborators map, 049 §5 / 055)", () => 
       },
       socketId: "profile-2",
     });
-    // 055: the local cursor is never a collaborator
-    expect(call.collaborators.has("profile-1")).toBe(false);
+    // Self is now included in the collaborators map (for the UserList avatar),
+    // but has no pointer field → the local cursor is never rendered as a collaborator cursor
+    expect(call.collaborators.has("profile-1")).toBe(true);
+    const self = call.collaborators.get("profile-1") as { pointer?: unknown };
+    expect(self.pointer).toBeUndefined();
     unmount();
   });
 

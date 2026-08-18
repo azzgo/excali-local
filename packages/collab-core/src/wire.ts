@@ -139,13 +139,18 @@ export type ErrorCode =
  * Derive a member color from a profileId (Wayfinder 055 native rule).
  * Java-style string hash over chars — (o << 5) - o + charCodeAt, 32-bit wrap —
  * then hue = (hash % 37) * 10, returned as `hsl(hue, 100%, 83%)`.
+ *
+ * `Math.abs` on the hash keeps the hue non-negative, matching Excalidraw's
+ * own native rule (Ta = hsl(Math.abs(hash) % 37 * 10, 100%, 83%)) so the same
+ * profileId always yields the SAME color in our roster dots AND Excalidraw's
+ * UserList avatars (task 075).
  */
 export function deriveColor(profileId: string): string {
   let h = 0
   for (let i = 0; i < profileId.length; i++) {
     h = ((h << 5) - h + profileId.charCodeAt(i)) | 0
   }
-  const hue = (h % 37) * 10
+  const hue = (Math.abs(h) % 37) * 10
   return `hsl(${hue}, 100%, 83%)`
 }
 

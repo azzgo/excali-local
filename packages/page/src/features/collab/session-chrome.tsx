@@ -1,15 +1,18 @@
 /**
  * SessionChrome — the exclusive one-row session bar above the canvas
  * (Wayfinder 053 sessionLive — decided: OWN row, not excalidraw's internal
- * slot; one row, no wrap; 055 roster = color dots only, hover pops
- * name·short id, self outlined, join/leave ~250ms fade; 061 conn dot).
+ * slot; one row, no wrap; 061 conn dot).
  *
  * Layout (left → right):
- *   room label + privacy badge · conn dot (+word when degraded) · roster
- *   dots · spacer · copy invite · save to gallery · leave
+ *   room label + privacy badge · conn dot (+word when degraded) · spacer ·
+ *   copy invite · save to gallery · leave
  *
  * No autosave indicator (053 round 3 — removed as redundant; the explicit
  * save button + leave modal carry the message).
+ *
+ * Presence: the roster dots are REMOVED (merged into Excalidraw's UserList
+ * in the top-right). The PresenceFeed dropdown (behind the Users button)
+ * provides the detailed list + label-mode setting + self-name edit.
  *
  * Seams:
  * - `session.conn` / `session.reconnect` / `session.lastError` feed the
@@ -35,25 +38,18 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { copyInvite } from "./invite";
-import { formatLabel, useLabelMode } from "./labels";
+import { useLabelMode } from "./labels";
 import { PresenceFeed } from "./presence";
 import { ROUTES } from "./routes";
-import type { CollabRoomMeta, CollabSessionHandle, RosterMember } from "./use-collab-session";
-import { uniqueRosterForRender } from "./roster";
+import type { CollabRoomMeta, CollabSessionHandle } from "./use-collab-session";
 
 interface SessionChromeProps {
   room: CollabRoomMeta;
   session: CollabSessionHandle;
 }
 
-/** Fade-out window for departed roster dots (055: ~250ms both ways). */
-const ROSTER_FADE_MS = 250;
+
 
 export function SessionChrome({ room, session }: SessionChromeProps) {
   const [t] = useTranslation();
@@ -69,28 +65,18 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
   const [selfNameOpen, setSelfNameOpen] = useState(false);
   const [selfNameValue, setSelfNameValue] = useState("");
   const [selfNameError, setSelfNameError] = useState(false);
-  // --- roster fade (055): departed dots linger ~250ms at opacity 0 ---------
-  const prevPeersRef = useRef<RosterMember[]>([]);
-  const [departed, setDeparted] = useState<RosterMember[]>([]);
+  // Dropdown control — close it when opening the self-name modal
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  // Ref for the self-name input — manual focus for portaled modals
+  const selfNameInputRef = useRef<HTMLInputElement>(null);
+
+  // Focus the input when the modal opens (autoFocus doesn't work in portals)
   useEffect(() => {
-    const prev = prevPeersRef.current;
-    prevPeersRef.current = session.peers;
-    const curIds = new Set(session.peers.map((p) => p.profileId));
-    const gone = prev.filter((m) => !curIds.has(m.profileId));
-    if (gone.length === 0) return;
-    const timer = setTimeout(() => {
-      setDeparted((cur) =>
-        cur.filter((m) => !gone.some((g) => g.profileId === m.profileId)),
-      );
-    }, ROSTER_FADE_MS);
-    // Drop re-joined ids immediately (they render from `session.peers` now).
-    setDeparted((cur) => [
-      ...cur.filter((m) => !curIds.has(m.profileId)),
-      ...gone,
-    ]);
-    return () => clearTimeout(timer);
-  }, [session.peers]);
-  const renderedRoster = uniqueRosterForRender(session.peers, departed);
+    if (selfNameOpen) {
+      // Small delay to ensure the modal is fully rendered
+      setTimeout(() => selfNameInputRef.current?.focus(), 50);
+    }
+  }, [selfNameOpen]);
 
   // --- conn dot (061 §1 vocabulary — 046 refines copy/tooltip) ------------
   const conn = session.conn;
@@ -186,6 +172,8 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
     setSelfNameValue(session.selfName ?? "");
     setSelfNameError(false);
     setSelfNameOpen(true);
+    // Close the dropdown when opening the modal
+    setDropdownOpen(false);
   };
 
   const submitSelfNameRename = () => {
@@ -197,6 +185,8 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
     if (session.renameSelf(trimmed)) setSelfNameOpen(false);
     // The self roster dot/chip is the feedback — no toast for your own rename.
   };
+
+
 
   /** ADR 0004: the shared room name wins once the relay states one; the boot
    *  label (and its short-id fallback) only show before/without a name. */
@@ -248,57 +238,11 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
         )}
       </span>
 
-      {/* roster — color dots only; hover pops name·short id (055) */}
-      <span
-        data-testid="collab-roster"
-        className="flex shrink-0 items-center gap-1.5 overflow-x-auto"
-      >
-        {renderedRoster.map(({ m, leaving }) => (
-          <span key={m.profileId} className="flex shrink-0 items-center gap-0.5">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span
-                  data-testid={`collab-roster-dot-${m.profileId}`}
-                  data-self={m.self ? "true" : undefined}
-                  className={cn(
-                    "size-2.5 shrink-0 rounded-full",
-                    // 055: self dot gets an outline ring; join/leave = ~250ms fade
-                    m.self && "ring-2 ring-foreground ring-offset-1",
-                    leaving
-                      ? "opacity-0 transition-opacity duration-250"
-                      : "animate-in fade-in duration-250",
-                  )}
-                  style={{ background: m.color }}
-                />
-              </TooltipTrigger>
-              <TooltipContent>
-                {m.self ? t("CollabYou") : formatLabel(m.name, m.profileId, labelMode)}
-              </TooltipContent>
-            </Tooltip>
-            {/* ADR 0006: the self dot carries a small edit affordance that
-                opens the my-name rename modal (prefilled with the current
-                per-room name). */}
-            {m.self && (
-              <button
-                data-testid="collab-selfname-edit"
-                type="button"
-                title={t("CollabSelfNameEdit")}
-                aria-label={t("CollabSelfNameEdit")}
-                className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                onClick={openSelfNameRename}
-              >
-                <Pencil className="size-3" />
-              </button>
-            )}
-          </span>
-        ))}
-      </span>
-
       <span className="flex-1" />
 
       {/* presence feed — the fuller collaborators list (055); the label-mode
           setting lives inside it; the roster dots stay the compact form */}
-      <DropdownMenu>
+      <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
         <DropdownMenuTrigger asChild>
           <Button
             data-testid="collab-feed-trigger"
@@ -310,7 +254,7 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="p-2">
-          <PresenceFeed session={session} />
+          <PresenceFeed session={session} onEditSelfName={openSelfNameRename} />
         </DropdownMenuContent>
       </DropdownMenu>
       {/* copy invite (054: the invite IS the room — always re-copyable) */}
@@ -447,11 +391,11 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
             {t("CollabSelfNameLabel")}
           </label>
           <Input
+            ref={selfNameInputRef}
             id="collab-selfname-input"
             data-testid="collab-selfname-input"
             value={selfNameValue}
             maxLength={MEMBER_NAME_MAX_LENGTH}
-            autoFocus
             onChange={(e) => {
               setSelfNameValue(e.target.value);
               setSelfNameError(false);
@@ -487,3 +431,4 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
     </div>
   );
 }
+

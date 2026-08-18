@@ -7,29 +7,42 @@
  * badges — 055 resolution #4). Hosted in the session chrome behind a people
  * trigger (DropdownMenu), so the one-row chrome stays unwrapped.
  *
- * The feed also carries the 055 label-mode setting: 最全 (default — full
- * `名·短id` labels) vs 安静 (quiet — username omitted, identity via the dots
- * and short ids only). Purely local, persisted via useLabelMode (labels.ts);
- * the same mode drives the canvas chips (the session hook omits `username`
- * from the collaborators map in quiet mode).
+ * The feed carries the 055 user-list control, now a single checkbox (075):
+ * checked = show the Excalidraw right-side UserList (default), unchecked =
+ * quiet — the collaborators map omits `username` so Excalidraw's UserList
+ * filter drops every member. Purely local, persisted via useLabelMode
+ * (labels.ts); the same mode drives the collaborators map (the session hook
+ * omits `username` from the collaborators map in quiet mode). The self row
+ * shows the real per-room name with a "（自己）"/"(you)" marker (075).
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Check, Pencil } from "lucide-react";
+import { MEMBER_NAME_MAX_LENGTH } from "collab-core";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Modal } from "@/components/ui/modal";
 import { formatLabel, useLabelMode } from "./labels";
 import type { CollabSessionHandle, RosterMember } from "./use-collab-session";
 import { uniqueRosterForRender } from "./roster";
 
 interface PresenceFeedProps {
   session: CollabSessionHandle;
+  /** ADR 0006: open the my-name rename modal (hosted in SessionChrome). */
+  onEditSelfName?: () => void;
 }
 
 /** Fade-out window for departed members (055: ~250ms both ways). */
 const FEED_FADE_MS = 250;
 
-export function PresenceFeed({ session }: PresenceFeedProps) {
+export function PresenceFeed({ session, onEditSelfName }: PresenceFeedProps) {
   const [t] = useTranslation();
   const { mode, setMode } = useLabelMode();
+  // ADR 0006: my-name rename modal state — the self roster entry's name.
+  const [selfNameOpen, setSelfNameOpen] = useState(false);
+  const [selfNameValue, setSelfNameValue] = useState("");
+  const [selfNameError, setSelfNameError] = useState(false);
 
   // --- roster fade (055): departed rows linger ~250ms at opacity 0 ---------
   const prevPeersRef = useRef<RosterMember[]>([]);
@@ -54,47 +67,58 @@ export function PresenceFeed({ session }: PresenceFeedProps) {
   }, [session.peers]);
   const rendered = uniqueRosterForRender(session.peers, departed);
 
+  /** ADR 0006: open the my-name rename modal seeded with the CURRENT
+   *  per-room name (the self roster entry — NEVER the identity default). */
+  const openSelfNameRename = () => {
+    setSelfNameValue(session.selfName ?? "");
+    setSelfNameError(false);
+    setSelfNameOpen(true);
+  };
+
+  const submitSelfNameRename = () => {
+    const trimmed = selfNameValue.trim();
+    if (trimmed === "" || trimmed.length > MEMBER_NAME_MAX_LENGTH) {
+      setSelfNameError(true);
+      return;
+    }
+    if (session.renameSelf(trimmed)) setSelfNameOpen(false);
+    // The self roster dot/chip is the feedback — no toast for your own rename.
+  };
+
   return (
+    <>
     <div data-testid="collab-presence-feed" className="w-64 space-y-2">
-      {/* header: title + the 055 label-mode toggle */}
+      {/* header: title + the 075 "show user list" checkbox (replaces the
+          full/quiet segmented control — quiet's only effect is hiding the
+          Excalidraw right-side UserList) */}
       <div className="flex items-center justify-between gap-2">
         <span data-testid="collab-feed-title" className="text-xs font-semibold">
           {t("CollabPresenceTitle")} ({session.peers.length})
         </span>
-        <span
-          data-testid="collab-label-mode"
-          role="group"
-          aria-label={t("CollabLabelModeTitle")}
-          title={t("CollabLabelModeHint")}
-          className="flex items-center gap-0.5 rounded-full border bg-muted p-0.5"
+        <label
+          data-testid="collab-show-userlist"
+          title={t("CollabShowUserListHint")}
+          className="flex cursor-pointer select-none items-center gap-1.5 text-[11px] text-muted-foreground"
         >
           <button
-            data-testid="collab-label-mode-full"
-            data-active={mode === "full" ? "true" : undefined}
-            onClick={() => setMode("full")}
+            type="button"
+            role="checkbox"
+            aria-checked={mode === "full"}
+            data-testid="collab-show-userlist-checkbox"
+            data-checked={mode === "full" ? "true" : undefined}
+            aria-label={t("CollabShowUserList")}
+            onClick={() => setMode(mode === "full" ? "quiet" : "full")}
             className={cn(
-              "rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors",
+              "flex size-3.5 shrink-0 items-center justify-center rounded-sm border transition-colors",
               mode === "full"
-                ? "bg-foreground text-background"
-                : "text-muted-foreground hover:text-foreground",
+                ? "border-foreground bg-foreground text-background"
+                : "border-muted-foreground/40 bg-muted text-muted-foreground",
             )}
           >
-            {t("CollabLabelModeFull")}
+            {mode === "full" && <Check className="size-2.5" strokeWidth={3} />}
           </button>
-          <button
-            data-testid="collab-label-mode-quiet"
-            data-active={mode === "quiet" ? "true" : undefined}
-            onClick={() => setMode("quiet")}
-            className={cn(
-              "rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors",
-              mode === "quiet"
-                ? "bg-foreground text-background"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t("CollabLabelModeQuiet")}
-          </button>
-        </span>
+          {t("CollabShowUserList")}
+        </label>
       </div>
 
       {/* the list — avatar dot (055 native hue), name · short id, self outlined */}
@@ -126,12 +150,30 @@ export function PresenceFeed({ session }: PresenceFeedProps) {
                 style={{ background: m.color }}
               />
               <span data-testid={`collab-feed-label-${m.profileId}`} className="truncate text-xs">
-                {m.self ? t("CollabYou") : formatLabel(m.name, m.profileId, mode)}
+                {/* 075: the self row shows the real per-room name with the
+                    "（自己）"/"(you)" marker in parens — never the bare alias,
+                    and WITHOUT the · short-id tail (075 follow-up). */}
+                {m.self ? `${m.name}${t("CollabSelfMarker")}` : formatLabel(m.name, m.profileId)}
               </span>
+              {/* ADR 0006: self row carries an edit affordance that opens the
+                  my-name rename modal (prefilled with the current per-room name). */}
+              {m.self && (
+                <button
+                  data-testid="collab-selfname-edit"
+                  type="button"
+                  title={t("CollabSelfNameEdit")}
+                  aria-label={t("CollabSelfNameEdit")}
+                  className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  onClick={onEditSelfName}
+                >
+                  <Pencil className="size-3" />
+                </button>
+              )}
             </div>
           ))}
         </div>
       )}
     </div>
+    </>
   );
 }

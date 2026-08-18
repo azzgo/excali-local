@@ -113,7 +113,10 @@ describe("deriveColor", () => {
   it("is stable: known answers never change (055 native rule)", () => {
     // hand-verifiable: java hashCode("abc") = 96354 → 96354 % 37 = 6 → hue 60
     expect(deriveColor("abc")).toBe("hsl(60, 100%, 83%)")
-    expect(deriveColor("123e4567-e89b-12d3-a456-426614174000")).toBe("hsl(-10, 100%, 83%)")
+    // 075: Math.abs keeps the hue non-negative so it matches Excalidraw's
+    // UserList rule (hsl(Math.abs(hash) % 37 * 10, …)) — this id's hash is
+    // negative, previously `hsl(-10, …)` which differed from Excalidraw.
+    expect(deriveColor("123e4567-e89b-12d3-a456-426614174000")).toBe("hsl(10, 100%, 83%)")
   })
 
   it("returns hsl(hue, 100%, 83%) for arbitrary ids", () => {
