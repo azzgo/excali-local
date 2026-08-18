@@ -167,20 +167,11 @@
   "AgentRouteWebmcp": {
     "message": "WebMCP"
   },
-  "CollabSection": {
-    "message": "协作"
-  },
-  "CollabSectionDescription": {
-    "message": "连接团队自建的中继服务器以使用实时协作。"
-  },
   "CollabNoServer": {
     "message": "尚未连接服务器"
   },
   "CollabNoServerHint": {
     "message": "粘贴管理员提供的服务器邀请即可开始。"
-  },
-  "CollabNotConnected": {
-    "message": "未连接"
   },
   "CollabLearnMore": {
     "message": "如何部署中继服务器"
@@ -230,12 +221,6 @@
   "CollabTrustConnect": {
     "message": "信任并连接"
   },
-  "CollabUnreachableTitle": {
-    "message": "无法连接此服务器"
-  },
-  "CollabUnreachableBody": {
-    "message": "没有任何响应（超时）。请与发送邀请的人核对地址 — 服务器可能还没部署好。也可以先保存此配置，稍后再连接。"
-  },
   "CollabRetry": {
     "message": "重试"
   },
@@ -260,20 +245,8 @@
   "CollabKeyCk": {
     "message": "内容密钥"
   },
-  "CollabReveal": {
-    "message": "显示"
-  },
-  "CollabHide": {
-    "message": "隐藏"
-  },
-  "CollabCopyInvite": {
-    "message": "复制成员邀请"
-  },
   "CollabCopyCaution": {
     "message": "任何持有此邀请的人都能加入你们团队的中继 — 仅分享给团队成员。"
-  },
-  "CollabMemberInviteSentence": {
-    "message": "在 Excali Local → 选项 → 协作 中连接「$1」："
   },
   "CollabCopied": {
     "message": "已复制"
@@ -288,7 +261,7 @@
     "message": "切换团队服务器？"
   },
   "CollabSwitchBodyA": {
-    "message": "将以 $2 替换 $1。"
+    "message": "将以 $new$ 替换 $old$。"
   },
   "CollabSwitchBodyB": {
     "message": "房间仍保留在“我的房间”中并显示为灰色 — 不会被删除。切回旧服务器后，旧房间会重新可用。"
@@ -326,12 +299,6 @@
   "CollabLocalRelay": {
     "message": "本地"
   },
-  "CollabInviteNotFound": {
-    "message": "未在此文本中找到服务器邀请。请粘贴管理员发送的完整邀请。"
-  },
-  "CollabInvalidInvite": {
-    "message": "此邀请无效：$1"
-  },
   "CollabRoomInviteHere": {
     "message": "这是房间邀请 — 请改在编辑器中粘贴。"
   },
@@ -340,5 +307,50 @@
   },
   "CollabLastCheck": {
     "message": "上次检查"
+  },
+  "CollabConfigTitle": {
+    "message": "协作"
+  },
+  "CollabConfigHide": {
+    "message": "隐藏"
+  },
+  "CollabConfigReveal": {
+    "message": "显示"
+  },
+  "CollabConfigInviteInvalid": {
+    "message": "此邀请无效：$reason$"
+  },
+  "CollabConfigInviteNotFound": {
+    "message": "未在此文本中找到服务器邀请。请粘贴管理员发送的完整邀请。"
+  },
+  "CollabServerClipboard": {
+    "message": "在 Excali Local → 选项 → 协作 中连接「$org$」："
+  },
+  "CollabSrvUnreachTitle": {
+    "message": "无法连接此服务器"
+  },
+  "CollabSrvUnreachBody": {
+    "message": "没有任何响应（超时）。请与发送邀请的人核对地址 — 服务器可能还没部署好。也可以先保存此配置，稍后再连接。"
+  },
+  "CollabCancel": {
+    "message": "取消"
+  },
+  "CollabConfigWebappNote": {
+    "message": "此配置保存在此浏览器中 — 团队的中继详情存储在本地。"
+  },
+  "CollabLandingNotConnected": {
+    "message": "未连接"
+  },
+  "CollabCopyMemberInvite": {
+    "message": "复制成员邀请"
+  },
+  "CollabBack": {
+    "message": "返回"
+  },
+  "CollabOrg": {
+    "message": "组织"
+  },
+  "CollabRelayUrl": {
+    "message": "中继地址"
   }
 }

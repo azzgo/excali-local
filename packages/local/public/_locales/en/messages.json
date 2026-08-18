@@ -167,20 +167,11 @@
   "AgentRouteWebmcp": {
     "message": "WebMCP"
   },
-  "CollabSection": {
-    "message": "Collaboration"
-  },
-  "CollabSectionDescription": {
-    "message": "Connect to your team's self-hosted relay to enable realtime collaboration."
-  },
   "CollabNoServer": {
     "message": "No server connected"
   },
   "CollabNoServerHint": {
     "message": "Paste a server invite from your admin to get started."
-  },
-  "CollabNotConnected": {
-    "message": "not connected"
   },
   "CollabLearnMore": {
     "message": "How to deploy a relay"
@@ -230,12 +221,6 @@
   "CollabTrustConnect": {
     "message": "Trust & connect"
   },
-  "CollabUnreachableTitle": {
-    "message": "Can't reach this server"
-  },
-  "CollabUnreachableBody": {
-    "message": "Nothing answered (timeout). Check the address with whoever sent the invite — the server may not be deployed yet. You can still save this config and connect later."
-  },
   "CollabRetry": {
     "message": "Retry"
   },
@@ -260,20 +245,8 @@
   "CollabKeyCk": {
     "message": "Content key"
   },
-  "CollabReveal": {
-    "message": "Reveal"
-  },
-  "CollabHide": {
-    "message": "Hide"
-  },
-  "CollabCopyInvite": {
-    "message": "Copy member invite"
-  },
   "CollabCopyCaution": {
     "message": "Anyone with this invite can join your team’s relay — share it only with teammates."
-  },
-  "CollabMemberInviteSentence": {
-    "message": "Connect to「$1」in Excali Local → Options → Collaboration:"
   },
   "CollabCopied": {
     "message": "Copied"
@@ -288,7 +261,7 @@
     "message": "Switch team server?"
   },
   "CollabSwitchBodyA": {
-    "message": "This replaces $1 with $2."
+    "message": "This replaces $old$ with $new$."
   },
   "CollabSwitchBodyB": {
     "message": "Your rooms stay in My Rooms, grayed out — nothing is deleted. Rooms from the old server reconnect if you switch back."
@@ -326,12 +299,6 @@
   "CollabLocalRelay": {
     "message": "local relay"
   },
-  "CollabInviteNotFound": {
-    "message": "No server invite found in this text. Paste the full invite from your admin."
-  },
-  "CollabInvalidInvite": {
-    "message": "This invite is invalid: $1"
-  },
   "CollabRoomInviteHere": {
     "message": "This is a room invite — paste it in the editor's Collaborate panel instead."
   },
@@ -340,5 +307,50 @@
   },
   "CollabLastCheck": {
     "message": "last check"
+  },
+  "CollabConfigTitle": {
+    "message": "Collaboration"
+  },
+  "CollabConfigHide": {
+    "message": "Hide"
+  },
+  "CollabConfigReveal": {
+    "message": "Reveal"
+  },
+  "CollabConfigInviteInvalid": {
+    "message": "This invite is invalid: $reason$"
+  },
+  "CollabConfigInviteNotFound": {
+    "message": "No server invite found in this text. Paste the full invite from your admin."
+  },
+  "CollabServerClipboard": {
+    "message": "Connect to「$org$」 in Excali Local → Options → Collaboration:"
+  },
+  "CollabSrvUnreachTitle": {
+    "message": "Can't reach this server"
+  },
+  "CollabSrvUnreachBody": {
+    "message": "Nothing answered (timeout). Check the address with whoever sent the invite — the server may not be deployed yet. You can still save this config and connect later."
+  },
+  "CollabCancel": {
+    "message": "Cancel"
+  },
+  "CollabConfigWebappNote": {
+    "message": "This configuration lives in this browser — your team's relay details are stored locally."
+  },
+  "CollabLandingNotConnected": {
+    "message": "not connected"
+  },
+  "CollabCopyMemberInvite": {
+    "message": "Copy member invite"
+  },
+  "CollabBack": {
+    "message": "Back"
+  },
+  "CollabOrg": {
+    "message": "Organization"
+  },
+  "CollabRelayUrl": {
+    "message": "Relay address"
   }
 }
