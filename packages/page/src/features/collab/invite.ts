@@ -28,13 +28,13 @@ import {
   encodeRoomInvite,
   encodeServerInvite,
   parseInvite,
-  validateRelayUrl,
   type ParseInviteResult,
   type RoomInvite,
   type ServerInvite,
 } from "collab-core";
+import { copyText, dialServer, DIAL_TIMEOUT_MS } from "collab-core/ui";
 import type { TFunction } from "i18next";
-import { isLoopbackRelay, type ServerConfig } from "./storage";
+import type { ServerConfig } from "./storage";
 
 export type InviteKind = "server" | "room";
 
@@ -42,59 +42,11 @@ export type InviteKind = "server" | "room";
 export type Translate = TFunction;
 
 /** 054 Q9: prototype shows "checking… ⏱ timeout 8s". */
-export const DIAL_TIMEOUT_MS = 8000;
-
-/* ------------------------------------------------------------------ */
-/* clipboard                                                            */
-/* ------------------------------------------------------------------ */
-
-/**
- * Write `text` to the clipboard. Primary path: `navigator.clipboard.writeText`
- * (requires user activation — call from a click handler; NO clipboardWrite
- * permission is declared). If the API is missing or rejects (some contexts,
- * iframes, older engines), fall back to a hidden-textarea `execCommand("copy")`.
- * Returns true when the write succeeded.
- */
-export async function copyText(text: string): Promise<boolean> {
-  let clipboard: Clipboard | undefined;
-  try {
-    clipboard = navigator.clipboard;
-  } catch {
-    clipboard = undefined; // access denied (rare) — fall through to legacy
-  }
-  if (clipboard?.writeText) {
-    try {
-      await clipboard.writeText(text);
-      return true;
-    } catch {
-      // fall through to the legacy path
-    }
-  }
-  return legacyCopy(text);
-}
-
-function legacyCopy(text: string): boolean {
-  try {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.setAttribute("readonly", "");
-    ta.style.position = "fixed";
-    ta.style.top = "-9999px";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    const ok = document.execCommand("copy");
-    document.body.removeChild(ta);
-    return ok;
-  } catch {
-    return false;
-  }
-}
+export { DIAL_TIMEOUT_MS, copyText, dialServer } from "collab-core/ui";
 
 /* ------------------------------------------------------------------ */
 /* sentence + code (054 Q1)                                             */
 /* ------------------------------------------------------------------ */
-
 /** The invite code itself (collab-core encodes; this never reimplements). */
 export function inviteCode(kind: InviteKind, payload: ServerInvite | RoomInvite): string {
   return kind === "server"
@@ -218,66 +170,6 @@ export function pasteSeverity(
   // server invite (sk/ck are parse-validated, so no-key cannot occur)
   if (unreachable) return { kind: "unreachable", inviteKind: "server" };
   return { kind: "ok" };
-}
-
-/* ------------------------------------------------------------------ */
-/* reachability (054 Q9 / 060 §1)                                       */
-/* ------------------------------------------------------------------ */
-
-/**
- * Live reachability dial before trust/adoption (054 Q9 — the trust-confirm does
- * this before storing; admins generate invites before deploying, hence the
- * Save-anyway escape hatch). Loopback relays (`127.0.0.1` / `[::1]`) skip the
- * probe entirely (060 §1) — `"skipped"` renders as the neutral local-relay badge.
- * Remote relays are probed with a WebSocket handshake; success = the server
- * answered, failure/timeout = `"unreachable"`.
- */
-export async function dialServer(
-  relayUrl: string,
-  timeoutMs: number = DIAL_TIMEOUT_MS,
-): Promise<DialResult> {
-  if (validateRelayUrl(relayUrl) !== null) return "unreachable";
-  if (isLoopbackRelay(relayUrl)) return "skipped"; // 060: never probed, neutral badge
-  return (await probeWs(relayUrl, timeoutMs)) ? "ok" : "unreachable";
-}
-
-function probeWs(url: string, timeoutMs: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    let done = false;
-    const finish = (ok: boolean) => {
-      if (!done) {
-        done = true;
-        resolve(ok);
-      }
-    };
-    let ws: WebSocket;
-    try {
-      ws = new WebSocket(url);
-    } catch {
-      finish(false);
-      return;
-    }
-    const timer = setTimeout(() => {
-      try {
-        ws.close();
-      } catch {
-        /* already closed */
-      }
-      finish(false);
-    }, timeoutMs);
-    ws.onopen = () => {
-      clearTimeout(timer);
-      finish(true);
-    };
-    ws.onerror = () => {
-      clearTimeout(timer);
-      finish(false);
-    };
-    ws.onclose = () => {
-      clearTimeout(timer);
-      finish(false);
-    };
-  });
 }
 
 /* ------------------------------------------------------------------ */
