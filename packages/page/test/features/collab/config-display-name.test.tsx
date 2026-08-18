@@ -154,9 +154,13 @@ describe("shared config section — display-name row (059 d6/d9)", () => {
     render(<ConfigScreen lang="en" />);
     await screen.findByTestId("collab-config-summary");
 
-    // resolveIdentity mints a profileId (uuid hex); name = first 4 hex chars
-    const value = input().value;
-    expect(value).toMatch(/^[0-9a-f]{4}$/i);
+    // resolveIdentity mints a profileId (uuid hex); name = first 4 hex chars.
+    // Await the async mint (crypto.subtle) so the assertion is not raced.
+    const value = await waitFor(() => {
+      const v = input().value;
+      expect(v).toMatch(/^[0-9a-f]{4}$/i);
+      return v;
+    });
     // the minted identity is persisted under the profile key
     expect(storedIdentityName()).toBe(value);
   });
