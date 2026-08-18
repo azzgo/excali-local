@@ -206,6 +206,19 @@ snapshot survives.
   broadcasts a rename with the author mapped through the roster. The local `rooms`
   entry's label is just a mirror; a genuinely named label is *pushed* as the room
   name when the room has none (first naming / dead-room revival).
+- **Member display names (ADR 0006).** A member has a **profile default** display
+  name — minted once in the identity, edited in the shared config section
+  (Options), instant-apply, always non-empty and trimmed ≤ 40 chars — plus an
+  optional **per-room name**: a one-time *copy* of the default materialized at
+  room entry (join *and* create), then a free-standing value reused on re-entry.
+  Editing the default later never reaches rooms already entered (copy semantics).
+  Renames ride a dedicated `member-name` wire message (mirrors `room-name`, ADR
+  0004): the client sends `{name}`, the relay trims/validates (non-empty, ≤ 40),
+  updates the *sending* member's record in the roster, and broadcasts
+  `{name, from}` (relay-stamped `from` at envelope level, sender excluded). The
+  name dies with the connection — nothing lands in `room.storage`. Receiving
+  clients update the roster + canvas collaborator chips live — no reconnect, no
+  toast; `welcome.peers` shows late joiners the current per-room names.
 - **Room probe (ADR 0004).** A lightweight pre-join query (`room-probe` — no
   admission, no roster side effect) returns `{roomName, snapshotAvailable,
   peerCount}`. The join screen uses it to show the real name and to gate the seed
