@@ -37,10 +37,15 @@ import {
   type ServerInvite,
 } from "../invites";
 import {
+  COLLAB_PROFILE_ID_KEY,
   isLoopbackRelay,
   maskKey,
   readServerConfig,
+  resolveIdentity,
+  storageSet,
+  updateDisplayName,
   writeServerConfig,
+  type CollabIdentity,
   type ServerConfig,
 } from "../storage";
 import { copyText, dialServer, type DialResult } from "./helpers";
@@ -128,9 +133,16 @@ export default function CollabConfigSection({
   const [inviteCopied, setInviteCopied] = useState(false);
   const [forgetOpen, setForgetOpen] = useState(false);
 
+  // display-name row (story 059 / decision 6+9) — the profile default
+  // display name (CollabIdentity.name) edited here instant-apply. Never
+  // saved empty; a mint failure leaves an empty field but never a hint.
+  const [displayName, setDisplayName] = useState<string>("");
+  const [nameError, setNameError] = useState<string | null>(null);
+
   const dialGenRef = useRef(0); // discard stale dial results
   const configRef = useRef<ServerConfig | null>(null); // rollback target
   configRef.current = config;
+  const identityRef = useRef<CollabIdentity | null>(null); // display-name target
 
   // ------------------------------------------------------------------
   // load + reachability (056 Q5: on-demand — on open, after save, Check again)
@@ -150,6 +162,21 @@ export default function CollabConfigSection({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // read-or-mint the collab identity on mount and pre-fill the display name
+  // (fresh profile → the minted short handle). Null (storage/identity failure)
+  // leaves the field empty — never a fallback-to-handle state.
+  useEffect(() => {
+    let cancelled = false;
+    void resolveIdentity().then((identity) => {
+      if (cancelled || identity === null) return;
+      identityRef.current = identity;
+      setDisplayName(identity.name);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const runDial = useCallback(async (relay: string) => {
@@ -224,6 +251,29 @@ export default function CollabConfigSection({
     setDial({ state: "idle" });
   }, [t, onToast]);
 
+  // ------------------------------------------------------------------
+  // display name (059 d6/d9) — instant-apply on blur + Enter, never empty
+  // ------------------------------------------------------------------
+  const applyDisplayName = useCallback(async () => {
+    const identity = identityRef.current;
+    if (identity === null) {
+      // identity unavailable — nothing to save, no error to show
+      setNameError(null);
+      return;
+    }
+    const updated = updateDisplayName(identity, displayName);
+    if (updated === null) {
+      // invalid (trimmed-empty or > 40) — show error and KEEP the last saved
+      // name; the field is never saved empty.
+      setNameError(t("CollabDisplayNameInvalid"));
+      setDisplayName(identity.name);
+      return;
+    }
+    await storageSet(COLLAB_PROFILE_ID_KEY, updated);
+    identityRef.current = updated;
+    setDisplayName(updated.name);
+    setNameError(null);
+  }, [displayName, t]);
   // ------------------------------------------------------------------
   // paste → parse (054 Q1: sentence + code, or bare code)
   // ------------------------------------------------------------------
@@ -321,6 +371,48 @@ export default function CollabConfigSection({
   // ------------------------------------------------------------------
   // render helpers
   // ------------------------------------------------------------------
+  const displayNameRow = (
+    <div
+      data-testid="collab-config-display-name-row"
+      className="mb-4 rounded-lg border bg-card p-4 text-sm shadow-xs"
+    >
+      <label
+        htmlFor="collab-display-name"
+        className="text-xs font-medium text-muted-foreground"
+      >
+        {t("CollabDisplayName")}
+      </label>
+      <input
+        id="collab-display-name"
+        data-testid="collab-config-display-name"
+        type="text"
+        value={displayName}
+        onChange={(e) => {
+          setDisplayName(e.target.value);
+          setNameError(null);
+        }}
+        onBlur={() => void applyDisplayName()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            void applyDisplayName();
+          }
+        }}
+        aria-label={t("CollabDisplayNameLabel")}
+        placeholder={t("CollabDisplayNamePlaceholder")}
+        className="mt-1 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+      />
+      {nameError !== null && (
+        <p
+          data-testid="collab-config-name-error"
+          className="mt-2 text-xs text-red-600 dark:text-red-400"
+        >
+          {nameError}
+        </p>
+      )}
+    </div>
+  );
+
   const pasteField = (
     <div>
       <label className="text-xs font-medium text-muted-foreground">
@@ -802,6 +894,9 @@ export default function CollabConfigSection({
         <h1 className="text-lg font-semibold tracking-tight">{t("CollabConfigTitle")}</h1>
         {/* 056 webapp banner (verbatim): the config lives in THIS browser */}
         {noteBanner}
+
+        {/* 059 d6/d9: display-name row is rendered in ALL stages, unconditionally */}
+        {displayNameRow}
 
         {stage === "empty" && emptyView}
         {stage === "review" && reviewView}

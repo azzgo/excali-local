@@ -336,6 +336,12 @@ export function initI18n() {
           "CollabSelfNameRename": "Rename my name",
           "CollabSelfNameLabel": "Your name in this room",
           "CollabSelfNameInvalid": "Names must be 1–40 characters",
+          // ADR 0006 / 059 (task 065): profile default display-name row in the
+          // shared config section — reused by the Options chrome.i18n side.
+          "CollabDisplayName": "Your display name",
+          "CollabDisplayNameLabel": "Your display name",
+          "CollabDisplayNamePlaceholder": "e.g. Jane Doe",
+          "CollabDisplayNameInvalid": "Display names must be 1–40 characters",
           "CollabConnLive": "Live",
           "CollabConnConnecting": "Connecting…",
           "CollabConnReconnecting": "Reconnecting",
@@ -704,6 +710,12 @@ export function initI18n() {
           "CollabSelfNameRename": "修改我的名字",
           "CollabSelfNameLabel": "你在此房间的名字",
           "CollabSelfNameInvalid": "名字须为 1–40 个字符",
+          // ADR 0006 / 059（任务 065）：共享配置区中的个人默认显示名称行，
+          // 亦供 Options 的 chrome.i18n 侧复用。
+          "CollabDisplayName": "你的显示名称",
+          "CollabDisplayNameLabel": "你的显示名称",
+          "CollabDisplayNamePlaceholder": "例如：Jane Doe",
+          "CollabDisplayNameInvalid": "显示名称须为 1–40 个字符",
           "CollabConnLive": "在线",
           "CollabConnConnecting": "连接中…",
           "CollabConnReconnecting": "重新连接中",
