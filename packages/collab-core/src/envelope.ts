@@ -183,9 +183,9 @@ export function bytesToB64url(bytes: Uint8Array): string {
   let out = ""
   const n = bytes.length
   for (let i = 0; i < n; i += 3) {
-    const b0 = bytes[i]
-    const b1 = i + 1 < n ? bytes[i + 1] : 0
-    const b2 = i + 2 < n ? bytes[i + 2] : 0
+    const b0 = bytes[i]!
+    const b1 = i + 1 < n ? bytes[i + 1]! : 0
+    const b2 = i + 2 < n ? bytes[i + 2]! : 0
     out += B64URL_ALPHABET[b0 >> 2]
     out += B64URL_ALPHABET[((b0 & 0x03) << 4) | (b1 >> 4)]
     if (i + 1 < n) out += B64URL_ALPHABET[((b1 & 0x0f) << 2) | (b2 >> 6)]
@@ -218,19 +218,19 @@ export function b64urlToBytes(s: string): Uint8Array<ArrayBuffer> {
   }
   // canonical padding: leftover bits past the byte boundary must be zero
   // (pad=1 ⇒ last char's low 2 bits are pad; pad=2 ⇒ low 4 bits are pad)
-  if (pad === 1 && (B64URL_LOOKUP[s.charCodeAt(bodyLen - 1)] & 0x03) !== 0) {
+  if (pad === 1 && (B64URL_LOOKUP[s.charCodeAt(bodyLen - 1)]! & 0x03) !== 0) {
     throw new Error("non-canonical base64url padding")
   }
-  if (pad === 2 && (B64URL_LOOKUP[s.charCodeAt(bodyLen - 1)] & 0x0f) !== 0) {
+  if (pad === 2 && (B64URL_LOOKUP[s.charCodeAt(bodyLen - 1)]! & 0x0f) !== 0) {
     throw new Error("non-canonical base64url padding")
   }
   const out = new Uint8Array(Math.floor((bodyLen * 3) / 4))
   let o = 0
   for (let i = 0; i < bodyLen; i += 4) {
-    const a = B64URL_LOOKUP[s.charCodeAt(i)]
-    const b = B64URL_LOOKUP[s.charCodeAt(i + 1)]
-    const c = i + 2 < bodyLen ? B64URL_LOOKUP[s.charCodeAt(i + 2)] : 0
-    const d = i + 3 < bodyLen ? B64URL_LOOKUP[s.charCodeAt(i + 3)] : 0
+    const a = B64URL_LOOKUP[s.charCodeAt(i)]!
+    const b = B64URL_LOOKUP[s.charCodeAt(i + 1)]!
+    const c = i + 2 < bodyLen ? B64URL_LOOKUP[s.charCodeAt(i + 2)]! : 0
+    const d = i + 3 < bodyLen ? B64URL_LOOKUP[s.charCodeAt(i + 3)]! : 0
     out[o++] = (a << 2) | (b >> 4)
     if (i + 2 < bodyLen) out[o++] = ((b & 0x0f) << 4) | (c >> 2)
     if (i + 3 < bodyLen) out[o++] = ((c & 0x03) << 6) | d
