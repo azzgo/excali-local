@@ -45,7 +45,6 @@ import {
   ROOM_NAME_MAX_LENGTH,
   b64urlToBytes,
   buildRoomUrl,
-  bytesToB64url,
   clearSession,
   deriveColor,
   loadSession,
@@ -73,167 +72,16 @@ import type { AppState, BinaryFiles, DataURL, Zoom } from "@excalidraw/excalidra
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { Collaborator, SocketId } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { getBrowser } from "@/lib/utils";
 import { useThumbnail } from "@/features/gallery/hooks/use-thumbnail";
 import { patchRoomMyName, patchRoomName, saveDrawing } from "@/features/editor/utils/indexdb";
-import { COLLAB_SERVER_CONFIG, type ServerConfig } from "./storage";
+import { resolveIdentity, type CollabIdentity, type ServerConfig } from "./storage";
+export type { CollabIdentity } from "./storage";
 import type { LabelMode } from "./labels";
 import { createRoomFileHydrator, fileIdsInRect, uploadNewLocalFiles, visibleSceneRect } from "./use-collab-files";
 import { useBackgroundResume } from "./use-background-resume";
 import { debounce } from "radash";
 import { toast } from "sonner";
 import i18n from "i18next";
-/* ------------------------------------------------------------------ */
-/* identity (mint-once per profile)                                     */
-/* ------------------------------------------------------------------ */
-
-/** chrome.storage.local / localStorage key for the collab identity record. */
-export const COLLAB_PROFILE_ID_KEY = "collabProfileId";
-
-/** Mint-once collab identity: install uuid + display name + member keypair. */
-export interface CollabIdentity {
-  profileId: string;
-  /** default display name — a stable short handle until a name setting exists */
-  name: string;
-  /** member Ed25519 seed, 32B b64url (the pub derives from it, 057 §3) */
-  seed: string;
-  /** member Ed25519 public key, 32B b64url — the hello `key` */
-  pub: string;
-}
-
-function isCollabIdentity(value: unknown): value is CollabIdentity {
-  const v = value as CollabIdentity | null;
-  return (
-    v !== null &&
-    typeof v === "object" &&
-    typeof v.profileId === "string" &&
-    v.profileId !== "" &&
-    typeof v.name === "string" &&
-    typeof v.seed === "string" &&
-    v.seed !== "" &&
-    typeof v.pub === "string" &&
-    v.pub !== ""
-  );
-}
-
-/** Storage-area mirror of use-server-config: chrome.storage.local or the
- * webapp localStorage fallback (getBrowser() null — also the test path). */
-async function storageGet(key: string): Promise<unknown> {
-  const browser = getBrowser();
-  if (browser?.storage?.local) {
-    try {
-      const result = await browser.storage.local.get(key);
-      return result[key];
-    } catch {
-      return null;
-    }
-  }
-  try {
-    const raw = globalThis.localStorage?.getItem(key) ?? null;
-    return raw === null ? null : JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-async function storageSet(key: string, value: unknown): Promise<void> {
-  const browser = getBrowser();
-  if (browser?.storage?.local) {
-    try {
-      await browser.storage.local.set({ [key]: value });
-    } catch {
-      /* storage unavailable — identity degrades to per-session */
-    }
-    return;
-  }
-  try {
-    globalThis.localStorage?.setItem(key, JSON.stringify(value));
-  } catch {
-    /* ignore */
-  }
-}
-
-/** The raw stored server config (Options' CollabServerConfig shape) — the
- * page-side ServerConfig type drops the 048 `member` keypair, which we read
- * here to reuse instead of re-minting. */
-async function readRawServerConfig(): Promise<Record<string, unknown> | null> {
-  const browser = getBrowser();
-  if (browser?.storage?.local) {
-    try {
-      const result = await browser.storage.local.get(COLLAB_SERVER_CONFIG);
-      const raw = result[COLLAB_SERVER_CONFIG];
-      return typeof raw === "object" && raw !== null
-        ? (raw as Record<string, unknown>)
-        : null;
-    } catch {
-      return null;
-    }
-  }
-  try {
-    const raw = globalThis.localStorage?.getItem(COLLAB_SERVER_CONFIG) ?? null;
-    if (raw === null) return null;
-    const parsed: unknown = JSON.parse(raw);
-    return typeof parsed === "object" && parsed !== null
-      ? (parsed as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Mint a member Ed25519 keypair (057 §3) — seed + public key, b64url
- * (mirrors the Options-side mintMemberKeypair; WebCrypto Ed25519 on
- * Chrome 113+/Edge 113+/Firefox 129+, 057 runtime verification). */
-async function mintMemberKeypair(): Promise<{ seed: string; pub: string }> {
-  const kp = await crypto.subtle.generateKey({ name: "Ed25519" }, true, [
-    "sign",
-    "verify",
-  ]);
-  const pkcs8 = await crypto.subtle.exportKey("pkcs8", kp.privateKey);
-  const raw = await crypto.subtle.exportKey("raw", kp.publicKey);
-  // PKCS#8 for Ed25519 = fixed 16-byte DER prefix || seed (057 §1).
-  return {
-    seed: bytesToB64url(new Uint8Array(pkcs8).slice(16)),
-    pub: bytesToB64url(new Uint8Array(raw)),
-  };
-}
-
-/** Resolve (or mint-once + persist) the collab identity. Reuses the member
- * keypair already stored in the server config by 048's Options when present
- * (task 044: "check if 048 already stores member keys; if yes reuse"). */
-async function resolveIdentity(
-  override?: CollabIdentity,
-): Promise<CollabIdentity | null> {
-  if (override !== undefined) return override;
-  try {
-    const stored = await storageGet(COLLAB_PROFILE_ID_KEY);
-    if (isCollabIdentity(stored)) return stored;
-
-    // Reuse the 048 member keypair when the Options section minted one.
-    const rawConfig = await readRawServerConfig();
-    const member = rawConfig?.member as { seed?: unknown; pub?: unknown } | null;
-    const seed = typeof member?.seed === "string" ? member.seed : "";
-    const pub = typeof member?.pub === "string" ? member.pub : "";
-
-    let keys: { seed: string; pub: string };
-    if (seed !== "" && pub !== "") {
-      keys = { seed, pub };
-    } else {
-      keys = await mintMemberKeypair();
-    }
-
-    const profileId = crypto.randomUUID();
-    const identity: CollabIdentity = {
-      profileId,
-      name: profileId.slice(0, 4),
-      ...keys,
-    };
-    await storageSet(COLLAB_PROFILE_ID_KEY, identity);
-    return identity;
-  } catch {
-    return null;
-  }
-}
 
 /* ------------------------------------------------------------------ */
 /* types                                                                */
