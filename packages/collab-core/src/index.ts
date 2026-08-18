@@ -108,3 +108,20 @@ export type {
   FilePutMeta,
   FileReadyInfo,
 } from "./files"
+export {
+  COLLAB_PROFILE_ID_KEY,
+  COLLAB_SERVER_CONFIG,
+  isCollabIdentity,
+  isLoopbackRelay,
+  isServerConfig,
+  maskKey,
+  mintMemberKeypair,
+  parseStoredConfig,
+  readServerConfig,
+  resolveIdentity,
+  storageGet,
+  storageSet,
+  updateDisplayName,
+  writeServerConfig,
+} from "./storage"
+export type { CollabIdentity, ServerConfig } from "./storage"
