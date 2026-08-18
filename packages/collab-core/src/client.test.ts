@@ -961,6 +961,33 @@ describe("room-name message (ADR 0004)", () => {
   })
 })
 
+describe("member-name message (ADR 0006)", () => {
+  it("sendMemberName emits a member-name envelope, trimmed; blank/too-long names are dropped client-side", () => {
+    const { client, socket } = makeClient()
+    client.connect()
+    socket().open()
+    client.sendMemberName("  Trimmed  ")
+    expect(JSON.parse(socket().sent.at(-1)!)).toEqual({ v: 1, t: "member-name", p: { name: "Trimmed" } })
+    const before = socket().sent.length
+    client.sendMemberName("   ")
+    client.sendMemberName("x".repeat(41))
+    expect(socket().sent.length).toBe(before) // nothing put on the wire
+  })
+
+  it("dispatches relay-stamped member-name broadcasts to onMemberName; drops from-less frames (relay bug)", () => {
+    const onMemberName = vi.fn()
+    const { client, socket } = makeClient({ onMemberName })
+    client.connect()
+    socket().open()
+    socket().message(welcomeMessage())
+    socket().message(JSON.stringify({ v: 1, t: "member-name", p: { name: "Ada" }, from: "conn-2" }))
+    expect(onMemberName).toHaveBeenCalledTimes(1)
+    expect(onMemberName).toHaveBeenCalledWith({ name: "Ada", from: "conn-2" })
+    socket().message(JSON.stringify({ v: 1, t: "member-name", p: { name: "ghost" } })) // no from
+    expect(onMemberName).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe("probeRoom (ADR 0004)", () => {
   it("dials the room, sends room-probe as the FIRST message, resolves the answer and closes", async () => {
     const socket = new StubSocket("ws://127.0.0.1:1999/party/room-1")

@@ -77,6 +77,7 @@ export type ClientMessage =
   | { v: 1; t: "file-get"; p: { fileId: string } }
   | { v: 1; t: "chunk"; p: { id: string; n: number; i: number; d: string } }
   | { v: 1; t: "room-name"; p: { name: string } }
+  | { v: 1; t: "member-name"; p: { name: string } }
   | { v: 1; t: "room-probe"; p: {} }
 export type RelayMessage =
   | { v: 1; t: "welcome"; p: WelcomePayload }
@@ -93,6 +94,7 @@ export type RelayMessage =
   | { v: 1; t: "error"; p: { code: ErrorCode; reason: string; fatal?: boolean } }
   | { v: 1; t: "chunk"; p: { id: string; n: number; i: number; d: string } }
   | { v: 1; t: "room-name"; p: { name: string }; from: string }
+  | { v: 1; t: "member-name"; p: { name: string }; from: string }
   | { v: 1; t: "room-probe"; p: RoomProbePayload }
 
 /**
@@ -109,6 +111,8 @@ export interface RoomProbePayload {
 /** ADR 0004 validation: trimmed room names are non-empty and ≤ this many chars. */
 export const ROOM_NAME_MAX_LENGTH = 100
 
+/** ADR 0006 validation: trimmed member names are non-empty and ≤ this many chars. */
+export const MEMBER_NAME_MAX_LENGTH = 40
 
 /**
  * @deprecated RETIRED from the minted set (058 §1.3) — kept in TS only as

@@ -1,6 +1,6 @@
 export { CHUNK_THRESHOLD, ChunkAssembler, serializeEnvelope } from "./chunk"
 export type { ChunkFrame, SerializeEnvelopeResult } from "./chunk"
-export { PROTOCOL_VERSION, ROOM_NAME_MAX_LENGTH, deriveColor, helloCanon, seedToPkcs8 } from "./wire"
+export { PROTOCOL_VERSION, ROOM_NAME_MAX_LENGTH, MEMBER_NAME_MAX_LENGTH, deriveColor, helloCanon, seedToPkcs8 } from "./wire"
 export type {
   ProtocolVersion,
   WireEnvelope,

@@ -28,6 +28,7 @@ const clientMessages: ClientMessage[] = [
   { v: 1, t: "file-put", p: { fileId: "f-1", mimeType: "image/png", size: 1234 } },
   { v: 1, t: "file-get", p: { fileId: "f-1" } },
   { v: 1, t: "chunk", p: { id: "chunk-1", n: 3, i: 0, d: "fragment" } },
+  { v: 1, t: "member-name", p: { name: "Ada" } },
 ]
 
 const relayMessages: RelayMessage[] = [
@@ -54,6 +55,7 @@ const relayMessages: RelayMessage[] = [
   { v: 1, t: "error", p: { code: "ADMISSION_INVALID", reason: "bad signature", fatal: true } },
   { v: 1, t: "chunk", p: { id: "chunk-1", n: 1, i: 0, d: "fragment" } },
   { v: 1, t: "room-name", p: { name: "Q3 planning" }, from: "conn-2" },
+  { v: 1, t: "member-name", p: { name: "Ada" }, from: "conn-2" },
   { v: 1, t: "room-probe", p: { roomName: "Q3 planning", snapshotAvailable: true, peerCount: 2 } },
 ]
 

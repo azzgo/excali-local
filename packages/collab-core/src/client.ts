@@ -50,7 +50,7 @@ import type { ChunkFrame } from "./chunk"
 import { GcmAuthError, decryptContent, deriveContentKey } from "./envelope"
 import type { ContentType, EncryptedPayload } from "./envelope"
 import { validateRelayUrl } from "./invites"
-import { PROTOCOL_VERSION, ROOM_NAME_MAX_LENGTH } from "./wire"
+import { PROTOCOL_VERSION, ROOM_NAME_MAX_LENGTH, MEMBER_NAME_MAX_LENGTH } from "./wire"
 import type {
   ClientMessage,
   ColorPair,
@@ -294,6 +294,8 @@ export interface CollabClientOptions extends CollabBackoffOptions {
   onReconnect?: (info: { attempt: number; delayMs: number }) => void
   /** relay-stamped room-rename broadcast (ADR 0004) — `from` is the renamer's connId */
   onRoomName?: (info: { name: string; from: string }) => void
+  /** relay-stamped member-name broadcast (ADR 0006) — `from` is the sender's connId */
+  onMemberName?: (info: { name: string; from: string }) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -485,6 +487,18 @@ export class CollabClient {
     const trimmed = name.trim()
     if (trimmed === "" || trimmed.length > ROOM_NAME_MAX_LENGTH) return
     this.sendEnvelope({ v: PROTOCOL_VERSION, t: "room-name", p: { name: trimmed } })
+  }
+
+  /**
+   * Offer a new member display name (ADR 0006): the client-side guard mirrors the
+   * relay's validation (trim, non-empty, ≤ 40 chars) so a bad name is never even
+   * put on the wire. Immediate, no throttle — renames are discrete user actions.
+   * Dropped silently while disconnected.
+   */
+  sendMemberName(name: string): void {
+    const trimmed = name.trim()
+    if (trimmed === "" || trimmed.length > MEMBER_NAME_MAX_LENGTH) return
+    this.sendEnvelope({ v: PROTOCOL_VERSION, t: "member-name", p: { name: trimmed } })
   }
 
   /**
@@ -740,6 +754,15 @@ export class CollabClient {
         if (typeof from !== "string" || typeof name !== "string") return
         collabDebugLog("room-name", { name, from })
         this.opts.onRoomName?.({ name, from })
+        return
+      }
+      case "member-name": {
+        // relay-stamped member-name broadcast (ADR 0006) — a missing `from` is a relay bug (wire.ts)
+        const from = (env as WireEnvelope & { from?: string }).from
+        const name = (env.p as { name?: unknown }).name
+        if (typeof from !== "string" || typeof name !== "string") return
+        collabDebugLog("member-name", { name, from })
+        this.opts.onMemberName?.({ name, from })
         return
       }
       default:
