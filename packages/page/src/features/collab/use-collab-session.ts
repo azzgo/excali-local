@@ -253,6 +253,10 @@ export interface CollabRoomMeta {
   /** present only for tier "private" (the invite's per-room key, 050 §2) */
   roomSecret?: string;
   fp?: string;
+  /** per-room display name (060): a one-time COPY of the profile default at
+   * room entry. Absent → the session falls back to the profile default.
+   */
+  myName?: string;
   /** the room invite payload for copy-invite in the chrome (054) */
   invite: RoomInvite;
 }
@@ -791,6 +795,9 @@ export function useCollabSession({
     ) {
       return;
     }
+    // 060: the effective display name = the per-room copy when present,
+    // else the profile default (identity.name). identity is non-null here.
+    const effectiveName = room?.myName ?? identity.name;
     let disposed = false;
     void (async () => {
       const cached = await loadSession(shareId).catch(() => undefined);
@@ -859,7 +866,7 @@ export function useCollabSession({
           const roster: RosterMember[] = [
             {
               profileId: identity.profileId,
-              name: identity.name,
+              name: effectiveName,
               color: deriveColor(identity.profileId),
               connId: welcome.connId,
               self: true,
@@ -1004,6 +1011,7 @@ export function useCollabSession({
           server: admission,
           room,
           identity,
+          effectiveName,
           wsFactory,
           callbacks,
         });
@@ -1408,6 +1416,8 @@ interface BuildClientInput {
   server: ServerConfig;
   room: CollabRoomMeta;
   identity: CollabIdentity;
+  /** 060 effective display name — per-room copy or the profile default */
+  effectiveName: string;
   wsFactory?: WsFactory;
   callbacks: CollabSessionCallbacks;
 }
@@ -1420,6 +1430,7 @@ async function buildClient({
   server,
   room,
   identity,
+  effectiveName,
   wsFactory,
   callbacks,
 }: BuildClientInput): Promise<CollabClient> {
@@ -1438,7 +1449,7 @@ async function buildClient({
   const color = deriveColor(identity.profileId);
   const hello: HelloPayload = {
     profileId: identity.profileId,
-    name: identity.name,
+    name: effectiveName,
     color: { background: color, stroke: color },
     privacy: room.tier,
     room: shareId,
@@ -1459,7 +1470,7 @@ async function buildClient({
     url: buildRoomUrl(server.relay, shareId),
     wsFactory,
     profileId: identity.profileId,
-    name: identity.name,
+    name: effectiveName,
     color: { background: color, stroke: color },
     privacy: room.tier,
     room: shareId,

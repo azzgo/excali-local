@@ -252,6 +252,28 @@ describe("use-collab-session — connect", () => {
     unmount();
   });
 
+  test("060: per-room myName wins over the identity default in hello + self-roster", async () => {
+    const api = makeApi();
+    // stable room reference — a fresh object each render would re-run the
+    // session effect (room is a dependency) and thrash the dial.
+    const roomWithMyName: CollabRoomMeta = { ...ROOM, myName: "Ada Room" };
+    const { result, unmount } = renderHook(() =>
+      useCollabSession({ ...makeHookOptions(api), room: roomWithMyName }),
+    );
+    await waitFor(() => expect(lastSocket()).toBeDefined());
+    const ws = lastSocket();
+    await act(async () => {
+      ws.open();
+    });
+    const hello = JSON.parse(ws.sent[0]);
+    expect(hello.p.name).toBe("Ada Room");
+    await act(async () => {
+      ws.message(welcomeMessage());
+    });
+    await waitFor(() => expect(result.current.peers[0]).toBeDefined());
+    expect(result.current.peers[0]).toMatchObject({ self: true, name: "Ada Room" });
+    unmount();
+  });
   test("empty room (no snapshot, no cache) → seed-offer position", async () => {
     const api = makeApi();
     const { result, unmount } = await dialAndWelcome(api, {

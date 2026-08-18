@@ -5,6 +5,7 @@ import {
   loadSession,
   listRooms,
   probeRoom,
+  resolveIdentity,
   saveRoomMeta,
   saveSession,
   type CollabScene,
@@ -149,6 +150,10 @@ export default function JoinScreen({ lang }: JoinScreenProps) {
       /* probe failed — treat as "state unknown" and enter optimistically */
     }
     const probedName = probe?.roomName ?? null;
+    // 060: materialize the per-room display name as a one-time COPY of the
+    // profile default at room entry; a previous copy wins on re-join. Resolve
+    // identity BEFORE the save so the copy is current.
+    const identity = await resolveIdentity();
     await saveRoomMeta({
       id: invite.shareId,
       // ADR 0004: the probe's real name wins; re-joins keep their label;
@@ -166,6 +171,7 @@ export default function JoinScreen({ lang }: JoinScreenProps) {
       pinned: existing?.pinned ?? false,
       lastJoined: Date.now(),
       invite: code,
+      myName: existing?.myName ?? identity?.name,
     });
     // ADR 0005: the join path is a pure function of the probe + session-cache
     // facts (resolveJoinRoute, below) — the live/empty/probe-failed three-way

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
   bytesToB64url,
   encodeRoomInvite,
+  resolveIdentity,
   saveRoomMeta,
   saveSession,
   type CollabScene,
@@ -73,6 +74,8 @@ export default function CreateScreen({ lang }: CreateScreenProps) {
       pinned: false,
       lastJoined: Date.now(),
       invite: code,
+      // 060: copy the profile default as the per-room display name on create.
+      myName: (await resolveIdentity())?.name,
     });
     setRoom({ name: trimmed, invite, code });
     setStep("share");

@@ -146,6 +146,7 @@ function roomMetaFromEntry(shareId: string, entry: RoomEntry): CollabRoomMeta {
       roomSecret: parsed.roomSecret,
       fp: parsed.fp,
       invite: { shareId: parsed.shareId, tier: parsed.tier, roomSecret: parsed.roomSecret, fp: parsed.fp },
+      myName: entry.myName,
     };
   }
   return {
@@ -153,6 +154,7 @@ function roomMetaFromEntry(shareId: string, entry: RoomEntry): CollabRoomMeta {
     labelKind: entry.labelKind,
     tier: entry.tier,
     invite: { shareId, tier: entry.tier },
+    myName: entry.myName,
   };
 }
 

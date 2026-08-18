@@ -125,6 +125,16 @@ describe("room list (rooms store)", () => {
     expect(rooms.find((r) => r.id === "share-r3")?.fp).toBe("fp-abc123")
   })
 
+  it("round-trips the optional per-room display name (myName, 060)", async () => {
+    await saveRoomMeta(roomEntry({ id: "share-my", myName: "Ada Room" }))
+    await saveRoomMeta(roomEntry({ id: "share-none" }))
+
+    const rooms = await listRooms()
+    expect(rooms.find((r) => r.id === "share-my")?.myName).toBe("Ada Room")
+    // absent myName stays absent — no synthetic default materialized
+    expect(rooms.find((r) => r.id === "share-none")?.myName).toBeUndefined()
+  })
+
   it("updates an existing entry in place (no duplicates)", async () => {
     await saveRoomMeta(roomEntry({ id: "share-r4", pinned: false, lastJoined: 1000 }))
     await saveRoomMeta(roomEntry({ id: "share-r4", pinned: true, lastJoined: 3000, label: "Renamed" }))

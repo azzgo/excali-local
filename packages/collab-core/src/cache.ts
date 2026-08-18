@@ -117,6 +117,12 @@ export interface RoomEntry {
    * read as absent → treated as "auto" at the call sites.
    */
   labelKind: "named" | "auto"
+  /**
+   * per-room display name (060): a one-time COPY of the profile default at
+   * room entry. Absent = not yet copied (the session falls back to the
+   * profile default). No index, no schema bump — purely advisory.
+   */
+  myName?: string
 }
 
 /** Persist (or overwrite) a room's session cache, stamping updatedAt. */
