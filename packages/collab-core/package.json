@@ -6,7 +6,8 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
-    "import": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./ui": "./src/ui/index.ts"
   },
   "scripts": {
     "test": "vitest run",
@@ -16,8 +17,13 @@
     "idb": "^8.0.0",
     "partysocket": "^1"
   },
+  "peerDependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4"
+  },
   "devDependencies": {
     "@types/node": "^26.1.2",
+    "@types/react": "^19.2.10",
     "fake-indexeddb": "^6",
     "typescript": "^7.0.2",
     "vitest": "^4.1.10"
