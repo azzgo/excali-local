@@ -1,6 +1,6 @@
 export { CHUNK_THRESHOLD, ChunkAssembler, serializeEnvelope } from "./chunk"
 export type { ChunkFrame, SerializeEnvelopeResult } from "./chunk"
-export { PROTOCOL_VERSION, deriveColor, helloCanon, seedToPkcs8 } from "./wire"
+export { PROTOCOL_VERSION, ROOM_NAME_MAX_LENGTH, deriveColor, helloCanon, seedToPkcs8 } from "./wire"
 export type {
   ProtocolVersion,
   WireEnvelope,
@@ -11,6 +11,7 @@ export type {
   ClientMessage,
   RelayMessage,
   SnapshotMessage,
+  RoomProbePayload,
   ErrorCode,
 } from "./wire"
 export { mergeScene } from "./merge"
@@ -66,6 +67,7 @@ export {
   SCENE_THROTTLE_MS,
   buildRoomUrl,
   defaultWsFactory,
+  probeRoom,
 } from "./client"
 export type {
   ClientErrorCode,
@@ -77,6 +79,7 @@ export type {
   IncomingPointer,
   IncomingScene,
   PointerPayload,
+  RoomProbeOptions,
   WsFactory,
 } from "./client"
 export {

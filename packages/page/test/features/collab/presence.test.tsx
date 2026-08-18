@@ -69,6 +69,8 @@ function makeSession(overrides: Partial<CollabSessionHandle> = {}): CollabSessio
     peers: PEERS,
     hadOfflineEdits: false,
     resets: null,
+    roomName: null,
+    rename: vi.fn(() => true),
     connect: vi.fn(),
     leave: vi.fn(),
     seed: vi.fn(),
@@ -251,6 +253,7 @@ const SERVER: ServerConfig = {
 };
 const ROOM: CollabRoomMeta = {
   label: "Q3 planning",
+  labelKind: "named",
   tier: "team",
   invite: { shareId: SHARE_ID, tier: "team" },
 };

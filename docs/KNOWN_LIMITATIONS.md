@@ -155,3 +155,18 @@ prevents presenting a drawing you saved from a collab session.
 
 **What the code does**: laser strokes stay local-only; the pointer message type
 carries the tool field, so the wire contract already supports it.
+
+### Room name is plaintext to the relay (not E2E yet)
+
+**What**: a room's shared name (ADR 0004) rides the *unencrypted* `room-name` and
+`room-probe` messages, so the relay can read it — exactly like it can read scene
+payloads today while the committed wire is still the plaintext form.
+
+**Why**: 058's signed encrypted envelope (where `room-name` and the probe's
+`roomName` must ride inside) is future work. Until it lands, the name joins the
+scene in being relay-visible; no *new* leak class is introduced. The probe also
+answers `{roomName, snapshotAvailable, peerCount}` to any invite holder — but that
+is exactly what they would learn by joining, so there is no added disclosure.
+
+**What the code does**: the room probe gate (ADR 0005) keeps "This room is empty"
+truthful regardless; the name is short-lived room content that dies with the room.

@@ -25,6 +25,7 @@ const entry = (
 ): RoomEntry => ({
   id,
   label: `Room ${id}`,
+  labelKind: "named" as const,
   tier: "team",
   fp: FP,
   pinned: false,

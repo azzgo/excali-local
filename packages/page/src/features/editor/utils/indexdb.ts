@@ -3,7 +3,7 @@ import { BinaryFileData } from "@excalidraw/excalidraw/types";
 import { openDB } from "idb";
 
 const DB_NAME = "excali";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const STORE_NAME = "files";
 const DRAWINGS_STORE = "drawings";
 const COLLECTIONS_STORE = "collections";
@@ -12,7 +12,7 @@ const COLLAB_SESSION_STORE = "collab-session";
 
 async function initDB() {
   return openDB(DB_NAME, DB_VERSION, {
-    upgrade(db, oldVersion) {
+    async upgrade(db, oldVersion, _newVersion, tx) {
       // v1: files store
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: "id" });
@@ -42,6 +42,23 @@ async function initDB() {
 
         if (!db.objectStoreNames.contains(COLLAB_SESSION_STORE)) {
           db.createObjectStore(COLLAB_SESSION_STORE, { keyPath: "roomId" });
+        }
+      }
+
+      // v4 (ADR 0004): `rooms` entries gain `labelKind: "named" | "auto"`
+      // provenance. Pre-existing entries (created before shared names existed)
+      // are marked "auto" — conservative: no shared name may be pushed from
+      // them; one manual rename (or a mirrored broadcast) re-arms an entry.
+      // The async cursor loop keeps the versionchange transaction alive.
+      if (oldVersion < 4 && db.objectStoreNames.contains(ROOMS_STORE)) {
+        const roomsStore = tx.objectStore(ROOMS_STORE);
+        let cursor = await roomsStore.openCursor();
+        while (cursor !== null) {
+          const value = cursor.value as { labelKind?: unknown };
+          if (value.labelKind === undefined) {
+            await cursor.update({ ...value, labelKind: "auto" });
+          }
+          cursor = await cursor.continue();
         }
       }
     },
@@ -262,6 +279,13 @@ export interface RoomEntry {
   lastJoined: number;
   /** the full invite payload string — the invite IS the room (053). */
   invite: string;
+  /**
+   * label provenance (ADR 0004): "named" = a real shared name (create-time or
+   * mirrored from the relay) — pushable when a dead room is re-seeded; "auto" =
+   * a generated fallback (short shareId) — never pushed. Pre-migration entries
+   * read as absent → treated as "auto" at the call sites.
+   */
+  labelKind: "named" | "auto";
 }
 
 /** A collab scene snapshot: elements + appState (+ optional embedded files). */
@@ -296,6 +320,22 @@ export async function putRoom(room: RoomEntry): Promise<void> {
   const db = await initDB();
   const tx = db.transaction(ROOMS_STORE, "readwrite");
   await tx.store.put(room);
+  await tx.done;
+}
+
+/** ADR 0004 mirror write: update ONLY the label + labelKind fields of a room
+ * entry, preserving every other field verbatim (pinned, lastJoined, invite,
+ * tier, fp). The read+write happens in ONE transaction, so a concurrent
+ * saveRoomMeta (e.g. the join screen) can never be clobbered by a stale
+ * get-room → put-whole-entry read-modify-write that resurrects old values.
+ * No-op (no write) when the shareId has no entry yet. */
+export async function patchRoomName(shareId: string, label: string): Promise<void> {
+  const db = await initDB();
+  const tx = db.transaction(ROOMS_STORE, "readwrite");
+  const entry = await tx.store.get(shareId);
+  if (entry !== undefined) {
+    await tx.store.put({ ...entry, label, labelKind: "named" });
+  }
   await tx.done;
 }
 

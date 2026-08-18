@@ -310,6 +310,9 @@ export function initI18n() {
           "CollabJoinedRoomLabel": "Room {{shortId}}",
           "CollabLastJoined": "last joined {{when}}",
           "CollabRoomStale": "May belong to another server",
+          // --- room name + probe (ADR 0004/0005) ---
+          "CollabProbingRoom": "Checking the room…",
+          "CollabRenamedRoom": "{{name}} renamed the room to {{roomName}}",
           // --- session chrome (053 sessionLive / 055 roster / 061 conn dot) ---
           "CollabCopyInvite": "Copy invite",
           "CollabCopied": "Copied",
@@ -323,6 +326,11 @@ export function initI18n() {
           "CollabLeaveWithoutSaving": "Leave without saving",
           "CollabStay": "Stay",
           "CollabYou": "You",
+          // ADR 0004: rename modal copy
+          "CollabRenameRoom": "Rename room",
+          "CollabRenameLabel": "Room name",
+          "CollabRenameSave": "Save",
+          "CollabRenameInvalid": "Room names must be 1–100 characters",
           "CollabConnLive": "Live",
           "CollabConnConnecting": "Connecting…",
           "CollabConnReconnecting": "Reconnecting",
@@ -665,6 +673,9 @@ export function initI18n() {
           "CollabJoinedRoomLabel": "房间 {{shortId}}",
           "CollabLastJoined": "上次加入 {{when}}",
           "CollabRoomStale": "可能属于其他服务器",
+          // --- 房间名 + probe（ADR 0004/0005）---
+          "CollabProbingRoom": "正在检查房间…",
+          "CollabRenamedRoom": "{{name}} 将房间重命名为 {{roomName}}",
           // --- session chrome (053 sessionLive / 055 roster / 061 conn dot) ---
           "CollabCopyInvite": "复制邀请",
           "CollabCopied": "已复制",
@@ -678,6 +689,11 @@ export function initI18n() {
           "CollabLeaveWithoutSaving": "不保存离开",
           "CollabStay": "留在房间",
           "CollabYou": "你",
+          // ADR 0004：重命名弹窗文案
+          "CollabRenameRoom": "重命名房间",
+          "CollabRenameLabel": "房间名称",
+          "CollabRenameSave": "保存",
+          "CollabRenameInvalid": "房间名称须为 1–100 个字符",
           "CollabConnLive": "在线",
           "CollabConnConnecting": "连接中…",
           "CollabConnReconnecting": "重新连接中",

@@ -113,12 +113,14 @@ const SERVER: ServerConfig = {
 
 const ROOM_TEAM: CollabRoomMeta = {
   label: "Q3 planning",
+  labelKind: "named",
   tier: "team",
   invite: { shareId: SHARE_ID, tier: "team" },
 };
 
 const ROOM_PRIVATE: CollabRoomMeta = {
   label: "Q3 planning",
+  labelKind: "named",
   tier: "private",
   roomSecret: KEY43,
   invite: { shareId: SHARE_ID, tier: "private", roomSecret: KEY43 },

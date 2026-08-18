@@ -32,6 +32,7 @@ const SHARE_ID = "B".repeat(22);
 
 const ROOM: CollabRoomMeta = {
   label: "Q3 planning",
+  labelKind: "named",
   tier: "team",
   invite: { shareId: SHARE_ID, tier: "team" },
 };
@@ -55,6 +56,8 @@ function makeSession(overrides: Partial<CollabSessionHandle> = {}): CollabSessio
     peers: PEERS,
     hadOfflineEdits: false,
     resets: null,
+    roomName: null,
+    rename: vi.fn(() => true),
     connect: vi.fn(),
     leave: vi.fn(),
     seed: vi.fn(),
@@ -96,6 +99,7 @@ describe("SessionChrome — chrome bar", () => {
   test("private room renders the private badge", () => {
     renderChrome(makeSession(), {
       label: "Secret",
+      labelKind: "named",
       tier: "private",
       roomSecret: "C".repeat(43),
       invite: { shareId: SHARE_ID, tier: "private", roomSecret: "C".repeat(43) },

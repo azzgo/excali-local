@@ -33,7 +33,7 @@
  * (task 041's party.config wiring) injects `send`/`broadcast`/`storage` and
  * drives `join` (post-admission), `message` (post-welcome routing), `leave`.
  */
-import { CHUNK_THRESHOLD, ChunkAssembler, serializeEnvelope } from "collab-core"
+import { CHUNK_THRESHOLD, ChunkAssembler, ROOM_NAME_MAX_LENGTH, serializeEnvelope } from "collab-core"
 import type { ChunkFrame, ErrorCode, HelloPayload, Member, WireEnvelope } from "collab-core"
 import type { FileStore } from "./files"
 import { MAX_CHUNKS_PER_MESSAGE } from "./guards"
@@ -41,6 +41,10 @@ import type { MemberKey, SignedContentEnvelope } from "./verify"
 
 /** room.storage key holding the room's snapshot record (052 §4). */
 export const SNAPSHOT_KEY = "snapshot"
+
+/** room.storage key holding the shared room name (ADR 0004) — same lifecycle
+ * as the snapshot: it dies with the room's DO eviction. */
+export const ROOM_NAME_KEY = "room-name"
 
 /** 052 §5: single frames above this serialized byte size are dropped with CHUNK_INVALID. */
 export const MAX_FRAME_BYTES = 1024 * 1024
@@ -189,6 +193,9 @@ export class RoomState {
    * per-sender counter, so ordering must never be compared across peers. */
   private readonly lastSeqByConn = new Map<string, number>()
   private snap: RoomSnapshotRecord | null = null
+  /** shared room name — null until someone names the room (ADR 0004).
+   * Mirrors room.storage[ROOM_NAME_KEY]; survives DO hibernation like the snapshot. */
+  private roomName: string | null = null
 
   constructor(options: RoomStateOptions) {
     this.roomId = options.roomId
@@ -215,7 +222,7 @@ export class RoomState {
    * (sender excluded, 049 §1).
    */
   async join(connId: string, hello: HelloPayload): Promise<void> {
-    this.snap = await this.loadSnapshot()
+    await this.ensureHydrated()
     const member: Member = {
       profileId: hello.profileId,
       name: hello.name,
@@ -238,6 +245,7 @@ export class RoomState {
           room: this.roomId,
           privacy: hello.privacy,
           snapshotAvailable: this.snap !== null,
+          roomName: this.roomName,
           peers: [...this.roster.values()],
         },
       }),
@@ -342,6 +350,9 @@ export class RoomState {
         }
         return
       }
+      case "room-name":
+        await this.handleRoomName(connId, (env.p as { name?: unknown }).name)
+        return
       default:
         return // unknown type — drop (052 §3)
     }
@@ -388,6 +399,43 @@ export class RoomState {
     }
     await this.acceptSnapshot(envelope, connId, false)
   }
+
+  /**
+   * Room rename (ADR 0004): the sender is an admitted member (the roster gate
+   * in message() made sure). Validation: trimmed name non-empty and ≤ 100
+   * chars — an invalid offer gets a non-fatal error receipt and is dropped.
+   * Storage + broadcast are LWW by relay arrival order (no client timestamps
+   * — the relay is already the single serialization point). A rename to the
+   * current name is a byte-identical no-op (059 §6 duplicate-suppression
+   * precedent): neither re-stored nor re-broadcast.
+   */
+  private async handleRoomName(connId: string, raw: unknown): Promise<void> {
+    if (typeof raw !== "string") {
+      this.sendError(connId, "CHUNK_INVALID", "room-name payload must be { name: string }")
+      return
+    }
+    const name = raw.trim()
+    if (name === "" || name.length > ROOM_NAME_MAX_LENGTH) {
+      this.sendError(
+        connId,
+        "CHUNK_INVALID",
+        `room name must be 1-${ROOM_NAME_MAX_LENGTH} chars after trimming (ADR 0004)`,
+      )
+      return
+    }
+    if (this.roomName === name) return // byte-identical rename — skip store AND broadcast
+    this.roomName = name
+    // The rename is already broadcast (LWW — live conns share it), but a
+    // persistence failure means the name dies on the next DO sleep, like a
+    // lost snapshot. Cannot block the broadcast on storage, so log instead of
+    // swallowing silently (unlike the snapshot path, this one is best-effort
+    // by design — the rename stays visible until the room's DO is evicted).
+    await this.storage.put(ROOM_NAME_KEY, name).catch((err) => {
+      console.warn(`[room ${this.roomId}] failed to persist room name (ADR 0004): ${err instanceof Error ? err.message : String(err)}`)
+    })
+    this.hooks.broadcast(JSON.stringify({ v: 1, t: "room-name", p: { name }, from: connId }), connId)
+  }
+
 
   /**
    * Store the snapshot (as its chunk set when over the chunk threshold) and
@@ -506,6 +554,46 @@ export class RoomState {
       return null
     }
     return record
+  }
+
+  /** Rehydrate the shared room name from room.storage (ADR 0004 — same
+   * hibernation lifecycle as the snapshot). A corrupt stored value is treated
+   * as absent; the name is simply unnamed again until someone renames. */
+  private async loadRoomName(): Promise<string | null> {
+    let raw: unknown
+    try {
+      raw = await this.storage.get(ROOM_NAME_KEY)
+    } catch {
+      return null
+    }
+    if (typeof raw !== "string") return null
+    const name = raw.trim()
+    return name === "" || name.length > ROOM_NAME_MAX_LENGTH ? null : name
+  }
+
+  /** Rehydrate both persisted facts from room.storage when not already in
+   * memory (ADR 0004 wake path — the DO may have hibernated with only storage
+   * intact). Load-if-null: this instance is the room's single writer, so once
+   * a value is present it is authoritative and never needs re-reading. Shared
+   * by join() (post-admission hydration) and probe() (pre-join wake). */
+  private async ensureHydrated(): Promise<void> {
+    if (this.roomName === null) this.roomName = await this.loadRoomName()
+    if (this.snap === null) this.snap = await this.loadSnapshot()
+  }
+
+  /**
+   * Room probe (ADR 0004): the shareId-keyed pre-join query. Answers from the
+   * room's own state — the stored name + snapshot (wake path: this DO was
+   * hibernating, so load both) and the LIVE roster size. Never called for an
+   * admitted member, never enters the roster: no side effect visible inside.
+   */
+  async probe(): Promise<{ roomName: string | null; snapshotAvailable: boolean; peerCount: number }> {
+    await this.ensureHydrated()
+    return {
+      roomName: this.roomName,
+      snapshotAvailable: this.snap !== null,
+      peerCount: this.roster.size,
+    }
   }
 
   private sendError(connId: string, code: ErrorCode, reason: string): void {

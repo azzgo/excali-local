@@ -13,6 +13,7 @@ import {
   FATAL_ERROR_CODES,
   SCENE_THROTTLE_MS,
   buildRoomUrl,
+  probeRoom,
 } from "./client"
 import type { CollabClientOptions } from "./client"
 import { serializeEnvelope } from "./chunk"
@@ -81,11 +82,11 @@ function makeClient(overrides: Partial<CollabClientOptions> = {}) {
   return { client, socket: () => StubSocket.instances[StubSocket.instances.length - 1] }
 }
 
-function welcomeMessage(connId = "conn-1", snapshotAvailable = true): string {
+function welcomeMessage(connId = "conn-1", snapshotAvailable = true, roomName: string | null = null): string {
   return JSON.stringify({
     v: 1,
     t: "welcome",
-    p: { profileId: "profile-1", connId, room: "room-1", privacy: "team", snapshotAvailable, peers: [] },
+    p: { profileId: "profile-1", connId, room: "room-1", privacy: "team", snapshotAvailable, roomName, peers: [] },
   })
 }
 
@@ -144,6 +145,7 @@ describe("dial + hello handshake", () => {
       room: "room-1",
       privacy: "team",
       snapshotAvailable: true,
+      roomName: null,
       peers: [],
     })
     expect(client.connId).toBe("conn-1")
@@ -927,5 +929,66 @@ describe("061 health surface (onStateChange, 1008, rebroadcast, seed offer)", ()
     expect(() => new CollabClient({ ...base, url: "ws://localhost:1999/party/room-1" })).toThrow()
     expect(() => new CollabClient({ ...base, url: "wss://relay.example.com/room/room-1" })).toThrow()
     expect(() => new CollabClient({ ...base, url: "wss://relay.example.com/party/" })).toThrow()
+  })
+})
+
+// ─── room name (ADR 0004) ───────────────────────────────────────────────────
+
+describe("room-name message (ADR 0004)", () => {
+  it("sendRoomName emits a room-name envelope, trimmed; blank/too-long names are dropped client-side", () => {
+    const { client, socket } = makeClient()
+    client.connect()
+    socket().open()
+    client.sendRoomName("  Q3 planning  ")
+    expect(JSON.parse(socket().sent.at(-1)!)).toEqual({ v: 1, t: "room-name", p: { name: "Q3 planning" } })
+    const before = socket().sent.length
+    client.sendRoomName("   ")
+    client.sendRoomName("x".repeat(101))
+    expect(socket().sent.length).toBe(before) // nothing put on the wire
+  })
+
+  it("dispatches relay-stamped room-name broadcasts to onRoomName; drops from-less frames (relay bug)", () => {
+    const onRoomName = vi.fn()
+    const { client, socket } = makeClient({ onRoomName })
+    client.connect()
+    socket().open()
+    socket().message(welcomeMessage())
+    socket().message(JSON.stringify({ v: 1, t: "room-name", p: { name: "Sprint 9" }, from: "conn-2" }))
+    expect(onRoomName).toHaveBeenCalledTimes(1)
+    expect(onRoomName).toHaveBeenCalledWith({ name: "Sprint 9", from: "conn-2" })
+    socket().message(JSON.stringify({ v: 1, t: "room-name", p: { name: "ghost" } })) // no from
+    expect(onRoomName).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("probeRoom (ADR 0004)", () => {
+  it("dials the room, sends room-probe as the FIRST message, resolves the answer and closes", async () => {
+    const socket = new StubSocket("ws://127.0.0.1:1999/party/room-1")
+    const factory = vi.fn(() => socket)
+    const promise = probeRoom("http://127.0.0.1:1999", "room-1", { wsFactory: factory })
+    socket.open()
+    // the probe is the first (and only) frame — no hello, no admission
+    expect(socket.sent).toEqual([JSON.stringify({ v: 1, t: "room-probe", p: {} })])
+    socket.message(JSON.stringify({ v: 1, t: "room-probe", p: { roomName: "Q3", snapshotAvailable: true, peerCount: 3 } }))
+    await expect(promise).resolves.toEqual({ roomName: "Q3", snapshotAvailable: true, peerCount: 3 })
+    expect(socket.readyState).toBe(3) // closed after the answer
+  })
+
+  it("normalizes a malformed answer payload and resolves null on timeout/close", async () => {
+    vi.useRealTimers()
+    const socket = new StubSocket("ws://127.0.0.1:1999/party/room-1")
+    const factory = vi.fn(() => socket)
+    const promise = probeRoom("http://127.0.0.1:1999", "room-1", { wsFactory: factory, timeoutMs: 30 })
+    socket.open()
+    socket.message(JSON.stringify({ v: 1, t: "room-probe", p: { roomName: 42, snapshotAvailable: "yes", peerCount: null } }))
+    await expect(promise).resolves.toEqual({ roomName: null, snapshotAvailable: false, peerCount: 0 })
+
+    // a relay that closes without answering (legacy relay) → null
+    const socket2 = new StubSocket("ws://127.0.0.1:1999/party/room-1")
+    const factory2 = vi.fn(() => socket2)
+    const promise2 = probeRoom("http://127.0.0.1:1999", "room-1", { wsFactory: factory2 })
+    socket2.open()
+    socket2.close(1008, "ADMISSION_INVALID")
+    await expect(promise2).resolves.toBeNull()
   })
 })

@@ -199,6 +199,17 @@ snapshot survives.
   their gallery or start blank. **First seed wins** — it becomes the room snapshot;
   a concurrent second seed gets a non-fatal `SEED_REJECTED` and joins live instead
   (the relay's single DO instance serializes the race; no arbitration).
+- **Shared room name (ADR 0004).** A room has **one broadcast name** — room content
+  like the scene. It lives in `room.storage` beside the snapshot (same lifecycle,
+  dies with the room), is last-write-wins by relay arrival order, and can be renamed
+  by **any member** (rooms are hostless). `welcome` carries the name; `room-name`
+  broadcasts a rename with the author mapped through the roster. The local `rooms`
+  entry's label is just a mirror; a genuinely named label is *pushed* as the room
+  name when the room has none (first naming / dead-room revival).
+- **Room probe (ADR 0004).** A lightweight pre-join query (`room-probe` — no
+  admission, no roster side effect) returns `{roomName, snapshotAvailable,
+  peerCount}`. The join screen uses it to show the real name and to gate the seed
+  prompt: "This room is empty" is only shown when the relay says so.
 - **Snapshot + files live in `room.storage`.** They survive DO hibernation (~10s
   quiet — in-memory fields are discarded but storage persists) and code deploys
   (sockets drop, storage persists). They die **only with the room**: empty + ~70–140s
@@ -216,14 +227,22 @@ snapshot survives.
 
 ## Client semantics
 
-- **Three-way merge on re-entry and recovery.** When a cached room is re-entered (or
-  the link returns mid-session), the client merges base (last synced scene) / ours
-  (local edits) / theirs (snapshot). Single-side changes merge cleanly; an
-  unresolvable conflict — the same element changed on both sides (edit-edit,
+- **Re-entry rule (ADR 0005).** Joining discriminates on whether the client ever
+  synced with the room (cached `base` non-null): **never synced** → the **room is
+  authoritative** — the snapshot applies as-is and any staged seed is discarded
+  silently (no merge, no rebroadcast); **synced before** → the three-way merge below
+  applies unchanged. Room death is never surfaced, so a dead-room-reseeded return
+  behaves identically to an alive-room reconnect.
+- **Three-way merge on re-entry and recovery.** When a *synced-before* room is
+  re-entered (or the link returns mid-session), the client merges base (last synced
+  scene) / ours (local edits) / theirs (snapshot). Single-side changes merge cleanly;
+  an unresolvable conflict — the same element changed on both sides (edit-edit,
   edit-vs-delete, delete-vs-edit) — resolves as **online version wins**: the local
   change is force-reset with an amber notice ("N local edits conflicted — the online
   version was kept", with a "Show me" highlight). A pure cache without offline edits
-  is simply overwritten by the snapshot.
+  is simply overwritten by the snapshot. The merged result is **rebroadcast only when
+  it differs from the online scene** (local creates survived) — an identical result
+  adds nothing the peers don't already have.
 - **Conn-health vocabulary.** One dot in the session chrome bar: **live** (green,
   steady — dot only), **connecting** (blue pulse, first connect), **reconnecting**
   (amber pulse — dot + word), **rejected** (red, steady — fatal only). Tooltip =

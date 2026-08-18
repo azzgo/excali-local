@@ -190,7 +190,14 @@ describe("admitHello — room claim (059 §3 step 5, checked first per the task 
 describe("parseFirstMessage", () => {
   it("accepts a well-formed v1 hello", () => {
     const hello = baseHello({ admit: { org: "acme", sig: "some-sig" } }) // non-empty sig passes the codec gate
-    expect(parseFirstMessage(JSON.stringify({ v: 1, t: "hello", p: hello }))).toEqual({ ok: true, hello })
+    expect(parseFirstMessage(JSON.stringify({ v: 1, t: "hello", p: hello }))).toEqual({ ok: true, kind: "hello", hello })
+  })
+
+  it("accepts a room-probe first message WITHOUT admission (ADR 0004)", () => {
+    expect(parseFirstMessage(JSON.stringify({ v: 1, t: "room-probe", p: {} }))).toEqual({
+      ok: true,
+      kind: "probe",
+    })
   })
 
   it("wrong v → PROTOCOL_VERSION", () => {
@@ -202,7 +209,7 @@ describe("parseFirstMessage", () => {
     expect(parseFirstMessage("not json")).toEqual({ ok: false, code: "PROTOCOL_VERSION", reason: expect.any(String) })
   })
 
-  it("a well-formed v1 envelope that is not hello → ADMISSION_INVALID", () => {
+  it("a well-formed v1 envelope that is neither hello nor room-probe → ADMISSION_INVALID", () => {
     const parsed = parseFirstMessage(JSON.stringify({ v: 1, t: "scene", p: {} }))
     expect(parsed).toEqual({ ok: false, code: "ADMISSION_INVALID", reason: expect.any(String) })
   })
@@ -311,6 +318,7 @@ describe("createRelayServer connection flow", () => {
         room: "room-abc123",
         privacy: "team",
         snapshotAvailable: false,
+        roomName: null,
         peers: [],
       },
     })
@@ -387,5 +395,39 @@ describe("createRelayServer connection flow", () => {
 
     expect(conn.send).toHaveBeenCalledTimes(1) // welcome only
     expect(conn.close).not.toHaveBeenCalled()
+  })
+
+  it("a room-probe first message → the onProbe hook answers and the connection closes (ADR 0004)", async () => {
+    const onProbe = vi.fn(async (conn: Connection, _room: Room) => {
+      conn.send(JSON.stringify({ v: 1, t: "room-probe", p: { roomName: "Q3 planning", snapshotAvailable: true, peerCount: 2 } }))
+    })
+    const server = createRelayServer({ onProbe })
+    const conn = fakeConn("conn-1", WS_URI)
+    // No keys — admission would fail anyway; the probe needs none (ADR 0004).
+    const room = fakeRoom(pubkeysEnv("acme", []))
+
+    server.onConnect?.(conn as unknown as Connection, room, FAKE_CTX)
+    await server.onMessage?.(JSON.stringify({ v: 1, t: "room-probe", p: {} }), conn as unknown as Connection, room)
+
+    expect(onProbe).toHaveBeenCalledTimes(1)
+    expect(conn.send).toHaveBeenCalledTimes(1)
+    const sent = JSON.parse(conn.send.mock.calls[0][0])
+    expect(sent).toEqual({ v: 1, t: "room-probe", p: { roomName: "Q3 planning", snapshotAvailable: true, peerCount: 2 } })
+    // One-shot: the relay closes the probe connection (a lingering socket
+    // would hold the DO awake against the "cheap read path" intent).
+    expect(conn.close).toHaveBeenCalledWith(1000, "probe complete")
+  })
+
+  it("a room-probe WITHOUT the onProbe hook is answered by the stub (empty-room facts) and closed", async () => {
+    const server = createRelayServer()
+    const conn = fakeConn("conn-1", WS_URI)
+    const room = fakeRoom(pubkeysEnv("acme", []))
+
+    server.onConnect?.(conn as unknown as Connection, room, FAKE_CTX)
+    await server.onMessage?.(JSON.stringify({ v: 1, t: "room-probe", p: {} }), conn as unknown as Connection, room)
+
+    const sent = JSON.parse(conn.send.mock.calls[0][0])
+    expect(sent).toEqual({ v: 1, t: "room-probe", p: { roomName: null, snapshotAvailable: false, peerCount: 0 } })
+    expect(conn.close).toHaveBeenCalledWith(1000, "probe complete")
   })
 })

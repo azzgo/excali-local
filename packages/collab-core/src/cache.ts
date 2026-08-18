@@ -21,19 +21,20 @@ import { openDB } from "idb"
 
 /** Mirrors packages/page/src/features/editor/utils/indexdb.ts (owner). */
 const DB_NAME = "excali"
-const DB_VERSION = 3
+const DB_VERSION = 4
 const ROOMS_STORE = "rooms"
 const COLLAB_SESSION_STORE = "collab-session"
-
 /**
- * Open the `excali` DB at v3. The upgrade mirrors the owner's full additive
- * chain (v1 files / v2 drawings+collections / v3 rooms+collab-session) so a
- * fresh database is complete no matter which module opens it first. All
- * creation is `contains()`-guarded and additive — existing data is untouched.
+ * Open the `excali` DB at v4. The upgrade mirrors the owner's full additive
+ * chain (v1 files / v2 drawings+collections / v3 rooms+collab-session / v4
+ * rooms labelKind backfill) so a fresh database is complete no matter which
+ * module opens it first. All creation is `contains()`-guarded and additive —
+ * existing data is untouched. The v4 data migration (ADR 0004) is async but
+ * keeps the versionchange transaction alive via its cursor request chain.
  */
 async function openCacheDB() {
   return openDB(DB_NAME, DB_VERSION, {
-    upgrade(db) {
+    async upgrade(db, oldVersion, _newVersion, tx) {
       if (!db.objectStoreNames.contains("files")) {
         db.createObjectStore("files", { keyPath: "id" })
       }
@@ -56,6 +57,22 @@ async function openCacheDB() {
 
       if (!db.objectStoreNames.contains(COLLAB_SESSION_STORE)) {
         db.createObjectStore(COLLAB_SESSION_STORE, { keyPath: "roomId" })
+      }
+
+      // v4 (ADR 0004): rooms gain `labelKind: "named" | "auto"` provenance.
+      // Pre-existing entries (created before shared names existed) are marked
+      // "auto" — conservative: no shared name may be pushed from them; one
+      // manual rename (or a mirrored broadcast) re-arms an entry.
+      if (oldVersion < 4 && db.objectStoreNames.contains(ROOMS_STORE)) {
+        const store = tx.objectStore(ROOMS_STORE)
+        let cursor = await store.openCursor()
+        while (cursor !== null) {
+          const value = cursor.value as { labelKind?: unknown }
+          if (value.labelKind === undefined) {
+            await cursor.update({ ...value, labelKind: "auto" })
+          }
+          cursor = await cursor.continue()
+        }
       }
     },
   })
@@ -93,6 +110,13 @@ export interface RoomEntry {
   lastJoined: number
   /** the full invite payload string — the invite IS the room (053). */
   invite: string
+  /**
+   * label provenance (ADR 0004): "named" = a real shared name (create-time or
+   * mirrored from the relay) — pushable when a dead room is re-seeded; "auto" =
+   * a generated fallback (short shareId) — never pushed. Pre-migration entries
+   * read as absent → treated as "auto" at the call sites.
+   */
+  labelKind: "named" | "auto"
 }
 
 /** Persist (or overwrite) a room's session cache, stamping updatedAt. */

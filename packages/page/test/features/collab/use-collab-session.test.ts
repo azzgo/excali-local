@@ -17,9 +17,11 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import * as excalidraw from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
-import { clearSession, loadSession, saveSession } from "collab-core";
+import type { AppState } from "@excalidraw/excalidraw/types";
+import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
+import { clearSession, loadSession, saveRoomMeta, saveSession } from "collab-core";
 import type { Member } from "collab-core";
-import { getDrawingFullData, getDrawings } from "@/features/editor/utils/indexdb";
+import { getDrawingFullData, getDrawings, getRoom } from "@/features/editor/utils/indexdb";
 import { useCollabSession } from "@/features/collab/use-collab-session";
 import type { CollabIdentity, CollabRoomMeta } from "@/features/collab/use-collab-session";
 import type { ServerConfig } from "@/features/collab/storage";
@@ -97,6 +99,7 @@ const SERVER: ServerConfig = {
 
 const ROOM: CollabRoomMeta = {
   label: "Q3 planning",
+  labelKind: "named",
   tier: "team",
   invite: { shareId: SHARE_ID, tier: "team" },
 };
@@ -114,6 +117,7 @@ const welcomeMessage = (
   snapshotAvailable = true,
   peers: Member[] = [],
   connId = "conn-1",
+  roomName: string | null = null,
 ): string =>
   JSON.stringify({
     v: 1,
@@ -124,6 +128,7 @@ const welcomeMessage = (
       room: SHARE_ID,
       privacy: "team",
       snapshotAvailable,
+      roomName,
       peers,
     },
   });
@@ -163,7 +168,7 @@ function makeHookOptions(api: ExcalidrawImperativeAPI) {
 /** Render the hook, wait for the dial, open the socket and greet. */
 async function dialAndWelcome(
   api: ExcalidrawImperativeAPI,
-  { snapshotAvailable = true, peers = [] as Member[] } = {},
+  { snapshotAvailable = true, peers = [] as Member[], roomName = null as string | null } = {},
 ) {
   const { result, unmount } = renderHook(() =>
     useCollabSession(makeHookOptions(api)),
@@ -175,7 +180,7 @@ async function dialAndWelcome(
   });
   expect(isEnvelope(ws.sent[0] ?? "", "hello")).toBe(true);
   await act(async () => {
-    ws.message(welcomeMessage(snapshotAvailable, peers));
+    ws.message(welcomeMessage(snapshotAvailable, peers, "conn-1", roomName));
   });
   return { result, unmount, ws };
 }
@@ -500,11 +505,10 @@ describe("use-collab-session — remote scenes", () => {
     const lastCall = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
     expect(lastCall.elements).toEqual([theirsEl]);
     expect(result.current.resets).toMatchObject({ count: 1, ids: ["el-1"] });
-    // merged scene rebroadcast (061 §2/§3 — peers converge) — the client's
-    // sendScene carries its own 100ms trailing-edge throttle.
-    await waitFor(() =>
-      expect(ws.sent.filter((s) => isEnvelope(s, "scene"))).toHaveLength(1),
-    );
+    // ADR 0005: the merged result equals the online scene (the conflict
+    // resolved online-wins), so it adds nothing the peers don't already have
+    // — it must NOT be rebroadcast (the old always-rebroadcast was the flash).
+    expect(ws.sent.filter((s) => isEnvelope(s, "scene"))).toHaveLength(0);
     // cache: merged scene is now both edited and base
     const session = await loadSession(SHARE_ID);
     expect(session?.edited.elements).toEqual([theirsEl]);
@@ -1128,6 +1132,161 @@ describe("use-collab-session — background resume", () => {
     await hideAndReturn(AWAY_RESUME_MS + 1000);
     expect(StubSocket.instances).toHaveLength(3);
     expect(ws2.readyState).toBe(3); // its stale socket was replaced
+    unmount();
+  });
+});
+
+// ─── room name (ADR 0004) ───────────────────────────────────────────────────
+
+describe("use-collab-session — room name (ADR 0004)", () => {
+  test("welcome.roomName mirrors into the local rooms entry (label + labelKind named)", async () => {
+    const api = makeApi();
+    // a pre-existing entry (the join/create screens create it before entering)
+    await saveRoomMeta({ id: SHARE_ID, label: "Old", labelKind: "auto", tier: "team", pinned: false, lastJoined: Date.now(), invite: "" });
+    const { result, unmount } = await dialAndWelcome(api, { roomName: "Sprint 9" });
+    expect(result.current.roomName).toBe("Sprint 9");
+    await waitFor(async () => {
+      const e = await getRoom(SHARE_ID);
+      expect(e?.label).toBe("Sprint 9");
+      expect(e?.labelKind).toBe("named");
+    });
+    unmount();
+  });
+
+  test("welcome with NO roomName + a genuine named local label → pushes the name (first naming / dead-room revival)", async () => {
+    const api = makeApi();
+    const { unmount, ws } = await dialAndWelcome(api, { roomName: null });
+    // ROOM carries labelKind: "named" + label "Q3 planning" (create-flow shape)
+    await waitFor(() =>
+      expect(ws.sent.some((s) => isEnvelope(s, "room-name"))).toBe(true),
+    );
+    const push = ws.sent.find((s) => isEnvelope(s, "room-name"));
+    expect(JSON.parse(push!).p).toEqual({ name: "Q3 planning" });
+    unmount();
+  });
+
+  test("welcome with NO roomName + an 'auto' fallback label → does NOT push", async () => {
+    const api = makeApi();
+    // an auto-label (short shareId fallback) is never a real room name
+    const autoRoom: CollabRoomMeta = { label: "XXXXXX", labelKind: "auto", tier: "team", invite: { shareId: SHARE_ID, tier: "team" } };
+    const { unmount } = renderHook(() =>
+      useCollabSession({ ...makeHookOptions(api), room: autoRoom }),
+    );
+    await waitFor(() => expect(lastSocket()).toBeDefined());
+    const sock = lastSocket();
+    await act(async () => {
+      sock.open();
+    });
+    await act(async () => {
+      sock.message(welcomeMessage(true, [], "conn-1", null));
+    });
+    expect(sock.sent.some((s) => isEnvelope(s, "room-name"))).toBe(false);
+    unmount();
+  });
+
+  test("rename() trims, sends a room-name offer, and mirrors the new name locally immediately", async () => {
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api, { roomName: "Old name" });
+    expect(result.current.rename("  Sprint 9  ")).toBe(true);
+    await waitFor(() => expect(result.current.roomName).toBe("Sprint 9"));
+    await waitFor(() =>
+      expect(ws.sent.some((s) => isEnvelope(s, "room-name"))).toBe(true),
+    );
+    const offer = ws.sent.find((s) => isEnvelope(s, "room-name"));
+    expect(JSON.parse(offer!).p).toEqual({ name: "Sprint 9" });
+    unmount();
+  });
+
+  test("an incoming rename broadcast mirrors the name (attribution toast for a peer)", async () => {
+    const api = makeApi();
+    const PeerMember: Member = {
+      profileId: "profile-2",
+      name: "Min",
+      color: { background: "hsl(220, 100%, 83%)", stroke: "hsl(220, 100%, 83%)" },
+      connId: "conn-2",
+    };
+    const { result, unmount, ws } = await dialAndWelcome(api, { peers: [PeerMember], roomName: null });
+    await act(async () => {
+      ws.message(JSON.stringify({ v: 1, t: "room-name", p: { name: "Sprint 9" }, from: "conn-2" }));
+    });
+    expect(result.current.roomName).toBe("Sprint 9");
+    unmount();
+  });
+});
+
+// ─── re-entry rule + rebroadcast tightening (ADR 0005) ──────────────────────
+
+describe("use-collab-session — re-entry rule (ADR 0005)", () => {
+  test("staged seed (base null) → room authoritative: pure apply, the staged scene never merges", async () => {
+    const staged = { id: "el-staged", type: "rectangle", version: 1, versionNonce: 1, x: 5 };
+    const remote = { id: "el-remote", type: "diamond", version: 1, versionNonce: 1 };
+    // the seed prompt's staged scene (base null — never synced)
+    await saveSession(SHARE_ID, { edited: { elements: [staged], appState: {} }, base: null });
+
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api);
+
+    (api.updateScene as ReturnType<typeof vi.fn>).mockClear();
+    await act(async () => {
+      ws.message(sceneMessage([remote], 2));
+    });
+    // the relay snapshot wins AS-IS — the staged scene is discarded, not merged
+    const lastCall = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+    expect(lastCall.elements).toEqual([remote]);
+    expect(result.current.resets).toBeNull();
+    // nothing rebroadcast (the staged seed never reaches the merge path)
+    await waitFor(() => expect(ws.sent.some((s) => isEnvelope(s, "scene"))).toBe(false));
+    unmount();
+  });
+
+  test("staged seed + a pre-snapshot local edit → the edit is NOT treated as surviving local content (base null = room authoritative)", async () => {
+    const staged = { id: "el-staged", type: "rectangle", version: 1, versionNonce: 1, x: 5 };
+    const remote = { id: "el-remote", type: "diamond", version: 1, versionNonce: 1 };
+    await saveSession(SHARE_ID, { edited: { elements: [staged], appState: {} }, base: null });
+
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api);
+    (api.updateScene as ReturnType<typeof vi.fn>).mockClear();
+    // a genuine stroke lands before the first snapshot
+    const stroke = { id: "el-stroke", type: "line", version: 1, versionNonce: 1 };
+    await act(async () => {
+      result.current.onLocalChange(
+        [stroke] as unknown as ExcalidrawElement[],
+        {} as AppState,
+        {},
+      );
+    });
+
+    (api.updateScene as ReturnType<typeof vi.fn>).mockClear();
+    await act(async () => {
+      ws.message(sceneMessage([remote], 2));
+    });
+    // the room is authoritative for a never-synced client: the snapshot applies
+    // pure — the staged seed AND the pre-snapshot stroke are both discarded,
+    // nothing merges (the old code dragged the staged seed into the merge).
+    const lastCall = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+    expect(lastCall.elements).toEqual([remote]);
+    unmount();
+  });
+
+  test("offline edits that survive the merge (local-only create) ARE rebroadcast (merged ≠ online)", async () => {
+    const baseEl = { id: "el-1", type: "rectangle", version: 1, versionNonce: 1 };
+    const created = { id: "el-2", type: "line", version: 1, versionNonce: 1 }; // local-only create
+    const remote = { id: "el-1", type: "rectangle", version: 2, versionNonce: 2, x: 99 };
+    await saveSession(SHARE_ID, {
+      edited: { elements: [baseEl, created], appState: {} },
+      base: { elements: [baseEl], appState: {} },
+    });
+
+    const api = makeApi();
+    const { unmount, ws } = await dialAndWelcome(api);
+    await act(async () => {
+      ws.message(sceneMessage([remote], 2));
+    });
+    // merged = [remote, created] (local create survives) ≠ online → rebroadcast
+    await waitFor(() =>
+      expect(ws.sent.some((s) => isEnvelope(s, "scene"))).toBe(true),
+    );
     unmount();
   });
 });

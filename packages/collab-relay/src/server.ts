@@ -302,14 +302,18 @@ export function isHelloPayload(x: unknown): x is HelloPayload {
 }
 
 export type FirstMessageParse =
-  | { ok: true; hello: HelloPayload }
+  | { ok: true; kind: "hello"; hello: HelloPayload }
+  | { ok: true; kind: "probe" }
   | { ok: false; code: "PROTOCOL_VERSION" | "ADMISSION_INVALID"; reason: string }
 
 /**
- * Codec gate for the FIRST message on a connection (049 §1 / 052 §3): it
- * must be a v1 `hello`. Structural failures (non-JSON, non-object, wrong
- * `v`) are PROTOCOL_VERSION; a well-formed v1 envelope that is not a
- * hello, or a hello with a malformed payload, is ADMISSION_INVALID.
+ * Codec gate for the FIRST message on a connection (049 §1 / 052 §3):
+ * normally a v1 `hello`; the room probe (ADR 0004) is the one exception —
+ * a `room-probe` frame dials the room WITHOUT admission, so the pre-join
+ * query never touches the roster. Structural failures (non-JSON, non-object,
+ * wrong `v`) are PROTOCOL_VERSION; a well-formed v1 envelope that is neither
+ * hello nor room-probe, or a hello with a malformed payload, is
+ * ADMISSION_INVALID.
  */
 export function parseFirstMessage(raw: string): FirstMessageParse {
   let msg: unknown
@@ -329,13 +333,19 @@ export function parseFirstMessage(raw: string): FirstMessageParse {
       reason: `unsupported protocol version ${JSON.stringify(m.v)} — expected ${PROTOCOL_VERSION}`,
     }
   }
+  // ADR 0004: the room probe is the shareId-keyed pre-join query — dialed
+  // without admission, never enters the roster. Anything else on the wire
+  // first is malformed for this connection's purpose.
+  if (m.t === "room-probe") {
+    return { ok: true, kind: "probe" }
+  }
   if (m.t !== "hello") {
     return { ok: false, code: "ADMISSION_INVALID", reason: `first message must be hello (got ${JSON.stringify(m.t)})` }
   }
   if (!isHelloPayload(m.p)) {
     return { ok: false, code: "ADMISSION_INVALID", reason: "hello payload is missing required fields (057 §3)" }
   }
-  return { ok: true, hello: m.p }
+  return { ok: true, kind: "hello", hello: m.p }
 }
 
 // ─── connection plumbing ────────────────────────────────────────────────────
@@ -404,6 +414,13 @@ export interface RelayServerHooks {
   onAdmitted?(conn: Connection, room: Room, hello: HelloPayload): void | Promise<void>
   /** Post-welcome frame routing — the room DO's message path (038/041). */
   onMessage?(frame: string, conn: Connection, room: Room): void | Promise<void>
+  /**
+   * Room probe (ADR 0004): a `room-probe` FIRST message — the shareId-keyed
+   * pre-join query. No admission, no roster side effect: the room DO answers
+   * from its storage and the connection is closed. When the hook is absent,
+   * the server answers with the empty-room facts so the contract stays total.
+   */
+  onProbe?(conn: Connection, room: Room): void | Promise<void>
   /** Connection teardown — the room DO's leave path (038/041). */
   onClose?(conn: Connection): void
 }
@@ -483,6 +500,31 @@ export function createRelayServer(hooks: RelayServerHooks = {}): PartyKitServer 
         return
       }
 
+      // ADR 0004 room probe: a shareId-keyed pre-join query, no admission,
+      // no roster side effect. One-shot: the hook answers, then the
+      // connection is closed (a lingering probe socket would hold the DO
+      // awake — the opposite of "cheap").
+      if (parsed.kind === "probe") {
+        pending.delete(conn.id)
+        if (hooks.onProbe !== undefined) {
+          await hooks.onProbe(conn, room)
+        } else {
+          conn.send(
+            JSON.stringify({
+              v: 1,
+              t: "room-probe",
+              p: { roomName: null, snapshotAvailable: false, peerCount: 0 },
+            } satisfies RelayMessage),
+          )
+        }
+        try {
+          conn.close(1000, "probe complete")
+        } catch {
+          /* already closed */
+        }
+        return
+      }
+
       const result = await admitHello(parsed.hello, relayEnv(room), rec.shareId)
       if (!result.ok) {
         refuse(conn, result.code, result.reason)
@@ -505,6 +547,7 @@ export function createRelayServer(hooks: RelayServerHooks = {}): PartyKitServer 
             room: hello.room,
             privacy: hello.privacy,
             snapshotAvailable: false,
+            roomName: null,
             peers: [],
           },
         }

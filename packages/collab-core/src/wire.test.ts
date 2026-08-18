@@ -40,6 +40,7 @@ const relayMessages: RelayMessage[] = [
       room: "shareId-abc",
       privacy: "team",
       snapshotAvailable: false,
+      roomName: null,
       peers: [member],
     },
   },
@@ -52,6 +53,8 @@ const relayMessages: RelayMessage[] = [
   { v: 1, t: "error", p: { code: "FILE_NOT_FOUND", reason: "blob not stored", fatal: false } },
   { v: 1, t: "error", p: { code: "ADMISSION_INVALID", reason: "bad signature", fatal: true } },
   { v: 1, t: "chunk", p: { id: "chunk-1", n: 1, i: 0, d: "fragment" } },
+  { v: 1, t: "room-name", p: { name: "Q3 planning" }, from: "conn-2" },
+  { v: 1, t: "room-probe", p: { roomName: "Q3 planning", snapshotAvailable: true, peerCount: 2 } },
 ]
 
 describe("wire envelope", () => {

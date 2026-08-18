@@ -59,6 +59,8 @@ export interface WelcomePayload {
   room: string
   privacy: "team" | "private"
   snapshotAvailable: boolean
+  /** current shared room name — null before anyone named it (ADR 0004) */
+  roomName: string | null
   peers: Member[]
 }
 
@@ -74,7 +76,8 @@ export type ClientMessage =
   | { v: 1; t: "file-put"; p: { fileId: string; mimeType: string; size: number } }
   | { v: 1; t: "file-get"; p: { fileId: string } }
   | { v: 1; t: "chunk"; p: { id: string; n: number; i: number; d: string } }
-
+  | { v: 1; t: "room-name"; p: { name: string } }
+  | { v: 1; t: "room-probe"; p: {} }
 export type RelayMessage =
   | { v: 1; t: "welcome"; p: WelcomePayload }
   | { v: 1; t: "peer"; p: { kind: "join" | "leave"; member?: Member } }
@@ -89,6 +92,23 @@ export type RelayMessage =
   | { v: 1; t: "file-available"; p: { fileId: string; mimeType: string; size: number } }
   | { v: 1; t: "error"; p: { code: ErrorCode; reason: string; fatal?: boolean } }
   | { v: 1; t: "chunk"; p: { id: string; n: number; i: number; d: string } }
+  | { v: 1; t: "room-name"; p: { name: string }; from: string }
+  | { v: 1; t: "room-probe"; p: RoomProbePayload }
+
+/**
+ * Room probe answer (ADR 0004): a shareId-keyed pre-join query, no admission,
+ * no roster side effects — the designated cheap read path. `roomName` is null
+ * when the room has no name (or the DO was evicted since the last name).
+ */
+export interface RoomProbePayload {
+  roomName: string | null
+  snapshotAvailable: boolean
+  peerCount: number
+}
+
+/** ADR 0004 validation: trimmed room names are non-empty and ≤ this many chars. */
+export const ROOM_NAME_MAX_LENGTH = 100
+
 
 /**
  * @deprecated RETIRED from the minted set (058 §1.3) — kept in TS only as

@@ -65,6 +65,9 @@ export default function CreateScreen({ lang }: CreateScreenProps) {
     await saveRoomMeta({
       id: invite.shareId,
       label: trimmed,
+      // ADR 0004: a create-time name is a REAL name — pushable when the room
+      // is alive-with-no-name or re-seeded after death.
+      labelKind: "named",
       tier,
       fp: invite.fp,
       pinned: false,

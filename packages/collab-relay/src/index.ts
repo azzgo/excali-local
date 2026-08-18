@@ -124,6 +124,18 @@ export function createCollabServer(): PartyKitServer {
       await host.state.message(conn.id, frame)
     },
 
+    /**
+     * ADR 0004 room probe: answer from the room DO's own state and close — no
+     * admission, no roster entry, no member-visible side effect. `getHost` is
+     * deliberately used WITHOUT connHost/conns registration, so the probe
+     * connection never appears in the room (and its close is a no-op).
+     */
+    async onProbe(conn, room) {
+      const host = getHost(room)
+      const facts = await host.state.probe()
+      conn.send(JSON.stringify({ v: 1, t: "room-probe", p: facts }))
+    },
+
     /** Teardown → room DO leave (peer{leave} broadcast) + flood-guard cleanup. */
     onClose(conn) {
       const host = connHost.get(conn)

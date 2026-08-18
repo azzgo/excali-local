@@ -25,6 +25,7 @@ function scene(marker: string): CollabScene {
 function roomEntry(overrides: Partial<RoomEntry> & { id: string }): RoomEntry {
   return {
     label: "Design review",
+    labelKind: "named" as const,
     tier: "team",
     pinned: false,
     lastJoined: 1000,
@@ -79,7 +80,7 @@ describe("session cache (collab-session store)", () => {
     expect(session?.base?.elements).toEqual([{ type: "rectangle", id: "rect-v1" }])
 
     // the put replaced the record — no duplicates in the store
-    const db = await openDB("excali", 3)
+    const db = await openDB("excali", 4)
     const all = await db.getAll("collab-session")
     expect(all.filter((s) => s.roomId === "share-ov")).toHaveLength(1)
   })
@@ -144,5 +145,13 @@ describe("room list (rooms store)", () => {
 
     expect((await listRooms()).map((r) => r.id)).not.toContain("share-r5")
     expect(await loadSession("share-r5")).toBeDefined()
+  })
+
+  it("labelKind provenance round-trips (ADR 0004)", async () => {
+    await saveRoomMeta(roomEntry({ id: "share-r6", labelKind: "auto" }))
+    await saveRoomMeta(roomEntry({ id: "share-r7", labelKind: "named" }))
+    const rooms = await listRooms()
+    expect(rooms.find((r) => r.id === "share-r6")?.labelKind).toBe("auto")
+    expect(rooms.find((r) => r.id === "share-r7")?.labelKind).toBe("named")
   })
 })

@@ -23,10 +23,12 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, Copy, DoorOpen, Save, Users } from "lucide-react";
+import { Check, Copy, DoorOpen, Pencil, Save, Users } from "lucide-react";
+import { ROOM_NAME_MAX_LENGTH } from "collab-core";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import {
   DropdownMenu,
@@ -59,7 +61,10 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
-
+  // ADR 0004: rename modal state — anyone may rename, LWW.
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameError, setRenameError] = useState(false);
   // --- roster fade (055): departed dots linger ~250ms at opacity 0 ---------
   const prevPeersRef = useRef<RosterMember[]>([]);
   const [departed, setDeparted] = useState<RosterMember[]>([]);
@@ -154,25 +159,57 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
     window.location.hash = ROUTES.rooms;
   };
 
+  /** ADR 0004: open the rename modal seeded with the current name. */
+  const openRename = () => {
+    setRenameValue(session.roomName ?? room.label);
+    setRenameError(false);
+    setRenameOpen(true);
+  };
+
+  const submitRename = () => {
+    const trimmed = renameValue.trim();
+    if (trimmed === "" || trimmed.length > ROOM_NAME_MAX_LENGTH) {
+      setRenameError(true);
+      return;
+    }
+    if (session.rename(trimmed)) setRenameOpen(false);
+    // The chrome label is the feedback — no toast for your own rename.
+  };
+
+  /** ADR 0004: the shared room name wins once the relay states one; the boot
+   *  label (and its short-id fallback) only show before/without a name. */
+  const displayName = session.roomName ?? room.label;
+
   return (
     <div
       data-testid="collab-session-chrome"
       className="flex items-center gap-2 whitespace-nowrap border-b bg-background px-3 py-1.5 text-xs"
     >
-      {/* room label + privacy badge */}
+      {/* room label + rename (ADR 0004 — anyone may rename) + privacy badge */}
       <span
         data-testid="collab-room-label"
         className="min-w-0 max-w-56 truncate font-semibold text-foreground"
-        title={room.label}
+        title={displayName}
       >
-        {room.label}
+        {displayName}
       </span>
+      <button
+        data-testid="collab-rename-room"
+        type="button"
+        title={t("CollabRenameRoom")}
+        aria-label={t("CollabRenameRoom")}
+        className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        onClick={openRename}
+      >
+        <Pencil className="size-3" />
+      </button>
       <span
         data-testid="collab-room-tier"
         className="shrink-0 rounded-full border bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground"
       >
         {t(room.tier === "private" ? "CollabTierBadgePrivate" : "CollabTierBadgeTeam")}
       </span>
+
 
       {/* conn dot — 046 owns the full health copy; dot-only when live (061 §1) */}
       <span
@@ -304,6 +341,56 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
               onClick={() => setLeaveOpen(false)}
             >
               {t("CollabStay")}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+
+      {/* ADR 0004: rename modal — any member may rename, LWW (no owner) */}
+      <Modal
+        open={renameOpen}
+        title={t("CollabRenameRoom")}
+        onDismiss={() => setRenameOpen(false)}
+      >
+        <div data-testid="collab-rename-modal" className="space-y-3">
+          <label htmlFor="collab-rename-input" className="text-xs font-semibold">
+            {t("CollabRenameLabel")}
+          </label>
+          <Input
+            id="collab-rename-input"
+            data-testid="collab-rename-input"
+            value={renameValue}
+            maxLength={ROOM_NAME_MAX_LENGTH}
+            autoFocus
+            onChange={(e) => {
+              setRenameValue(e.target.value);
+              setRenameError(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submitRename();
+            }}
+          />
+          {renameError && (
+            <p data-testid="collab-rename-error" className="text-xs text-red-500">
+              {t("CollabRenameInvalid")}
+            </p>
+          )}
+          <div className="flex flex-col gap-2">
+            <Button
+              data-testid="collab-rename-save"
+              className="w-full"
+              onClick={submitRename}
+            >
+              {t("CollabRenameSave")}
+            </Button>
+            <Button
+              data-testid="collab-rename-cancel"
+              variant="ghost"
+              className="w-full"
+              onClick={() => setRenameOpen(false)}
+            >
+              {t("CollabCancel")}
             </Button>
           </div>
         </div>

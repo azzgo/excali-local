@@ -4,10 +4,12 @@ import {
   encodeRoomInvite,
   loadSession,
   listRooms,
+  probeRoom,
   saveRoomMeta,
   saveSession,
   type CollabScene,
   type RoomInvite,
+  type RoomProbePayload,
 } from "collab-core";
 import { Button } from "@/components/ui/button";
 import { ROUTES, roomRoute } from "./routes";
@@ -25,7 +27,27 @@ interface JoinScreenProps {
   lang: string;
 }
 
-type JoinStep = "paste" | "seed" | "gallery";
+type JoinStep = "paste" | "probing" | "seed" | "gallery";
+
+/** Join path for a valid room invite, decided purely from the probe +
+ * session-cache facts (ADR 0004/0005) so the three-way re-entry decision is
+ * unit-testable in isolation:
+ *   • alive + has content        → "enter" (direct — nothing staged);
+ *   • alive + empty + cached     → "enter" (auto-seed, 061 rule B);
+ *   • alive + empty + no cache   → "seed" (truthful "room is empty" prompt);
+ *   • probe failed               → "optimistic" (legacy relay / transient):
+ *     enter anyway — the session-layer re-entry rule (ADR 0005) makes any
+ *     wrongness consequence-free, and the relay welcome states the real facts.
+ */
+type JoinRoute = "enter" | "seed" | "optimistic";
+function resolveJoinRoute(
+  probe: RoomProbePayload | null,
+  hasCache: boolean,
+): JoinRoute {
+  if (probe === null) return "optimistic";
+  if (probe.snapshotAvailable) return "enter";
+  return hasCache ? "enter" : "seed";
+}
 
 /**
  * Join room flow (Wayfinder 053 joinRoom → seedPrompt; 054 severity grammar):
@@ -56,6 +78,9 @@ export default function JoinScreen({ lang }: JoinScreenProps) {
   const [dialing, setDialing] = useState(false);
   const [step, setStep] = useState<JoinStep>("paste");
   const [room, setRoom] = useState<RoomInvite | null>(null);
+  /** ADR 0004: the probed real room name — shown on the seed screen and saved
+   *  into the entry label; null when the probe failed or the room is unnamed. */
+  const [roomName, setRoomName] = useState<string | null>(null);
 
   const handleChange = (value: string) => {
     setText(value);
@@ -101,34 +126,67 @@ export default function JoinScreen({ lang }: JoinScreenProps) {
     }
   };
 
-  /** Valid room invite → save meta, then the 061 re-activation rule. */
+  /**
+   * Valid room invite → probe the room, then enter or prompt (ADR 0004/0005).
+   * The probe is the authority on room facts (name, has-content, peer count):
+   *   • live + has content → enter directly (no seed prompt, nothing staged);
+   *   • empty/dead → the seed prompt — "This room is empty" is now truthful;
+   *   • probe failed (legacy relay, transient) → enter optimistically: the
+   *     session-layer re-entry rule (ADR 0005) makes any wrongness
+   *     consequence-free, and the relay welcome states the real facts.
+   * The real room name (probe.roomName) replaces the shareId fallback label.
+   */
   const enterRoom = async (invite: RoomInvite) => {
+    setStep("probing");
     const code = encodeRoomInvite(invite);
     const existing = (await listRooms()).find((r) => r.id === invite.shareId);
+    // The probe is best-effort: a failure (legacy relay, transient) must not
+    // block joining — the session-layer re-entry rule is the backstop.
+    let probe = null;
+    try {
+      probe = await probeRoom(config!.relay, invite.shareId);
+    } catch {
+      /* probe failed — treat as "state unknown" and enter optimistically */
+    }
+    const probedName = probe?.roomName ?? null;
     await saveRoomMeta({
       id: invite.shareId,
-      // 054 Q6: the payload carries no room name — re-joins keep their label,
-      // first joins get a neutral fallback.
+      // ADR 0004: the probe's real name wins; re-joins keep their label;
+      // first joins land on the neutral fallback only when the room is
+      // unnamed (probe failed or genuinely nameless).
       label:
+        probedName ??
         existing?.label ??
         t("CollabJoinedRoomLabel", { shortId: invite.shareId.slice(0, 6) }),
+      // A probe-backed real name is a genuine shared name (pushable); an
+      // existing entry's provenance is preserved on re-join.
+      labelKind: probedName !== null ? "named" : (existing?.labelKind ?? "auto"),
       tier: invite.tier,
       fp: invite.fp,
       pinned: existing?.pinned ?? false,
       lastJoined: Date.now(),
       invite: code,
     });
-    const cached = await loadSession(invite.shareId);
-    if (cached !== undefined) {
-      // 061 §3: dead + cache → cache seeds (B); alive + cache → snapshot wins
-      // (A, pure cache) or three-way merge at connect (A, offline edits) —
-      // every cached case enters without a prompt.
-      window.location.hash = roomRoute(invite.shareId);
+    // ADR 0005: the join path is a pure function of the probe + session-cache
+    // facts (resolveJoinRoute, below) — the live/empty/probe-failed three-way
+    // decision is now unit-testable in isolation.
+    let hasCache = false;
+    if (probe !== null) {
+      hasCache = (await loadSession(invite.shareId)) !== undefined;
+    }
+    const route = resolveJoinRoute(probe, hasCache);
+    if (route === "seed") {
+      setRoom(invite);
+      // The seed prompt shows the probed real name (not the shareId fallback).
+      setRoomName(probedName);
+      setStep("seed");
       return;
     }
-    // Dead + no cache → seed prompt (C) — also the empty-new-room case (054 Q7).
-    setRoom(invite);
-    setStep("seed");
+    // "enter" (alive + content, or alive + empty + cached auto-seed) and
+    // "optimistic" (probe failed) both land on the room screen: the session
+    // snapshot/merge path handles the canvas, and the re-entry rule backstops
+    // any wrongness from an optimistic entry.
+    window.location.hash = roomRoute(invite.shareId);
   };
 
   /** Stage the chosen first seed into the session cache and enter the room. */
@@ -137,6 +195,7 @@ export default function JoinScreen({ lang }: JoinScreenProps) {
     await saveSession(room.shareId, { edited: scene, base: null });
     window.location.hash = roomRoute(room.shareId);
   };
+
 
   const canContinue =
     parsedRoom !== null &&
@@ -239,8 +298,21 @@ export default function JoinScreen({ lang }: JoinScreenProps) {
           </div>
         )}
 
+        {step === "probing" && (
+          /* ADR 0004/0005: the probe is in flight — a truthful intermediate
+             state between "continue" and the decision (enter vs seed). */
+          <div data-testid="collab-join-probing" className="space-y-3">
+            <h1 className="text-lg font-semibold tracking-tight">{t("CollabJoinTitle")}</h1>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="size-3.5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-muted-foreground" />
+              {t("CollabProbingRoom")}
+            </div>
+          </div>
+        )}
+
         {step === "seed" && room !== null && (
           <SeedPrompt
+            roomLabel={roomName === null ? undefined : roomName}
             onLoadFromGallery={() => setStep("gallery")}
             onStartBlank={() => void stageAndEnter(EMPTY_SEED_SCENE)}
             onBack={() => setStep("paste")}

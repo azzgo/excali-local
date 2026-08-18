@@ -65,3 +65,33 @@ effect immediately upon act (agent kill-switch, route, font slots alike). There 
 draft/Save staging on the Options page. Font-config changes persist at once and take
 effect in newly opened editor windows (the editor reads font config once at boot).
 _Avoid_: Save flow, deferred apply, draft state
+
+## Collab
+
+**Room name**:
+The shared, broadcast name of a collab room. Room content like the scene: held relay-side,
+last-write-wins, renamable by any member (there is no room owner). Dies with the room —
+when everyone leaves and the room's state is gone, the name is gone too; whoever re-seeds
+the room next names it.
+_Avoid_: room title, room label (the local rooms-list entry mirrors the room name)
+
+**Room probe**:
+The lightweight pre-join query: a wire request/response keyed by shareId that returns room
+facts (room name, whether content exists, peer count) without admission, without joining
+the roster, and without any side effect visible to members inside.
+_Avoid_: pre-request, peek, room-info lookup
+
+**Staged seed**:
+The scene picked at the seed prompt (blank or gallery drawing), parked in the session
+cache before entering the room. A never-synced draft: if the room turns out to have
+content, the staged seed is discarded silently — it never merges and never broadcasts.
+_Avoid_: pending scene, initial scene
+
+**Re-entry rule**:
+The two-branch rule for joining a room, discriminated by whether the client has ever
+synced with this room (a non-null base in the session cache). Never synced → the room
+is authoritative: apply the room's scene as-is, drop anything staged. Synced before →
+three-way soft-merge the offline edits against the room's scene, online wins on
+conflicts (losers surface as a reset notice). Room death is never surfaced, so a
+dead-room-reseeded return behaves identically to an alive-room reconnect.
+_Avoid_: re-activation rule (061 §3's wire-level name for the same merge), seed merge

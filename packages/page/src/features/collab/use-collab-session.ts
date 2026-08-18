@@ -41,6 +41,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CollabClient,
+  ROOM_NAME_MAX_LENGTH,
   b64urlToBytes,
   buildRoomUrl,
   bytesToB64url,
@@ -73,13 +74,14 @@ import type { Collaborator, SocketId } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { getBrowser } from "@/lib/utils";
 import { useThumbnail } from "@/features/gallery/hooks/use-thumbnail";
-import { saveDrawing } from "@/features/editor/utils/indexdb";
+import { patchRoomName, saveDrawing } from "@/features/editor/utils/indexdb";
 import { COLLAB_SERVER_CONFIG, type ServerConfig } from "./storage";
 import type { LabelMode } from "./labels";
 import { createRoomFileHydrator, fileIdsInRect, uploadNewLocalFiles, visibleSceneRect } from "./use-collab-files";
 import { useBackgroundResume } from "./use-background-resume";
 import { debounce } from "radash";
-
+import { toast } from "sonner";
+import i18n from "i18next";
 /* ------------------------------------------------------------------ */
 /* identity (mint-once per profile)                                     */
 /* ------------------------------------------------------------------ */
@@ -241,6 +243,12 @@ async function resolveIdentity(
 export interface CollabRoomMeta {
   /** room label — defaults to the short shareId when no entry is stored */
   label: string;
+  /**
+   * label provenance (ADR 0004): "named" labels (create-time or mirrored from
+   * the relay) may be PUSHED as the room name when the relay has none; "auto"
+   * fallbacks never are.
+   */
+  labelKind: "named" | "auto";
   tier: "team" | "private";
   /** present only for tier "private" (the invite's per-room key, 050 §2) */
   roomSecret?: string;
@@ -317,8 +325,18 @@ export interface CollabSessionHandle {
   leave: () => void;
   /** empty-room first seed with the current canvas (043 prompt / 061 rule B) */
   seed: () => void;
+  /**
+   * ADR 0004: the current SHARED room name — welcome.roomName or the latest
+   * rename broadcast; null until the relay states one (the chrome then falls
+   * back to the local label).
+   */
+  roomName: string | null;
+  /** ADR 0004: offer a new shared room name (any member may rename, LWW).
+   *  Returns true when the name was accepted (trimmed, non-empty, ≤ 100). */
+  rename: (name: string) => boolean;
   /** write the current canvas to the gallery (061: offline-safe, explicit) */
   saveToGallery: () => Promise<boolean>;
+
   /** Excalidraw onChange wiring — throttle + cache (049 §5) */
   onLocalChange: (
     elements: readonly ExcalidrawElement[],
@@ -403,6 +421,8 @@ export interface CollabSessionCallbacks {
   onPeer: (peer: { kind: "join" | "leave"; member?: Member }) => void;
   onPointer: (pointer: IncomingPointer) => void;
   onScene: (scene: IncomingScene) => void;
+  /** ADR 0004: relay-stamped room-rename broadcast */
+  onRoomName: (info: { name: string; from: string }) => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -433,6 +453,12 @@ export function useCollabSession({
   const [hadOfflineEdits, setHadOfflineEdits] = useState(false);
   const [resets, setResets] = useState<CollabResetNotice | null>(null);
   const [missingFileIds, setMissingFileIds] = useState<ReadonlySet<string>>(new Set());
+  /** ADR 0004: the current SHARED room name (from welcome / rename broadcasts).
+   *  null until the relay states one — the chrome falls back to the local label.
+   *  The committed wire is still plaintext (058 envelope is future work), so the
+   *  relay sees the name exactly like it sees scene payloads — no new leak class.
+   */
+  const [roomName, setRoomName] = useState<string | null>(null);
 
   // --- 056 Q6: admission snapshot ------------------------------------
   // A config change under a live session must NEVER re-dial (no auto-
@@ -454,6 +480,16 @@ export function useCollabSession({
   const labelModeRef = useRef<LabelMode>("full");
   const roomRef = useRef(room);
   roomRef.current = room;
+  /**
+   * ADR 0004: the current shared room name mirror — ref twin of `roomName` so
+   * the client callbacks (built once in the session effect) can read it.
+   */
+  const roomNameRef = useRef<string | null>(null);
+  /** The local label that may be PUSHED as the room name: set when the stored
+   *  entry's labelKind is "named" (create-time or a previous rename/mirror),
+   *  updated on every mirror so a reconnect re-pushes the latest known name.
+   */
+  const namedLabelRef = useRef<string | null>(null);
   const clientRef = useRef<CollabClient | null>(null);
   /** 052: the room FileHydrator (created once the client exists; disposed
    *  on leave/unmount — pending hydrates resolve not-found on teardown). */
@@ -680,6 +716,52 @@ export function useCollabSession({
     [shareId],
   );
 
+  /**
+   * ADR 0004: mirror a shared room name into the local `rooms` entry (the
+   * label degrades to a mirror of the room name) and surface it on the handle.
+   * The stored entry keeps its pinned/invite fields — the label + labelKind are
+   * the only fields that ever change here. Mirrored names are `"named"`
+   * (pushable): if the room dies and is re-seeded, THIS name becomes the new
+   * room name again under the push rule.
+   */
+  const applyRoomName = useCallback(
+    (name: string) => {
+      const trimmed = name.trim();
+      if (trimmed === "" || trimmed.length > ROOM_NAME_MAX_LENGTH) return;
+      roomNameRef.current = trimmed;
+      namedLabelRef.current = trimmed;
+      setRoomName(trimmed);
+      // Narrow mirror write: only the label + labelKind fields ever change
+      // here (pinned/lastJoined/invite must survive), and it happens in one
+      // transaction so it can't race a concurrent saveRoomMeta (ADR 0004).
+      void patchRoomName(shareId, trimmed).catch(() => {
+        /* mirror is best-effort — the relay remains the source of truth */
+      });
+    },
+    [shareId],
+  );
+
+  /** ADR 0004: offer a new shared room name — anyone may rename, LWW. The
+   * local mirror updates immediately (the broadcast echo excludes the sender),
+   * so the chrome shows the new name without waiting for the round trip.
+   *
+   * Offline note: `sendRoomName` is fire-and-forget over the live socket —
+   * if the connection is down it is silently dropped, while `applyRoomName`
+   * has already mirrored the rename here and marked it "named". On reconnect
+   * the on-welcome push rule (ADR 0004) re-offers this un-acked name, so the
+   * rename still lands on the relay — eventual consistency, no action needed.
+   */
+  const rename = useCallback(
+    (name: string) => {
+      const trimmed = name.trim();
+      if (trimmed === "" || trimmed.length > ROOM_NAME_MAX_LENGTH) return false;
+      clientRef.current?.sendRoomName(trimmed);
+      applyRoomName(trimmed);
+      return true;
+    },
+    [applyRoomName],
+  );
+
   // Debounced cache write for local edits (100ms — mirrors the broadcast
   // throttle, 049 §5); remote applies persist immediately instead.
   const debouncedPersist = useMemo(
@@ -727,6 +809,12 @@ export function useCollabSession({
       localDirtyRef.current = false;
       pendingLocalSceneRef.current = null;
 
+      // ADR 0004 push-rule source: the stored label is pushable only when its
+      // provenance is a real name (create-time or a previous rename/mirror).
+      // Joining without an entry (bookmark) or with an "auto" fallback never pushes.
+      namedLabelRef.current = room.labelKind === "named" ? room.label : null;
+      roomNameRef.current = null;
+
       // Local-first: paint the cached edited scene before the relay answers.
       if (cached !== undefined) {
         pendingMergeRef.current = { base: cached.base, edited: cached.edited };
@@ -756,6 +844,15 @@ export function useCollabSession({
           // a green conn dot.
           setReconnect(null);
           setSnapshotAvailable(welcome.snapshotAvailable);
+          // ADR 0004: mirror the shared room name (welcome carries it); when
+          // the relay has NO name and this device holds a genuinely named
+          // label, push it — first naming, and dead-room revival (the
+          // re-seeder's name becomes the new room name).
+          if (typeof welcome.roomName === "string") {
+            applyRoomName(welcome.roomName);
+          } else if (namedLabelRef.current !== null) {
+            clientRef.current?.sendRoomName(namedLabelRef.current);
+          }
           // 055 roster invariant: one entry per profileId — the relay can
           // hold a stale half-open connection beside the fresh one (see
           // dedupeMembersByProfile); dedupe BEFORE building the roster.
@@ -824,6 +921,20 @@ export function useCollabSession({
               rebuildCollaborators(next);
             }
           }
+        },
+        onRoomName: ({ name, from }) => {
+          // ADR 0004: mirror the rename and toast it — attribution maps the
+          // relay-stamped connId through the roster to a member name. No
+          // history, no undo, no persistent renamedBy: late joiners see the
+          // name, not its author.
+          const trimmed = name.trim();
+          if (trimmed === "" || trimmed.length > ROOM_NAME_MAX_LENGTH) return;
+          applyRoomName(trimmed);
+          const renamer = peersRef.current.find((m) => m.connId === from);
+          // The relay excludes the sender from the broadcast, so `from` is a
+          // peer — but a stale roster (self echo on reconnect) is dropped.
+          if (renamer === undefined || renamer.self) return;
+          toast(i18n.t("CollabRenamedRoom", { name: renamer.name, roomName: trimmed }));
         },
         onPointer: (pointer) => {
           const profileId = connIdToProfileRef.current.get(pointer.from);
@@ -988,6 +1099,9 @@ export function useCollabSession({
       pendingLocalSceneRef.current = null;
       knownSceneJsonRef.current = null;
       pendingMergeRef.current = null;
+      roomNameRef.current = null;
+      namedLabelRef.current = null;
+      setRoomName(null);
       setReady(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -999,11 +1113,24 @@ export function useCollabSession({
     (scene: IncomingScene, elements: readonly unknown[]) => {
       const pending = pendingMergeRef.current;
       const pendingLocal = pendingLocalSceneRef.current;
-      // A local edit may land before the relay's first snapshot. Use the
-      // cached edited scene (or the boot scene) as the merge base so the
-      // snapshot cannot erase a newly-created first stroke. Existing
-      // reconnect/offline edits keep their established 061 merge path.
-      const shouldMergeLocal = pendingLocal !== null;
+      // ADR 0005 re-entry rule — the merge decision is ONE expression,
+      // `pendingLocal !== null && pending?.base !== null`, whose states encode
+      // the full truth table:
+      //   • no cached merge (pending null — `?.base` → undefined) → the first
+      //     genuine pre-snapshot local stroke survives (there is no staged
+      //     seed to contaminate the merge base);
+      //   • pending.base non-null (synced before) → the established 061 §3
+      //     three-way merge below, pre-snapshot first-stroke carve-out
+      //     preserved;
+      //   • pending.base === null (staged seed / pure cache) → the room is
+      //     authoritative: snapshot applied as-is, no merge, no rebroadcast
+      //     (053 rule A).
+      // NOTE: the carve-out is narrowed to GENUINE pre-snapshot local strokes,
+      // never to staged seeds (ADR 0005 Consequences) — but NOT to the
+      // "synced before" branch alone: `pending?.base !== null` is also true
+      // when `pending` is undefined (no cache), so an uncached joiner's real
+      // first stroke still merges below (that is correct, do not "fix" it).
+      const shouldMergeLocal = pendingLocal !== null && pending?.base !== null;
       const mergeBase = shouldMergeLocal
         ? pending?.base?.elements ??
           pending?.edited.elements ??
@@ -1046,16 +1173,20 @@ export function useCollabSession({
         pendingLocalSceneRef.current = null;
         pendingMergeRef.current = null;
         persistSession(mergedScene);
-        // Reconnect/offline merges are rebroadcast even when the online
-        // version won. A pending first-stroke merge is sent only when it
-        // adds content that survived the online-wins conflict rule.
-        if ((pending !== null && !shouldMergeLocal) || localDirtyRef.current) {
+        // ADR 0005: rebroadcast ONLY when the merged result actually differs
+        // from the online scene (local-only creates/adds survived). A merged
+        // result identical to the online scene adds nothing the others don't
+        // already have — the old "rebroadcast even when online won" rule was
+        // the flash (a redundant full-scene broadcast to every canvas).
+        if (localDirtyRef.current) {
           seqRef.current += 1;
           clientRef.current?.sendScene([...merged.scene], seqRef.current);
         }
         return;
       }
-      // Pure cache / no cache → relay snapshot wins (053 rule A).
+      // Never synced (base null) → relay snapshot wins as-is (053 rule A /
+      // ADR 0005 branch 1): the staged seed is discarded silently, nothing
+      // merges and nothing is rebroadcast.
       applyScene(elements);
       const synced: CollabScene = { elements: [...elements], appState: {} };
       baseSceneRef.current = synced;
@@ -1114,6 +1245,9 @@ export function useCollabSession({
     pendingLocalSceneRef.current = null;
     knownSceneJsonRef.current = null;
     pendingMergeRef.current = null;
+    roomNameRef.current = null;
+    namedLabelRef.current = null;
+    setRoomName(null);
     void clearSession(shareId);
   }, [shareId]);
 
@@ -1136,7 +1270,8 @@ export function useCollabSession({
       }
       const now = Date.now();
       const shortId = shareId.slice(0, 6);
-      const label = roomRef.current?.label ?? shortId;
+      // ADR 0004: the shared room name (mirror) wins over the boot label.
+      const label = roomNameRef.current ?? roomRef.current?.label ?? shortId;
       await saveDrawing({
         // Stable id per room — re-saving overwrites the same gallery entry
         // (explicit-save discipline, 061: gallery keeps blobs per 052).
@@ -1251,6 +1386,8 @@ export function useCollabSession({
     peers,
     hadOfflineEdits,
     resets,
+    roomName,
+    rename,
     connect,
     leave,
     seed,
@@ -1338,5 +1475,6 @@ async function buildClient({
     onPeer: callbacks.onPeer,
     onPointer: callbacks.onPointer,
     onScene: callbacks.onScene,
+    onRoomName: callbacks.onRoomName,
   });
 }

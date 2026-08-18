@@ -8,9 +8,8 @@
 import { describe, expect, it } from "vitest"
 import { ChunkAssembler, serializeEnvelope } from "collab-core"
 import type { ChunkFrame, HelloPayload, Member, WireEnvelope } from "collab-core"
-import { MAX_FRAME_BYTES, RoomState, SNAPSHOT_KEY, parseSnapshotRecord } from "./room"
+import { MAX_FRAME_BYTES, ROOM_NAME_KEY, RoomState, SNAPSHOT_KEY, parseSnapshotRecord } from "./room"
 import type { RoomHooks, RoomStorage } from "./room"
-
 // ─── harness ─────────────────────────────────────────────────────────────────
 
 class FakeStorage implements RoomStorage {
@@ -100,6 +99,7 @@ describe("RoomState join/leave", () => {
         room: "room-abc123",
         privacy: "team",
         snapshotAvailable: false,
+        roomName: null,
         peers: [member("install-uuid-1", "Ada", "conn-1")],
       },
     })
@@ -337,5 +337,98 @@ describe("RoomState pointer & misc routing", () => {
     for (const e of errors) expect(e.p).toMatchObject({ code: "CHUNK_INVALID", fatal: false })
     expect(h.broadcasts.length).toBe(1) // peer join only
     expect(h.room.snapshot).toBeNull()
+  })
+})
+
+// ─── room name + probe (ADR 0004) ───────────────────────────────────────────
+
+describe("RoomState room-name + probe", () => {
+  it("welcome carries the stored roomName; a rename stores + broadcasts with the renamer's connId (LWW by arrival)", async () => {
+    const h = makeHarness()
+    await h.room.join("conn-1", baseHello())
+    const w1 = framesTo(h, "conn-1").find((f) => f.t === "welcome")!
+    expect(w1.p.roomName).toBeNull()
+
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "room-name", p: { name: "  Q3 planning  " } }))
+    // stored + broadcast (sender excluded) with relay-stamped from
+    expect(await h.storage.get(ROOM_NAME_KEY)).toBe("Q3 planning")
+    expect(h.broadcasts.at(-1)).toEqual({
+      frame: { v: 1, t: "room-name", p: { name: "Q3 planning" }, from: "conn-1" },
+      except: "conn-1",
+    })
+
+    // late joiner's welcome carries the name
+    await h.room.join("conn-2", HELLO_2)
+    const w2 = framesTo(h, "conn-2").find((f) => f.t === "welcome")!
+    expect(w2.p.roomName).toBe("Q3 planning")
+  })
+
+  it("a rename to the current name is a no-op (not re-stored, not re-broadcast); an empty or >100-char name gets a CHUNK_INVALID receipt", async () => {
+    const h = makeHarness()
+    await h.room.join("conn-1", baseHello())
+    await h.room.join("conn-2", HELLO_2)
+    const broadcastsBefore = h.broadcasts.length
+
+    // identical rename — byte-identical no-op (059 §6 duplicate-suppression precedent)
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "room-name", p: { name: "Q3" } }))
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "room-name", p: { name: " Q3 " } }))
+    expect(h.broadcasts.length).toBe(broadcastsBefore + 1) // first rename only
+
+    // invalid names — rejected with a non-fatal error receipt, nothing broadcast
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "room-name", p: { name: "   " } }))
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "room-name", p: { name: "x".repeat(101) } }))
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "room-name", p: { name: 42 } }))
+    const errors = h.outbox.get("conn-1")!.filter((f) => f.t === "error")
+    expect(errors).toHaveLength(3)
+    for (const e of errors) expect(e.p).toMatchObject({ code: "CHUNK_INVALID", fatal: false })
+    expect(h.broadcasts.length).toBe(broadcastsBefore + 1)
+    expect(await h.storage.get(ROOM_NAME_KEY)).toBe("Q3")
+  })
+
+  it("rename broadcasts reach the other member; only members may rename (roster gate)", async () => {
+    const h = makeHarness()
+    await h.room.join("conn-1", baseHello())
+    await h.room.join("conn-2", HELLO_2)
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "room-name", p: { name: "Sprint 9" } }))
+    expect(framesTo(h, "conn-2").filter((f) => f.t === "room-name")).toEqual([
+      { v: 1, t: "room-name", p: { name: "Sprint 9" }, from: "conn-1" },
+    ])
+
+    // unknown connection (not in roster) — dropped before routing
+    const before = h.broadcasts.length
+    await h.room.message("ghost", JSON.stringify({ v: 1, t: "room-name", p: { name: "Nope" } }))
+    expect(h.broadcasts.length).toBe(before)
+  })
+
+  it("probe answers {roomName, snapshotAvailable, peerCount} without joining the roster and without broadcasting", async () => {
+    const h = makeHarness()
+    await h.room.join("conn-1", baseHello())
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "seed", p: { scene: [{ id: "r1" }], seq: 1 } }))
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "room-name", p: { name: "Q3" } }))
+    await h.room.join("conn-2", HELLO_2)
+
+    const before = h.broadcasts.length
+    expect(await h.room.probe()).toEqual({
+      roomName: "Q3",
+      snapshotAvailable: true,
+      peerCount: 2,
+    })
+    // no member-visible side effect: no joins, no broadcasts
+    expect(h.broadcasts.length).toBe(before)
+    expect([...h.room.members.keys()]).toEqual(["conn-1", "conn-2"])
+  })
+
+  it("probe on a hibernated room (fresh state over stored storage) answers from room.storage with peerCount 0", async () => {
+    const storage = new FakeStorage()
+    storage.map.set(ROOM_NAME_KEY, "Old name")
+    storage.map.set(SNAPSHOT_KEY, { envelope: { v: 1, t: "scene", p: { elements: [{ id: "x" }], seq: 7 } } })
+    const h = makeHarness("room-abc123", storage)
+    expect(await h.room.probe()).toEqual({
+      roomName: "Old name",
+      snapshotAvailable: true,
+      peerCount: 0,
+    })
+    // the probe's own loads prime the wake path so a subsequent join doesn't re-read
+    expect(await h.storage.get(ROOM_NAME_KEY)).toBe("Old name")
   })
 })

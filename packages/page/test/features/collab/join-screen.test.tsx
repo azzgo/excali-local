@@ -6,12 +6,21 @@ import {
   encodeServerInvite,
   listRooms,
   loadSession,
+  probeRoom,
   saveSession,
 } from "collab-core";
 import JoinScreen from "@/features/collab/join-screen";
 import * as inviteModule from "@/features/collab/invite";
 import { COLLAB_SERVER_CONFIG, type ServerConfig } from "@/features/collab/storage";
 import { clearCollabStores } from "./helpers";
+
+// ADR 0004/0005: the join screen probes the room on Continue. Keep the rest
+// of collab-core real (listRooms/loadSession hit fake-indexeddb); stub the
+// probe so no real socket is dialed in happy-dom.
+vi.mock("collab-core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("collab-core")>();
+  return { ...actual, probeRoom: vi.fn() };
+});
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => [(key: string) => key],
@@ -51,6 +60,9 @@ afterEach(() => {
 beforeEach(async () => {
   await clearCollabStores();
   (window.location as { hash?: string }).hash = "";
+  vi.mocked(probeRoom).mockReset();
+  // default probe: an empty room (the truthful "This room is empty" case)
+  vi.mocked(probeRoom).mockResolvedValue({ roomName: null, snapshotAvailable: false, peerCount: 0 });
 });
 
 describe("CollabEditor join flow (053/054/048/061)", () => {
@@ -180,5 +192,57 @@ describe("CollabEditor join flow (053/054/048/061)", () => {
     fireEvent.click(screen.getByTestId("collab-join-continue"));
     await screen.findByTestId("collab-seed-prompt");
     expect(screen.queryByText("CollabJoinSrvDownTitle")).toBeNull();
+  });
+
+  test("probe: live + populated room → enter directly, real name saved as the label (ADR 0004/0005)", async () => {
+    configured();
+    vi.mocked(probeRoom).mockResolvedValue({
+      roomName: "Q3 planning",
+      snapshotAvailable: true,
+      peerCount: 3,
+    });
+    render(<JoinScreen lang="en" />);
+    paste(roomInvite());
+    fireEvent.click(screen.getByTestId("collab-join-continue"));
+
+    // no seed prompt for a room that needs none — enter directly
+    await waitFor(() =>
+      expect((window.location as { hash?: string }).hash).toBe(`#room/${SHARE_ID}`),
+    );
+    expect(screen.queryByTestId("collab-seed-prompt")).toBeNull();
+    // the probe's real name becomes the entry label (pushable provenance)
+    const rooms = await listRooms();
+    expect(rooms[0].label).toBe("Q3 planning");
+    expect(rooms[0].labelKind).toBe("named");
+  });
+
+  test("probe: empty room WITH a name → seed prompt shows the real name", async () => {
+    configured();
+    vi.mocked(probeRoom).mockResolvedValue({
+      roomName: "Q3 planning",
+      snapshotAvailable: false,
+      peerCount: 0,
+    });
+    render(<JoinScreen lang="en" />);
+    paste(roomInvite());
+    fireEvent.click(screen.getByTestId("collab-join-continue"));
+    await screen.findByTestId("collab-seed-prompt");
+    expect(screen.getByText("Q3 planning")).toBeTruthy();
+    expect(screen.getByText("CollabSeedTitle")).toBeTruthy();
+  });
+
+  test("probe failure (legacy relay / transient) → enter optimistically, no seed prompt", async () => {
+    configured();
+    vi.mocked(probeRoom).mockRejectedValue(new Error("probe timeout"));
+    render(<JoinScreen lang="en" />);
+    paste(roomInvite());
+    fireEvent.click(screen.getByTestId("collab-join-continue"));
+
+    // the session-layer re-entry rule (ADR 0005) is the backstop — the join
+    // screen must never block a join on a failed probe.
+    await waitFor(() =>
+      expect((window.location as { hash?: string }).hash).toBe(`#room/${SHARE_ID}`),
+    );
+    expect(screen.queryByTestId("collab-seed-prompt")).toBeNull();
   });
 });

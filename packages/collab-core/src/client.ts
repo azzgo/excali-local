@@ -50,12 +50,13 @@ import type { ChunkFrame } from "./chunk"
 import { GcmAuthError, decryptContent, deriveContentKey } from "./envelope"
 import type { ContentType, EncryptedPayload } from "./envelope"
 import { validateRelayUrl } from "./invites"
-import { PROTOCOL_VERSION } from "./wire"
+import { PROTOCOL_VERSION, ROOM_NAME_MAX_LENGTH } from "./wire"
 import type {
   ClientMessage,
   ColorPair,
   ErrorCode,
   Member,
+  RoomProbePayload,
   WelcomePayload,
   WireEnvelope,
 } from "./wire"
@@ -291,6 +292,8 @@ export interface CollabClientOptions extends CollabBackoffOptions {
   onSeedOffer?: () => void
   /** fires when a reconnect attempt is scheduled (health layer, 061) */
   onReconnect?: (info: { attempt: number; delayMs: number }) => void
+  /** relay-stamped room-rename broadcast (ADR 0004) — `from` is the renamer's connId */
+  onRoomName?: (info: { name: string; from: string }) => void
 }
 
 // ---------------------------------------------------------------------------
@@ -470,6 +473,18 @@ export class CollabClient {
       t: "pointer",
       p: button === undefined ? { x, y, tool } : { x, y, tool, button },
     })
+  }
+
+  /**
+   * Offer a new shared room name (ADR 0004): the client-side guard mirrors the
+   * relay's validation (trim, non-empty, ≤ 100 chars) so a bad rename is
+   * never even put on the wire. Immediate, no throttle — renames are discrete
+   * user actions. Dropped silently while disconnected.
+   */
+  sendRoomName(name: string): void {
+    const trimmed = name.trim()
+    if (trimmed === "" || trimmed.length > ROOM_NAME_MAX_LENGTH) return
+    this.sendEnvelope({ v: PROTOCOL_VERSION, t: "room-name", p: { name: trimmed } })
   }
 
   /**
@@ -718,6 +733,15 @@ export class CollabClient {
         collabDebugLog("error", env.p as { code?: unknown; reason?: unknown })
         this.handleError(env.p as { code?: unknown; reason?: unknown; fatal?: unknown })
         return
+      case "room-name": {
+        // relay-stamped rename broadcast (ADR 0004) — a missing `from` is a relay bug (wire.ts)
+        const from = (env as WireEnvelope & { from?: string }).from
+        const name = (env.p as { name?: unknown }).name
+        if (typeof from !== "string" || typeof name !== "string") return
+        collabDebugLog("room-name", { name, from })
+        this.opts.onRoomName?.({ name, from })
+        return
+      }
       default:
         return // file / file-available / chunk / unknown — out of this task's scope
     }
@@ -814,4 +838,92 @@ export class CollabClient {
 function isEncryptedPayload(p: unknown): p is EncryptedPayload {
   const r = p as Record<string, unknown> | null
   return r !== null && typeof r.c === "string" && typeof r.iv === "string"
+}
+
+// ---------------------------------------------------------------------------
+// Room probe (ADR 0004) — the shareId-keyed cheap read path
+// ---------------------------------------------------------------------------
+
+export interface RoomProbeOptions {
+  /** max wait for the probe answer (default 5000ms) */
+  timeoutMs?: number
+  /** transport seam (tests inject a stub socket) */
+  wsFactory?: WsFactory
+}
+
+/**
+ * Pre-join room probe (ADR 0004): dial `ws(s)://relay/party/<shareId>`, send
+ * a `room-probe` frame as the FIRST message (no hello — no admission, no
+ * roster side effect), await the relay's `room-probe` answer and close. The
+ * relay answers from the room DO's storage, so a hibernated room is woken
+ * for the probe and sleeps again afterwards.
+ *
+ * Returns the room facts, or null when the probe could not be answered:
+ * relay unreachable, no answer within `timeoutMs`, or a legacy relay that
+ * rejects unknown first messages. The caller treats null as "state unknown".
+ */
+export async function probeRoom(
+  relay: string,
+  shareId: string,
+  opts: RoomProbeOptions = {},
+): Promise<RoomProbePayload | null> {
+  let url: string
+  let factory: WsFactory
+  try {
+    url = buildRoomUrl(relay, shareId)
+    factory = opts.wsFactory ?? defaultWsFactory
+  } catch {
+    return null
+  }
+  const timeoutMs = opts.timeoutMs ?? 5000
+  return new Promise<RoomProbePayload | null>((resolve) => {
+    let done = false
+    let ws: CollabWs
+    try {
+      ws = factory(url)
+    } catch {
+      resolve(null)
+      return
+    }
+    const timer = setTimeout(() => finish(null), timeoutMs)
+    const finish = (result: RoomProbePayload | null): void => {
+      if (done) return
+      done = true
+      // the probe answered (or failed) — the timeout must not fire later;
+      // clearing it here leaves no dangling handle even after finish completes
+      // (the `done` guard above still covers re-entry).
+      clearTimeout(timer)
+      try {
+        ws.close()
+      } catch {
+        /* already closed */
+      }
+      resolve(result)
+    }
+    ws.addEventListener("open", () => {
+      ws.send(JSON.stringify({ v: PROTOCOL_VERSION, t: "room-probe", p: {} }))
+    })
+    ws.addEventListener("message", (event) => {
+      const raw = (event as { data?: unknown })?.data
+      if (typeof raw !== "string") return
+      let env: unknown
+      try {
+        env = JSON.parse(raw)
+      } catch {
+        return
+      }
+      if (env === null || typeof env !== "object" || Array.isArray(env)) return
+      const e = env as Record<string, unknown>
+      if (e.v !== PROTOCOL_VERSION || e.t !== "room-probe") return
+      const p = e.p as Record<string, unknown> | null
+      if (p === null || typeof p !== "object") return
+      finish({
+        roomName: typeof p.roomName === "string" ? p.roomName : null,
+        snapshotAvailable: p.snapshotAvailable === true,
+        peerCount: typeof p.peerCount === "number" ? p.peerCount : 0,
+      })
+    })
+    ws.addEventListener("close", () => finish(null))
+    ws.addEventListener("error", () => finish(null))
+  })
 }

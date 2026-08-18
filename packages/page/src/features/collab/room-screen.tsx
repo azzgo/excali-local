@@ -141,6 +141,7 @@ function roomMetaFromEntry(shareId: string, entry: RoomEntry): CollabRoomMeta {
   if (parsed.kind === "room") {
     return {
       label: entry.label,
+      labelKind: entry.labelKind,
       tier: parsed.tier,
       roomSecret: parsed.roomSecret,
       fp: parsed.fp,
@@ -149,6 +150,7 @@ function roomMetaFromEntry(shareId: string, entry: RoomEntry): CollabRoomMeta {
   }
   return {
     label: entry.label,
+    labelKind: entry.labelKind,
     tier: entry.tier,
     invite: { shareId, tier: entry.tier },
   };
@@ -159,6 +161,7 @@ function fallbackRoomMeta(shareId: string): CollabRoomMeta {
   const shortId = shareId.slice(0, 6);
   return {
     label: shortId,
+    labelKind: "auto",
     tier: "team",
     invite: { shareId, tier: "team" },
   };
@@ -210,7 +213,9 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
         <ConnHealthBanners
           session={session}
           excalidrawAPI={excalidrawAPI}
-          roomLabel={room.label}
+          // ADR 0004: the shared room name (mirror) wins once the relay
+          // states it — the boot label is only the fallback.
+          roomLabel={session.roomName ?? room.label}
           relay={server.relay}
         />
       </div>

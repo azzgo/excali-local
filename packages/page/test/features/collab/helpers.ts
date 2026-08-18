@@ -11,7 +11,10 @@
 import { openDB } from "idb";
 
 async function openExcaliDB() {
-  return openDB("excali", 3, {
+  // v4 matches the owner chain (packages/page/src/features/editor/utils/
+  // indexdb.ts / collab-core cache.ts) — opening at a lower version would
+  // throw VersionError once the app has created the DB at v4.
+  return openDB("excali", 4, {
     upgrade(db) {
       if (!db.objectStoreNames.contains("files")) {
         db.createObjectStore("files", { keyPath: "id" });
