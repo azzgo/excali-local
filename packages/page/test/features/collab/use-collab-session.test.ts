@@ -1236,6 +1236,91 @@ describe("use-collab-session — room name (ADR 0004)", () => {
   });
 });
 
+// ─── member name (ADR 0006 — task 070) ───────────────────────────────────
+
+describe("use-collab-session — member name (ADR 0006)", () => {
+  const peer: Member = {
+    profileId: "profile-2",
+    name: "Min",
+    color: { background: "hsl(220, 100%, 83%)", stroke: "hsl(220, 100%, 83%)" },
+    connId: "conn-2",
+  };
+
+  test("selfName exposes the current self roster entry name", async () => {
+    const api = makeApi();
+    const { result, unmount } = await dialAndWelcome(api, { peers: [peer] });
+    await waitFor(() => expect(result.current.selfName).toBe("Ada"));
+    unmount();
+  });
+
+  test("renameSelf sends a member-name offer, updates the own roster entry, and persists myName", async () => {
+    const api = makeApi();
+    // a pre-existing room entry (create/join screens create it before entering)
+    await saveRoomMeta({ id: SHARE_ID, label: "Q3 planning", labelKind: "named", tier: "team", pinned: false, lastJoined: Date.now(), invite: "" });
+    const { result, unmount, ws } = await dialAndWelcome(api, { peers: [peer] });
+    expect(result.current.renameSelf("  Ada Prime  ")).toBe(true);
+    // own roster entry + collaborator chip update immediately (self name)
+    await waitFor(() =>
+      expect(result.current.peers[0]).toMatchObject({ self: true, name: "Ada Prime" }),
+    );
+    // the trimmed name is sent on the wire
+    await waitFor(() => expect(ws.sent.some((s) => isEnvelope(s, "member-name"))).toBe(true));
+    const offer = ws.sent.find((s) => isEnvelope(s, "member-name"));
+    expect(JSON.parse(offer!).p).toEqual({ name: "Ada Prime" });
+    // myName is persisted to the rooms entry (ADR 0006)
+    await waitFor(async () => {
+      const e = await getRoom(SHARE_ID);
+      expect(e?.myName).toBe("Ada Prime");
+    });
+    unmount();
+  });
+
+  test("renameSelf rejects invalid names (nothing sent, no roster change, false)", async () => {
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api);
+    expect(result.current.renameSelf("   ")).toBe(false);
+    expect(result.current.renameSelf("x".repeat(41))).toBe(false);
+    expect(ws.sent.some((s) => isEnvelope(s, "member-name"))).toBe(false);
+    expect(result.current.peers[0]).toMatchObject({ self: true, name: "Ada" });
+    unmount();
+  });
+
+  test("an incoming member-name broadcast applies a PEER rename by connId (roster + chip)", async () => {
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api, { peers: [peer] });
+    await act(async () => {
+      ws.message(JSON.stringify({ v: 1, t: "member-name", p: { name: "Mina" }, from: "conn-2" }));
+    });
+    await waitFor(() =>
+      expect(result.current.peers[1]).toMatchObject({ profileId: "profile-2", name: "Mina" }),
+    );
+    // rebuildCollaborators updates the canvas name chip too
+    const call = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+    expect(call.collaborators.get("profile-2")).toMatchObject({ username: "Mina" });
+    unmount();
+  });
+
+  test("a member-name broadcast from an unknown connId is dropped (stale roster)", async () => {
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api, { peers: [peer] });
+    await act(async () => {
+      ws.message(JSON.stringify({ v: 1, t: "member-name", p: { name: "Ghost" }, from: "conn-unknown" }));
+    });
+    expect(result.current.peers[1].name).toBe("Min");
+    unmount();
+  });
+
+  test("a member-name broadcast from the own connId is dropped (defensive self echo)", async () => {
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api, { peers: [peer] });
+    await act(async () => {
+      ws.message(JSON.stringify({ v: 1, t: "member-name", p: { name: "Echo" }, from: "conn-1" }));
+    });
+    expect(result.current.peers[0]).toMatchObject({ self: true, name: "Ada" });
+    unmount();
+  });
+});
+
 // ─── re-entry rule + rebroadcast tightening (ADR 0005) ──────────────────────
 
 describe("use-collab-session — re-entry rule (ADR 0005)", () => {

@@ -286,6 +286,12 @@ export interface RoomEntry {
    * read as absent → treated as "auto" at the call sites.
    */
   labelKind: "named" | "auto";
+  /**
+   * per-room display name (060/070): a one-time COPY of the profile default
+   * at room entry, later replaced by an in-room rename (ADR 0006). Absent =
+   * not yet copied (the session falls back to the profile default).
+   */
+  myName?: string;
 }
 
 /** A collab scene snapshot: elements + appState (+ optional embedded files). */
@@ -335,6 +341,23 @@ export async function patchRoomName(shareId: string, label: string): Promise<voi
   const entry = await tx.store.get(shareId);
   if (entry !== undefined) {
     await tx.store.put({ ...entry, label, labelKind: "named" });
+  }
+  await tx.done;
+}
+
+/** ADR 0006 mirror write (task 070): update ONLY the myName field of a room
+ * entry, preserving every other field verbatim (label, labelKind, pinned,
+ * lastJoined, invite, tier, fp). The read+write happens in ONE transaction,
+ * so a concurrent saveRoomMeta can never be clobbered by a stale
+ * get-room → put-whole-entry read-modify-write that resurrects old values.
+ * No-op (no write) when the shareId has no entry yet.
+ */
+export async function patchRoomMyName(shareId: string, myName: string): Promise<void> {
+  const db = await initDB();
+  const tx = db.transaction(ROOMS_STORE, "readwrite");
+  const entry = await tx.store.get(shareId);
+  if (entry !== undefined) {
+    await tx.store.put({ ...entry, myName });
   }
   await tx.done;
 }

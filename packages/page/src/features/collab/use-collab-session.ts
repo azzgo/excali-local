@@ -41,6 +41,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CollabClient,
+  MEMBER_NAME_MAX_LENGTH,
   ROOM_NAME_MAX_LENGTH,
   b64urlToBytes,
   buildRoomUrl,
@@ -74,7 +75,7 @@ import type { Collaborator, SocketId } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { getBrowser } from "@/lib/utils";
 import { useThumbnail } from "@/features/gallery/hooks/use-thumbnail";
-import { patchRoomName, saveDrawing } from "@/features/editor/utils/indexdb";
+import { patchRoomMyName, patchRoomName, saveDrawing } from "@/features/editor/utils/indexdb";
 import { COLLAB_SERVER_CONFIG, type ServerConfig } from "./storage";
 import type { LabelMode } from "./labels";
 import { createRoomFileHydrator, fileIdsInRect, uploadNewLocalFiles, visibleSceneRect } from "./use-collab-files";
@@ -338,6 +339,19 @@ export interface CollabSessionHandle {
   /** ADR 0004: offer a new shared room name (any member may rename, LWW).
    *  Returns true when the name was accepted (trimmed, non-empty, ≤ 100). */
   rename: (name: string) => boolean;
+  /**
+   * ADR 0006: the CURRENT display name of MY roster entry (the per-room
+   * copy / latest in-room rename). null before the first welcome — the
+   * chrome modal prefills from this, never the identity default.
+   */
+  selfName: string | null;
+  /**
+   * ADR 0006: rename MY display name in this room. Client-side guard
+   * (trimmed, non-empty, ≤ 40); on success sends the member-name offer,
+   * updates the own roster entry + collaborator chip, and persists myName
+   * to the rooms entry. Returns true on success, false on invalid.
+   */
+  renameSelf: (name: string) => boolean;
   /** write the current canvas to the gallery (061: offline-safe, explicit) */
   saveToGallery: () => Promise<boolean>;
 
@@ -427,6 +441,8 @@ export interface CollabSessionCallbacks {
   onScene: (scene: IncomingScene) => void;
   /** ADR 0004: relay-stamped room-rename broadcast */
   onRoomName: (info: { name: string; from: string }) => void;
+  /** ADR 0006: relay-stamped member-name broadcast (peer renamed self) */
+  onMemberName: (info: { name: string; from: string }) => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -766,6 +782,41 @@ export function useCollabSession({
     [applyRoomName],
   );
 
+  /**
+   * ADR 0006: rename MY display name in this room. Client-side guard
+   * mirrors the relay's validation (trim, non-empty, ≤ 40) so a bad name
+   * never reaches the wire. On success: send the member-name offer, update
+   * the OWN roster entry + collaborator chip immediately (no waiting for
+   * the broadcast echo, which excludes the sender), and persist myName to
+   * the rooms entry via a narrow single-transaction write (label/pinned/
+   * invite etc. survive). Returns true on success, false on invalid.
+   */
+  const renameSelf = useCallback(
+    (name: string): boolean => {
+      const trimmed = name.trim();
+      if (trimmed === "" || trimmed.length > MEMBER_NAME_MAX_LENGTH) return false;
+      clientRef.current?.sendMemberName(trimmed);
+      // Update the own roster entry (exactly one self entry — the 055
+      // invariant) and rebuild the collaborator chip with the new name.
+      const current = peersRef.current;
+      const selfIdx = current.findIndex((m) => m.self);
+      if (selfIdx !== -1) {
+        const next = [...current];
+        next[selfIdx] = { ...next[selfIdx], name: trimmed };
+        peersRef.current = next;
+        setPeers(next);
+        rebuildCollaborators(next);
+      }
+      // Persist myName (ADR 0006) — narrow partial write in ONE tx so a
+      // concurrent saveRoomMeta can never clobber the other fields.
+      void patchRoomMyName(shareId, trimmed).catch(() => {
+        /* best-effort — the roster stays the live source of truth */
+      });
+      return true;
+    },
+    [shareId, rebuildCollaborators],
+  );
+
   // Debounced cache write for local edits (100ms — mirrors the broadcast
   // throttle, 049 §5); remote applies persist immediately instead.
   const debouncedPersist = useMemo(
@@ -942,6 +993,22 @@ export function useCollabSession({
           // peer — but a stale roster (self echo on reconnect) is dropped.
           if (renamer === undefined || renamer.self) return;
           toast(i18n.t("CollabRenamedRoom", { name: renamer.name, roomName: trimmed }));
+        },
+        onMemberName: ({ name, from }) => {
+          // ADR 0006: a PEER renamed themselves. Apply live and silently (no
+          // toast, no reconnect — the name chip just updates). The relay
+          // excludes the sender, so `from` is a peer; drop own echoes and
+          // stale connIds (unknown roster / pre-welcome) defensively.
+          const trimmed = name.trim();
+          if (trimmed === "" || trimmed.length > MEMBER_NAME_MAX_LENGTH) return;
+          const current = peersRef.current;
+          const idx = current.findIndex((m) => m.connId === from);
+          if (idx === -1 || current[idx].self) return;
+          const next = [...current];
+          next[idx] = { ...next[idx], name: trimmed };
+          peersRef.current = next;
+          setPeers(next);
+          rebuildCollaborators(next);
         },
         onPointer: (pointer) => {
           const profileId = connIdToProfileRef.current.get(pointer.from);
@@ -1396,6 +1463,11 @@ export function useCollabSession({
     resets,
     roomName,
     rename,
+    // ADR 0006: the current self roster entry name (per-room) — null
+    // before the first welcome; fall back to the boot effective name so the
+    // chrome modal still has a prefill while the socket is opening.
+    selfName: peers.find((p) => p.self)?.name ?? room?.myName ?? identity?.name ?? null,
+    renameSelf,
     connect,
     leave,
     seed,
@@ -1487,5 +1559,6 @@ async function buildClient({
     onPointer: callbacks.onPointer,
     onScene: callbacks.onScene,
     onRoomName: callbacks.onRoomName,
+    onMemberName: callbacks.onMemberName,
   });
 }

@@ -58,6 +58,8 @@ function makeSession(overrides: Partial<CollabSessionHandle> = {}): CollabSessio
     resets: null,
     roomName: null,
     rename: vi.fn(() => true),
+    selfName: "Ada",
+    renameSelf: vi.fn(() => true),
     connect: vi.fn(),
     leave: vi.fn(),
     seed: vi.fn(),
@@ -284,5 +286,37 @@ describe("SessionChrome — leave modal (053)", () => {
     await waitFor(() => expect(toast.error).toHaveBeenCalledWith("CollabSaveFailed"));
     expect(session.leave).not.toHaveBeenCalled();
     expect((window.location as { hash?: string }).hash).not.toBe("#rooms");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("CollabSaveFailed"));
+    expect(session.leave).not.toHaveBeenCalled();
+    expect((window.location as { hash?: string }).hash).not.toBe("#rooms");
+  });
+});
+
+describe("SessionChrome — my-name rename (ADR 0006)", () => {
+  test("self edit affordance opens the modal prefilled with the current per-room name", () => {
+    renderChrome(makeSession({ selfName: "Ada Prime" }));
+    fireEvent.click(screen.getByTestId("collab-selfname-edit"));
+    expect(screen.getByTestId("collab-selfname-modal")).toBeTruthy();
+    expect((screen.getByTestId("collab-selfname-input") as HTMLInputElement).value).toBe("Ada Prime");
+  });
+
+  test("submit calls renameSelf with the trimmed name and closes on success", () => {
+    const renameSelf = vi.fn(() => true);
+    renderChrome(makeSession({ renameSelf, selfName: "Ada" }));
+    fireEvent.click(screen.getByTestId("collab-selfname-edit"));
+    fireEvent.change(screen.getByTestId("collab-selfname-input"), { target: { value: "  Ada Prime  " } });
+    fireEvent.click(screen.getByTestId("collab-selfname-save"));
+    expect(renameSelf).toHaveBeenCalledWith("Ada Prime");
+    expect(screen.queryByTestId("collab-selfname-modal")).toBeNull();
+  });
+
+  test("invalid name shows the error and does not call renameSelf", () => {
+    const renameSelf = vi.fn(() => true);
+    renderChrome(makeSession({ renameSelf, selfName: "Ada" }));
+    fireEvent.click(screen.getByTestId("collab-selfname-edit"));
+    fireEvent.change(screen.getByTestId("collab-selfname-input"), { target: { value: "   " } });
+    fireEvent.click(screen.getByTestId("collab-selfname-save"));
+    expect(screen.getByTestId("collab-selfname-error")).toBeTruthy();
+    expect(renameSelf).not.toHaveBeenCalled();
   });
 });

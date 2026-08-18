@@ -24,7 +24,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, Copy, DoorOpen, Pencil, Save, Users } from "lucide-react";
-import { ROOM_NAME_MAX_LENGTH } from "collab-core";
+import { MEMBER_NAME_MAX_LENGTH, ROOM_NAME_MAX_LENGTH } from "collab-core";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -65,6 +65,10 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameValue, setRenameValue] = useState("");
   const [renameError, setRenameError] = useState(false);
+  // ADR 0006: my-name rename modal state — the self roster entry's name.
+  const [selfNameOpen, setSelfNameOpen] = useState(false);
+  const [selfNameValue, setSelfNameValue] = useState("");
+  const [selfNameError, setSelfNameError] = useState(false);
   // --- roster fade (055): departed dots linger ~250ms at opacity 0 ---------
   const prevPeersRef = useRef<RosterMember[]>([]);
   const [departed, setDeparted] = useState<RosterMember[]>([]);
@@ -176,6 +180,24 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
     // The chrome label is the feedback — no toast for your own rename.
   };
 
+  /** ADR 0006: open the my-name rename modal seeded with the CURRENT
+   *  per-room name (the self roster entry — NEVER the identity default). */
+  const openSelfNameRename = () => {
+    setSelfNameValue(session.selfName ?? "");
+    setSelfNameError(false);
+    setSelfNameOpen(true);
+  };
+
+  const submitSelfNameRename = () => {
+    const trimmed = selfNameValue.trim();
+    if (trimmed === "" || trimmed.length > MEMBER_NAME_MAX_LENGTH) {
+      setSelfNameError(true);
+      return;
+    }
+    if (session.renameSelf(trimmed)) setSelfNameOpen(false);
+    // The self roster dot/chip is the feedback — no toast for your own rename.
+  };
+
   /** ADR 0004: the shared room name wins once the relay states one; the boot
    *  label (and its short-id fallback) only show before/without a name. */
   const displayName = session.roomName ?? room.label;
@@ -232,26 +254,43 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
         className="flex shrink-0 items-center gap-1.5 overflow-x-auto"
       >
         {renderedRoster.map(({ m, leaving }) => (
-          <Tooltip key={m.profileId}>
-            <TooltipTrigger asChild>
-              <span
-                data-testid={`collab-roster-dot-${m.profileId}`}
-                data-self={m.self ? "true" : undefined}
-                className={cn(
-                  "size-2.5 shrink-0 rounded-full",
-                  // 055: self dot gets an outline ring; join/leave = ~250ms fade
-                  m.self && "ring-2 ring-foreground ring-offset-1",
-                  leaving
-                    ? "opacity-0 transition-opacity duration-250"
-                    : "animate-in fade-in duration-250",
-                )}
-                style={{ background: m.color }}
-              />
-            </TooltipTrigger>
-            <TooltipContent>
-              {m.self ? t("CollabYou") : formatLabel(m.name, m.profileId, labelMode)}
-            </TooltipContent>
-          </Tooltip>
+          <span key={m.profileId} className="flex shrink-0 items-center gap-0.5">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span
+                  data-testid={`collab-roster-dot-${m.profileId}`}
+                  data-self={m.self ? "true" : undefined}
+                  className={cn(
+                    "size-2.5 shrink-0 rounded-full",
+                    // 055: self dot gets an outline ring; join/leave = ~250ms fade
+                    m.self && "ring-2 ring-foreground ring-offset-1",
+                    leaving
+                      ? "opacity-0 transition-opacity duration-250"
+                      : "animate-in fade-in duration-250",
+                  )}
+                  style={{ background: m.color }}
+                />
+              </TooltipTrigger>
+              <TooltipContent>
+                {m.self ? t("CollabYou") : formatLabel(m.name, m.profileId, labelMode)}
+              </TooltipContent>
+            </Tooltip>
+            {/* ADR 0006: the self dot carries a small edit affordance that
+                opens the my-name rename modal (prefilled with the current
+                per-room name). */}
+            {m.self && (
+              <button
+                data-testid="collab-selfname-edit"
+                type="button"
+                title={t("CollabSelfNameEdit")}
+                aria-label={t("CollabSelfNameEdit")}
+                className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                onClick={openSelfNameRename}
+              >
+                <Pencil className="size-3" />
+              </button>
+            )}
+          </span>
         ))}
       </span>
 
@@ -389,6 +428,56 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
               variant="ghost"
               className="w-full"
               onClick={() => setRenameOpen(false)}
+            >
+              {t("CollabCancel")}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ADR 0006: my-name rename modal — prefilled with the CURRENT
+          per-room name (the self roster entry, never the identity default) */}
+      <Modal
+        open={selfNameOpen}
+        title={t("CollabSelfNameRename")}
+        onDismiss={() => setSelfNameOpen(false)}
+      >
+        <div data-testid="collab-selfname-modal" className="space-y-3">
+          <label htmlFor="collab-selfname-input" className="text-xs font-semibold">
+            {t("CollabSelfNameLabel")}
+          </label>
+          <Input
+            id="collab-selfname-input"
+            data-testid="collab-selfname-input"
+            value={selfNameValue}
+            maxLength={MEMBER_NAME_MAX_LENGTH}
+            autoFocus
+            onChange={(e) => {
+              setSelfNameValue(e.target.value);
+              setSelfNameError(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submitSelfNameRename();
+            }}
+          />
+          {selfNameError && (
+            <p data-testid="collab-selfname-error" className="text-xs text-red-500">
+              {t("CollabSelfNameInvalid")}
+            </p>
+          )}
+          <div className="flex flex-col gap-2">
+            <Button
+              data-testid="collab-selfname-save"
+              className="w-full"
+              onClick={submitSelfNameRename}
+            >
+              {t("CollabRenameSave")}
+            </Button>
+            <Button
+              data-testid="collab-selfname-cancel"
+              variant="ghost"
+              className="w-full"
+              onClick={() => setSelfNameOpen(false)}
             >
               {t("CollabCancel")}
             </Button>

@@ -71,6 +71,8 @@ function makeSession(overrides: Partial<CollabSessionHandle> = {}): CollabSessio
     resets: null,
     roomName: null,
     rename: vi.fn(() => true),
+    selfName: "Ada",
+    renameSelf: vi.fn(() => true),
     connect: vi.fn(),
     leave: vi.fn(),
     seed: vi.fn(),

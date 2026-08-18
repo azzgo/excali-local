@@ -331,6 +331,11 @@ export function initI18n() {
           "CollabRenameLabel": "Room name",
           "CollabRenameSave": "Save",
           "CollabRenameInvalid": "Room names must be 1–100 characters",
+          // ADR 0006 (task 070): my-name rename copy
+          "CollabSelfNameEdit": "Rename my name",
+          "CollabSelfNameRename": "Rename my name",
+          "CollabSelfNameLabel": "Your name in this room",
+          "CollabSelfNameInvalid": "Names must be 1–40 characters",
           "CollabConnLive": "Live",
           "CollabConnConnecting": "Connecting…",
           "CollabConnReconnecting": "Reconnecting",
@@ -694,6 +699,11 @@ export function initI18n() {
           "CollabRenameLabel": "房间名称",
           "CollabRenameSave": "保存",
           "CollabRenameInvalid": "房间名称须为 1–100 个字符",
+          // ADR 0006（任务 070）：我的名字重命名文案
+          "CollabSelfNameEdit": "修改我的名字",
+          "CollabSelfNameRename": "修改我的名字",
+          "CollabSelfNameLabel": "你在此房间的名字",
+          "CollabSelfNameInvalid": "名字须为 1–40 个字符",
           "CollabConnLive": "在线",
           "CollabConnConnecting": "连接中…",
           "CollabConnReconnecting": "重新连接中",
