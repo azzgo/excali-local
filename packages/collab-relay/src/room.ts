@@ -33,7 +33,7 @@
  * (task 041's party.config wiring) injects `send`/`broadcast`/`storage` and
  * drives `join` (post-admission), `message` (post-welcome routing), `leave`.
  */
-import { CHUNK_THRESHOLD, ChunkAssembler, ROOM_NAME_MAX_LENGTH, serializeEnvelope } from "collab-core"
+import { CHUNK_THRESHOLD, ChunkAssembler, MEMBER_NAME_MAX_LENGTH, ROOM_NAME_MAX_LENGTH, serializeEnvelope } from "collab-core"
 import type { ChunkFrame, ErrorCode, HelloPayload, Member, WireEnvelope } from "collab-core"
 import type { FileStore } from "./files"
 import { MAX_CHUNKS_PER_MESSAGE } from "./guards"
@@ -353,6 +353,9 @@ export class RoomState {
       case "room-name":
         await this.handleRoomName(connId, (env.p as { name?: unknown }).name)
         return
+      case "member-name":
+        await this.handleMemberName(connId, (env.p as { name?: unknown }).name)
+        return
       default:
         return // unknown type — drop (052 §3)
     }
@@ -434,6 +437,29 @@ export class RoomState {
       console.warn(`[room ${this.roomId}] failed to persist room name (ADR 0004): ${err instanceof Error ? err.message : String(err)}`)
     })
     this.hooks.broadcast(JSON.stringify({ v: 1, t: "room-name", p: { name }, from: connId }), connId)
+  }
+
+  /**
+   * Member rename (ADR 0006): the sender is an admitted member (the roster
+   * gate in message() made sure). The member name is EPHEMERAL session state
+   * — it dies with the connection, so it is never persisted to room.storage.
+   * Unlike handleRoomName (ADR 0004), an invalid offer is SILENTLY DROPPED:
+   * no error receipt, nothing broadcast (ADR 0006) — a bad rename simply
+   * leaves the member's existing name untouched. The rename mutates the
+   * roster member record IN PLACE, so late joiners' welcome.peers (which
+   * reference the same Member objects) reflect it. A rename to the current
+   * name is a byte-identical no-op. Only `name` is touched — color/connId/
+   * profileId are left alone.
+   */
+  private async handleMemberName(connId: string, raw: unknown): Promise<void> {
+    if (typeof raw !== "string") return // silently dropped (ADR 0006)
+    const name = raw.trim()
+    if (name === "" || name.length > MEMBER_NAME_MAX_LENGTH) return // silently dropped (ADR 0006)
+    const member = this.roster.get(connId)
+    if (member === undefined) return // guard — never an admitted member
+    if (member.name === name) return // byte-identical rename — no-op
+    member.name = name // mutate the roster member record in place
+    this.hooks.broadcast(JSON.stringify({ v: 1, t: "member-name", p: { name }, from: connId }), connId)
   }
 
 

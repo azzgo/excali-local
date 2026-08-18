@@ -432,3 +432,64 @@ describe("RoomState room-name + probe", () => {
     expect(await h.storage.get(ROOM_NAME_KEY)).toBe("Old name")
   })
 })
+
+// ─── member name (ADR 0006) ──────────────────────────────────────────────────
+
+describe("RoomState member-name (ADR 0006)", () => {
+  it("a rename by an admitted member updates the roster and broadcasts member-name to the other member, sender excluded", async () => {
+    const h = makeHarness()
+    await h.room.join("conn-1", baseHello())
+    await h.room.join("conn-2", HELLO_2)
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "member-name", p: { name: "Ada Lee" } }))
+    // the roster member record is mutated in place
+    expect([...h.room.members.values()].find((m) => m.connId === "conn-1")?.name).toBe("Ada Lee")
+    // stamped member-name frame reaches the other member, sender excluded
+    expect(framesTo(h, "conn-2").filter((f) => f.t === "member-name")).toEqual([
+      { v: 1, t: "member-name", p: { name: "Ada Lee" }, from: "conn-1" },
+    ])
+    expect(framesTo(h, "conn-1").filter((f) => f.t === "member-name")).toEqual([])
+  })
+
+  it("a late joiner's welcome.peers shows the renamed member with the new name", async () => {
+    const h = makeHarness()
+    await h.room.join("conn-1", baseHello())
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "member-name", p: { name: "Ada Lee" } }))
+    await h.room.join("conn-2", HELLO_2)
+    const w2 = framesTo(h, "conn-2").find((f) => f.t === "welcome")!
+    const peer = w2.p.peers.find((m: { connId: string }) => m.connId === "conn-1")
+    expect(peer.name).toBe("Ada Lee")
+  })
+
+  it("invalid payloads are silently dropped: no broadcast, no CHUNK_INVALID error, roster unchanged", async () => {
+    const h = makeHarness()
+    await h.room.join("conn-1", baseHello())
+    await h.room.join("conn-2", HELLO_2)
+    const broadcastsBefore = h.broadcasts.length
+    const errorSendsBefore = (h.outbox.get("conn-1") ?? []).filter((f) => f.t === "error").length
+    for (const name of ["   ", "", "x".repeat(41), 42]) {
+      await h.room.message("conn-1", JSON.stringify({ v: 1, t: "member-name", p: { name } }))
+    }
+    expect(h.broadcasts.length).toBe(broadcastsBefore) // nothing broadcast
+    expect((h.outbox.get("conn-1") ?? []).filter((f) => f.t === "error").length).toBe(errorSendsBefore) // no error receipt
+    expect([...h.room.members.values()].find((m) => m.connId === "conn-1")?.name).toBe("Ada") // roster not mutated
+  })
+
+  it("a non-admitted sender sending member-name is dropped (roster gate), no broadcast", async () => {
+    const h = makeHarness()
+    await h.room.join("conn-1", baseHello())
+    const before = h.broadcasts.length
+    await h.room.message("ghost", JSON.stringify({ v: 1, t: "member-name", p: { name: "Nope" } }))
+    expect(h.broadcasts.length).toBe(before)
+  })
+
+  it("a member-name input is trimmed before storing/broadcasting", async () => {
+    const h = makeHarness()
+    await h.room.join("conn-1", baseHello())
+    await h.room.join("conn-2", HELLO_2)
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "member-name", p: { name: "  Ada Lee  " } }))
+    expect(framesTo(h, "conn-2").filter((f) => f.t === "member-name")).toEqual([
+      { v: 1, t: "member-name", p: { name: "Ada Lee" }, from: "conn-1" },
+    ])
+    expect([...h.room.members.values()].find((m) => m.connId === "conn-1")?.name).toBe("Ada Lee")
+  })
+})
