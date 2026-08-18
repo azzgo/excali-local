@@ -58,6 +58,7 @@ export type {
 } from "./envelope"
 export {
   CollabClient,
+  collabDebugLog,
   DIAL_TIMEOUT_MS,
   FATAL_ERROR_CODES,
   RECONNECT_BASE_MS,

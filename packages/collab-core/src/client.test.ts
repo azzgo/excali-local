@@ -369,6 +369,175 @@ describe("capped-backoff reconnect", () => {
 })
 
 // ---------------------------------------------------------------------------
+// Background resume (reconnectNow)
+// ---------------------------------------------------------------------------
+
+describe("background resume (reconnectNow)", () => {
+  it("replaces a live OPEN socket with a fresh dial; the stale close event is inert", () => {
+    const onClose = vi.fn()
+    const onReconnect = vi.fn()
+    const { client, socket } = makeClient({ onClose, onReconnect })
+    client.connect()
+    const ws1 = socket()
+    ws1.open()
+    ws1.message(welcomeMessage())
+    expect(client.state).toBe("connected")
+
+    client.reconnectNow()
+
+    // the stale socket was closed best-effort — and its (synchronous) close
+    // event did NOT reach the client: no onClose, no scheduled retry
+    expect(ws1.readyState).toBe(3)
+    expect(onClose).not.toHaveBeenCalled()
+    expect(onReconnect).not.toHaveBeenCalled()
+    expect(StubSocket.instances).toHaveLength(2)
+    expect(client.state).toBe("connecting")
+
+    const ws2 = socket()
+    ws2.open()
+    const hello2 = JSON.parse(ws2.sent[0])
+    expect(hello2.t).toBe("hello")
+    expect(hello2.p.profileId).toBe("profile-1") // SAME identity on the fresh dial
+    client.close()
+  })
+
+  it("replaces a still-CONNECTING dial (in-flight dial torn down)", () => {
+    const { client, socket } = makeClient()
+    client.connect()
+    const ws1 = socket()
+    expect(ws1.readyState).toBe(0)
+
+    client.reconnectNow()
+
+    expect(ws1.readyState).toBe(3)
+    expect(StubSocket.instances).toHaveLength(2)
+    const ws2 = socket()
+    expect(ws2.readyState).toBe(0)
+    vi.advanceTimersByTime(DIAL_TIMEOUT_MS - 1)
+    expect(ws2.readyState).toBe(0) // not prematurely closed by the old timer
+    client.close()
+  })
+
+  it("a SECOND reconnectNow while the fresh dial is still connecting replaces it too", () => {
+    const { client, socket } = makeClient()
+    client.connect()
+    socket().open()
+    socket().message(welcomeMessage())
+
+    client.reconnectNow() // first forced resume
+    const ws2 = socket()
+    expect(ws2.readyState).toBe(0) // fresh dial connecting
+
+    client.reconnectNow() // focus + pageshow raced past the cooldown
+
+    expect(ws2.readyState).toBe(3) // replaced, not leaked
+    expect(StubSocket.instances).toHaveLength(3)
+    const ws3 = socket()
+    ws3.open()
+    ws3.message(welcomeMessage("conn-3"))
+    expect(client.connId).toBe("conn-3") // the surviving dial completes
+    vi.advanceTimersByTime(60_000)
+    expect(StubSocket.instances).toHaveLength(3) // no zombie dials later
+    client.close()
+  })
+
+  it("resets connId on resume — null until the fresh welcome re-stamps it", () => {
+    const { client, socket } = makeClient()
+    client.connect()
+    socket().open()
+    socket().message(welcomeMessage("conn-1"))
+    expect(client.connId).toBe("conn-1")
+
+    client.reconnectNow()
+
+    expect(client.connId).toBeNull() // stale connId must not survive the resume
+    const ws2 = socket()
+    ws2.open()
+    expect(client.connId).toBeNull() // transport up ≠ re-admitted
+    ws2.message(welcomeMessage("conn-2"))
+    expect(client.connId).toBe("conn-2")
+    client.close()
+  })
+
+  it("retains lastScene: the fresh welcome rebroadcasts the local scene (061 §2)", () => {
+    const onWelcome = vi.fn()
+    const { client, socket } = makeClient({ onWelcome })
+    client.connect()
+    socket().open()
+    socket().message(welcomeMessage())
+    client.sendScene([{ id: "a", type: "rectangle" }], 7)
+    vi.advanceTimersByTime(100) // flush the throttle — scene went out on ws1
+
+    client.reconnectNow()
+    const ws2 = socket()
+    ws2.open()
+    expect(ws2.sent).toHaveLength(1) // hello only — no rebroadcast before welcome
+    ws2.message(welcomeMessage("conn-2"))
+
+    expect(onWelcome).toHaveBeenCalledTimes(2)
+    const resent = ws2.sent.slice(1).map((s) => JSON.parse(s))
+    expect(resent).toHaveLength(1)
+    expect(resent[0]).toMatchObject({ t: "scene", p: { elements: [{ id: "a", type: "rectangle" }], seq: 7 } })
+    client.close()
+  })
+
+  it("cancels a pending reconnect timer and dials immediately", () => {
+    const onReconnect = vi.fn()
+    const { client, socket } = makeClient({ onReconnect })
+    client.connect()
+    socket().open()
+    socket().message(welcomeMessage())
+    socket().close(1006) // server drop → retry scheduled at +1s
+    expect(onReconnect).toHaveBeenCalledTimes(1)
+
+    client.reconnectNow() // visible again — dial NOW, don't wait the backoff
+
+    expect(StubSocket.instances).toHaveLength(2)
+    expect(onReconnect).toHaveBeenCalledTimes(1) // a resume is not a scheduled retry
+    const ws2 = socket()
+    ws2.open()
+    ws2.message(welcomeMessage("conn-2"))
+    expect(client.state).toBe("connected") // resume reached dial() + fresh welcome
+    // the superseded backoff timer is gone — nothing dials later
+    vi.advanceTimersByTime(60_000)
+    expect(StubSocket.instances).toHaveLength(2)
+    client.close()
+  })
+
+  it("no-ops after terminal close() — observable warn, never resurrects", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const { client, socket } = makeClient()
+    client.connect()
+    socket().open()
+    client.close()
+    client.reconnectNow()
+    expect(StubSocket.instances).toHaveLength(1)
+    expect(client.state).toBe("idle")
+    // the silent no-op is observable — one warn naming the terminal state
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0][0]).toContain("stopped=true")
+    warn.mockRestore()
+  })
+
+  it("no-ops after a fatal rejection — observable warn, never resurrects", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const { client, socket } = makeClient()
+    client.connect()
+    socket().open()
+    socket().message(
+      JSON.stringify({ v: 1, t: "error", p: { code: "ADMISSION_INVALID", reason: "bad", fatal: true } }),
+    )
+    expect(client.state).toBe("rejected")
+    client.reconnectNow()
+    vi.advanceTimersByTime(60_000)
+    expect(StubSocket.instances).toHaveLength(1)
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn.mock.calls[0][0]).toContain("fatal=true")
+    warn.mockRestore()
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Send path
 // ---------------------------------------------------------------------------
 

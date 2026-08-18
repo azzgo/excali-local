@@ -30,6 +30,8 @@
  * - **leave()** closes the client and drops the session cache (053: this
  *   room is ephemeral — explicit-save discipline; the gallery copy survives
  *   a Save & leave).
+ * - **Background resume.** See use-background-resume.ts for the page-level
+ *   stale-socket recovery policy; this hook supplies its current client.
  *
  * Seams for later tasks: `conn` + `reconnect` + `lastError` feed the conn
  * dot / banners (046 owns the full health copy), `resets` feeds the amber
@@ -75,6 +77,7 @@ import { saveDrawing } from "@/features/editor/utils/indexdb";
 import { COLLAB_SERVER_CONFIG, type ServerConfig } from "./storage";
 import type { LabelMode } from "./labels";
 import { createRoomFileHydrator, fileIdsInRect, uploadNewLocalFiles, visibleSceneRect } from "./use-collab-files";
+import { useBackgroundResume } from "./use-background-resume";
 import { debounce } from "radash";
 
 /* ------------------------------------------------------------------ */
@@ -378,6 +381,17 @@ function toRosterMember(member: Member, self: boolean): RosterMember {
   };
 }
 
+/** Roster invariant (055): at most ONE entry per profileId. The relay
+ * roster can legitimately hold the same profile TWICE around a background
+ * resume — the old half-open connection lingers beside the fresh one —
+ * and a fresh welcome echoes both. Keep the LAST entry per profileId
+ * (relay roster order is join order, so the fresh connId is last). */
+function dedupeMembersByProfile(members: Member[]): Member[] {
+  const byProfile = new Map<string, Member>();
+  for (const m of members) byProfile.set(m.profileId, m); // last wins
+  return [...byProfile.values()];
+}
+
 /** Client-callback bundle — typed from the collab-core wire shapes so the
  * hook can build the client inside its session effect. */
 export interface CollabSessionCallbacks {
@@ -451,15 +465,11 @@ export function useCollabSession({
   const connIdToProfileRef = useRef<Map<string, string>>(new Map());
   const seqRef = useRef(0);
   const firstSceneRef = useRef(false);
+  /** Echo-guard triad: timing, remote-content, and established-content markers
+   * cover synchronous and delayed updateScene echoes; see onLocalChange. */
   const applyingRemoteRef = useRef(false);
-  /** Serialized elements of the last remote-applied scene — the content echo
-   * guard. The timing guard above is NOT enough: updateScene's onChange can
-   * fire after the clearing microtask (React render commit), and a rebroadcast
-   * of a just-applied REMOTE scene (seq+1) defeats the relay's byte-dup
-   * suppression and ping-pongs stale scenes between members — visually:
-   * mid-drag shapes snapping back to their start point, typed text
-   * backspacing. Content comparison is timing-proof. */
   const lastRemoteSceneRef = useRef<string | null>(null);
+  const knownSceneJsonRef = useRef<string | null>(null);
   /** own-pointer broadcast throttle (055 — latest wins, one per ~frame) */
   const pointerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPointerRef = useRef<{
@@ -490,29 +500,45 @@ export function useCollabSession({
    * the initial snapshot; handleFirstScene merges it against the boot scene. */
   const pendingLocalSceneRef = useRef<CollabScene | null>(null);
 
-  const applyScene = useCallback((elements: readonly unknown[]) => {
-    const api = apiRef.current;
-    if (api === null) return;
-    // Content echo guard: remember what we are applying BEFORE updateScene so
-    // any resulting onChange (whenever it fires) can be recognized as an echo.
-    lastRemoteSceneRef.current = JSON.stringify(elements);
-    // Anti-flicker: applying a scene identical to the live one is a no-op
-    // (skips a pointless full re-render of unchanged elements).
-    if (lastRemoteSceneRef.current === JSON.stringify(api.getSceneElements())) {
-      return;
-    }
-    applyingRemoteRef.current = true;
-    api.updateScene(
-      {
+  /** All programmatic api.updateScene calls funnel through this timing lane;
+   * content lanes above handle echoes that arrive after the microtask. */
+  const programmaticUpdate = useCallback(
+    (update: Parameters<ExcalidrawImperativeAPI["updateScene"]>[0]) => {
+      const api = apiRef.current;
+      if (api === null) return;
+      applyingRemoteRef.current = true;
+      api.updateScene(update);
+      queueMicrotask(() => {
+        applyingRemoteRef.current = false;
+      });
+    },
+    [],
+  );
+
+  const applyScene = useCallback(
+    (elements: readonly unknown[]) => {
+      const api = apiRef.current;
+      if (api === null) return;
+      // Content echo guard: remember what we are applying BEFORE updateScene so
+      // any resulting onChange (whenever it fires) can be recognized as an echo.
+      lastRemoteSceneRef.current = JSON.stringify(elements);
+      // Pin the generalized content marker in ALL paths — including the
+      // anti-flicker skip below: the wire content IS the canvas content, so
+      // an echo of either the apply or the skip must be a no-op.
+      knownSceneJsonRef.current = lastRemoteSceneRef.current;
+      // Anti-flicker: applying a scene identical to the live one is a no-op
+      // (skips a pointless full re-render of unchanged elements).
+      if (lastRemoteSceneRef.current === JSON.stringify(api.getSceneElements())) {
+        return;
+      }
+      programmaticUpdate({
         elements: elements as ExcalidrawElement[],
         collaborators: collaboratorsRef.current,
         captureUpdate: CaptureUpdateAction.NEVER, // ADR/049 §5: no undo entries
-      },
-    );
-    queueMicrotask(() => {
-      applyingRemoteRef.current = false;
-    });
-  }, []);
+      });
+    },
+    [programmaticUpdate],
+  );
 
   // --- 052 file sync --------------------------------------------------
   const addMissingFile = useCallback((fileId: string) => {
@@ -615,16 +641,13 @@ export function useCollabSession({
       collaboratorsRef.current = map;
       const api = apiRef.current;
       if (api === null) return;
-      applyingRemoteRef.current = true;
-      api.updateScene({
+      // Echo-guard triad lane 3: do not re-pin content for appState-only updates.
+      programmaticUpdate({
         collaborators: map,
         captureUpdate: CaptureUpdateAction.NEVER,
       });
-      queueMicrotask(() => {
-        applyingRemoteRef.current = false;
-      });
     },
-    [],
+    [programmaticUpdate],
   );
 
   const rebuildCollaborators = useCallback(
@@ -692,6 +715,13 @@ export function useCollabSession({
       if (disposed) return;
 
       const bootElements = [...(apiRef.current?.getSceneElements() ?? [])];
+      // Echo-guard baseline: pin the boot canvas content (including
+      // deleted — the array onChange reports) so mount-time onChange
+      // commits replaying the boot scene are recognized as no-ops and
+      // never broadcast (e.g. the empty-canvas commit right after join).
+      knownSceneJsonRef.current = JSON.stringify(
+        apiRef.current?.getSceneElementsIncludingDeleted() ?? [],
+      );
       localBaselineRef.current = { elements: bootElements, appState: {} };
       localSceneRef.current = { elements: bootElements, appState: {} };
       localDirtyRef.current = false;
@@ -721,7 +751,14 @@ export function useCollabSession({
         onReconnect: (info) => setReconnect(info),
         onError: (err) => setLastError(err),
         onWelcome: (welcome) => {
+          // 061: a healthy welcome restarts the backoff ladder — the retry
+          // hint from any previous gap is stale and must not linger next to
+          // a green conn dot.
+          setReconnect(null);
           setSnapshotAvailable(welcome.snapshotAvailable);
+          // 055 roster invariant: one entry per profileId — the relay can
+          // hold a stale half-open connection beside the fresh one (see
+          // dedupeMembersByProfile); dedupe BEFORE building the roster.
           const roster: RosterMember[] = [
             {
               profileId: identity.profileId,
@@ -730,9 +767,9 @@ export function useCollabSession({
               connId: welcome.connId,
               self: true,
             },
-            ...welcome.peers
-              .filter((m) => m.profileId !== identity.profileId)
-              .map((m) => toRosterMember(m, false)),
+            ...dedupeMembersByProfile(
+              welcome.peers.filter((m) => m.profileId !== identity.profileId),
+            ).map((m) => toRosterMember(m, false)),
           ];
           peersRef.current = roster;
           setPeers(roster);
@@ -750,19 +787,36 @@ export function useCollabSession({
         onPeer: (peer) => {
           const current = peersRef.current;
           if (peer.kind === "join" && peer.member !== undefined) {
-            const next = current.some(
+            // Same profileId rejoining with a FRESH connId (background
+            // resume / reconnect): REPLACE the entry — a stale entry keeps
+            // the dead connId and every pointer from the new connection
+            // would map to nothing (connIdToProfileRef, 055).
+            const joined = toRosterMember(peer.member, false);
+            const known = current.some(
               (m) => m.profileId === peer.member!.profileId,
-            )
-              ? current
-              : [...current, toRosterMember(peer.member, false)];
+            );
+            const next = known
+              ? current.map((m) =>
+                  m.profileId === peer.member!.profileId ? joined : m,
+                )
+              : [...current, joined];
             peersRef.current = next;
             setPeers(next);
             rebuildCollaborators(next);
             return;
           }
           if (peer.kind === "leave") {
+            // Evict ONLY the exact member instance (profileId AND connId):
+            // after a background resume the peer's OLD connection's leave
+            // can arrive after the NEW one joined — a profileId-only match
+            // would evict the live rejoined member and kill their cursor
+            // mapping on this page.
             const next = current.filter(
-              (m) => m.profileId !== peer.member?.profileId,
+              (m) =>
+                !(
+                  m.profileId === peer.member?.profileId &&
+                  m.connId === peer.member?.connId
+                ),
             );
             if (next.length !== current.length) {
               peersRef.current = next;
@@ -883,6 +937,10 @@ export function useCollabSession({
         }
         if (disposed) {
           hydrator?.dispose();
+          // A racing teardown (dep change / unmount / hot reload) closed the
+          // client mid-boot — never leave clientRef pointing at a terminal
+          // instance; the re-run effect owns the ref from here.
+          clientRef.current = null;
           client.close();
           return;
         }
@@ -928,11 +986,14 @@ export function useCollabSession({
       localSceneRef.current = null;
       localDirtyRef.current = false;
       pendingLocalSceneRef.current = null;
+      knownSceneJsonRef.current = null;
       pendingMergeRef.current = null;
       setReady(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [admission, room, identity, excalidrawAPI, shareId]);
+
+  useBackgroundResume(() => clientRef.current);
 
   const handleFirstScene = useCallback(
     (scene: IncomingScene, elements: readonly unknown[]) => {
@@ -1051,6 +1112,7 @@ export function useCollabSession({
     localSceneRef.current = null;
     localDirtyRef.current = false;
     pendingLocalSceneRef.current = null;
+    knownSceneJsonRef.current = null;
     pendingMergeRef.current = null;
     void clearSession(shareId);
   }, [shareId]);
@@ -1100,13 +1162,12 @@ export function useCollabSession({
       appState: AppState,
       files: BinaryFiles,
     ) => {
-      // Echo guard: remote applies (updateScene, captureUpdate NEVER) also
-      // fire onChange — never rebroadcast or re-cache them here. Timing guard
-      // first (synchronous applies), then the timing-proof content guard:
-      // onChange from a remote apply may fire after the flag clears (React
-      // render commit) — recognize the echo by content instead.
+      // Echo-guard triad: timing, remote-content, then established-content.
       if (applyingRemoteRef.current) return;
-      if (JSON.stringify(elements) === lastRemoteSceneRef.current) return;
+      const json = JSON.stringify(elements);
+      if (json === lastRemoteSceneRef.current) return;
+      if (json === knownSceneJsonRef.current) return;
+      knownSceneJsonRef.current = json;
       const localScene: CollabScene = {
         elements: [...elements] as unknown[],
         appState,

@@ -1,8 +1,9 @@
 /**
  * collab-core client transport — protocol v1 (Wayfinder 049 §0–§5, 058 §1.3).
  *
- * PURE module: no React, no chrome/browser APIs beyond WebSocket — the exact
- * same code is exercised by the page hook (task 042) and by unit tests.
+ * PURE module: no React or chrome/browser APIs; it uses WebSocket plus a
+ * localStorage-gated debug log (`collab-debug=1`). The exact same code is
+ * exercised by the page hook (task 042) and by unit tests.
  * Transport is injectable (`wsFactory`) so tests stub the socket.
  *
  * Connection & seeding (049 §2):
@@ -17,10 +18,12 @@
  *
  * Reconnect (049 §2): on unexpected close, retry with capped exponential
  * backoff (default 1s → 30s); on reconnect re-send hello with the SAME
- * profileId → fresh welcome + snapshot → resync. `onReconnect` fires when a
- * retry is scheduled so the health layer (061) can show "reconnecting, attempt
- * n · every {interval}". Fatal errors (049 §1: ADMISSION_INVALID,
- * PROTOCOL_VERSION, ROOM_CLAIM_MISMATCH, MESSAGE_TOO_LARGE) stop reconnecting
+ * profileId → fresh welcome + snapshot → resync. `reconnectNow()` is the
+ * non-terminal forced variant for background recovery (a suspended
+ * renderer can leave the socket half-open with no close event ever
+ * firing). `onReconnect` fires when a retry is scheduled so the health
+ * layer (061) can show "reconnecting, attempt n · every {interval}". Fatal
+ * errors (049 §1: ADMISSION_INVALID,
  * — the relay closes after them and the client does not re-dial. Local edits
  * made during a gap are recovered on the reconnect welcome: the client
  * auto-rebroadcasts its last local scene (full-scene, 061 §2); the hook may
@@ -79,6 +82,26 @@ export const defaultWsFactory: WsFactory = (url) => {
     throw new Error("no WebSocket global available — pass a wsFactory")
   }
   return new WebSocket(url)
+}
+
+// ---------------------------------------------------------------------------
+// Gated milestone logging (live triage aid)
+// ---------------------------------------------------------------------------
+
+/** Debug gate: set localStorage.collab-debug = "1" to log connection
+ * milestones (dial / open / hello / welcome / scene / close / state).
+ * Zero output unless explicitly enabled — nothing ships noisy by default,
+ * and the gate never throws (storage can be unavailable). */
+const DEBUG_GATE_KEY = "collab-debug"
+
+export function collabDebugLog(...args: unknown[]): void {
+  try {
+    if (typeof localStorage !== "undefined" && localStorage.getItem(DEBUG_GATE_KEY) === "1") {
+      console.log("[collab]", ...args)
+    }
+  } catch {
+    /* storage unavailable — no debug output */
+  }
 }
 
 // WebSocket readyState values (numeric — avoids depending on the global's constants)
@@ -333,6 +356,7 @@ export class CollabClient {
 
   private setState(state: CollabClientState): void {
     if (this.stateValue === state) return
+    collabDebugLog("state", { from: this.stateValue, to: state })
     this.stateValue = state
     this.opts.onStateChange?.(state)
   }
@@ -357,6 +381,59 @@ export class CollabClient {
     } catch {
       /* already closed */
     }
+  }
+
+  /**
+   * Non-terminal resume: replace the current socket with a fresh dial NOW.
+   *
+   * Background signal/threshold policy lives in the page's
+   * `use-background-resume.ts`; that policy calls this method.
+   *
+   * Safe by construction: the old socket is DETACHED (this.ws = null)
+   * before close(), so its late close event hits the `this.ws !== ws`
+   * guard in handleSocketClose and can neither schedule a competing
+   * reconnect nor corrupt the new connection's state. lastScene,
+   * hadWelcome and the backoff ladder are preserved — the fresh welcome
+   * takes the normal reconnect path (snapshot serve + lastScene rebroadcast,
+   * 061 §2). No-op once stopped or fatally rejected. `connId` resets to
+   * null — the stale welcome's id is meaningless until the fresh welcome
+   * re-stamps it, so consumers can detect not-yet-re-admitted.
+   */
+  reconnectNow(): void {
+    if (this.stopped || this.fatal) {
+      // Terminal clients are never resurrected (explicit close()/leave()
+      // or a fatal admission/stale-key rejection). The hook's resume path
+      // filters idle/rejected BEFORE calling — a terminal state here means
+      // the caller holds a stale instance (e.g. hot-reload module skew),
+      // so make the silent no-op observable instead of guesswork.
+      console.warn(
+        `[collab] reconnectNow ignored on terminal client (stopped=${this.stopped} fatal=${this.fatal} state=${this.stateValue} ws.readyState=${this.ws?.readyState ?? "none"})`,
+      )
+      return
+    }
+    // a pending retry is superseded by this immediate dial
+    if (this.reconnectTimer !== null) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+    const stale = this.ws
+    if (stale !== null) {
+      this.ws = null // detach FIRST — the stale close event must be inert
+      this.clearDialTimer()
+      this.resetAssembler()
+      try {
+        stale.close()
+      } catch {
+        /* already closed */
+      }
+    }
+    this.connIdValue = null // fresh welcome re-stamps it
+    collabDebugLog("resume: forced redial", {
+      attempt: this.attempt,
+      hadWelcome: this.hadWelcome,
+      replacedStaleSocket: stale !== null,
+    })
+    this.dial()
   }
 
   // --- send path (049 §5) ----------------------------------------------------
@@ -432,6 +509,13 @@ export class CollabClient {
 
   private dial(): void {
     if (this.stopped || this.fatal || this.ws !== null || this.reconnectTimer !== null) return
+    collabDebugLog("dial", {
+      url: this.opts.url,
+      attempt: this.attempt,
+      hadWelcome: this.hadWelcome,
+      stopped: this.stopped,
+      fatal: this.fatal,
+    })
     this.setState("connecting")
     let ws: CollabWs
     try {
@@ -441,6 +525,7 @@ export class CollabClient {
       return
     }
     this.ws = ws
+    collabDebugLog("dial: socket created", { readyState: ws.readyState })
     // A dial that never opens (server unreachable) must not wedge the client:
     // close it after the timeout so the close handler schedules the retry.
     this.dialTimer = setTimeout(() => {
@@ -456,6 +541,7 @@ export class CollabClient {
     const onOpen = () => {
       if (this.ws !== ws) return
       this.clearDialTimer()
+      collabDebugLog("open: transport up, sending hello")
       this.setState("connected")
       this.opts.onOpen?.()
       this.sendHello(ws) // hello FIRST on the ordered channel — open listeners
@@ -492,6 +578,7 @@ export class CollabClient {
         key: this.opts.key,
       },
     }
+    collabDebugLog("hello sent", { profileId: this.opts.profileId, room: this.opts.room, org: this.opts.admit.org })
     this.sendEnvelope(hello)
   }
 
@@ -499,16 +586,14 @@ export class CollabClient {
     if (this.ws !== ws) return
     this.ws = null
     this.clearDialTimer()
-    // Reassembly is per-connection (049 §3): partial buffers from a dead
-    // connection can never complete — the snapshot resync covers their loss.
-    this.assembler.dispose()
-    this.assembler = new ChunkAssembler()
+    this.resetAssembler()
     const ev = (event ?? {}) as { code?: unknown; reason?: unknown }
     const code = typeof ev.code === "number" ? ev.code : undefined
     const reason = typeof ev.reason === "string" ? ev.reason : undefined
     // 1008 = policy violation (057 §5: admission sig rejected etc.) — fatal
     if (code === 1008) this.fatal = true
     const fatal = this.stopped || this.fatal || this.opts.reconnect === false
+    collabDebugLog("close", { code, reason, fatal, willReconnect: !fatal })
     if (fatal && !this.stopped) this.setState("rejected") // user close keeps "idle"
     this.opts.onClose?.({ code, reason, fatal })
     if (!fatal) this.scheduleReconnect()
@@ -546,6 +631,12 @@ export class CollabClient {
       clearTimeout(this.dialTimer)
       this.dialTimer = null
     }
+  }
+
+  /** Reset per-connection chunk state (049 §3); partial frames cannot cross a reconnect. */
+  private resetAssembler(): void {
+    this.assembler.dispose()
+    this.assembler = new ChunkAssembler()
   }
 
   /** Send one wire envelope; transparent chunk framing (049 §3). */
@@ -586,6 +677,12 @@ export class CollabClient {
     switch (env.t) {
       case "welcome": {
         const welcome = env.p as WelcomePayload
+        collabDebugLog("welcome", {
+          connId: welcome.connId,
+          snapshotAvailable: welcome.snapshotAvailable,
+          peers: welcome.peers?.length ?? 0,
+          isReconnect: this.hadWelcome,
+        })
         this.connIdValue = welcome.connId
         this.attempt = 0 // healthy session — restart the backoff ladder
         const isReconnect = this.hadWelcome
@@ -603,17 +700,22 @@ export class CollabClient {
         }
         return
       }
-      case "peer":
-        this.opts.onPeer?.(env.p as { kind: "join" | "leave"; member?: Member })
+      case "peer": {
+        const peer = env.p as { kind: "join" | "leave"; member?: Member }
+        collabDebugLog("peer", { kind: peer.kind, connId: peer.member?.connId, profileId: peer.member?.profileId })
+        this.opts.onPeer?.(peer)
         return
+      }
       case "scene":
       case "seed":
+        collabDebugLog(env.t, { from: (env as WireEnvelope & { from?: string }).from ?? "snapshot", seq: (env.p as { seq?: unknown }).seq })
         void this.handleContentFrame(env as WireEnvelope<"scene" | "seed">)
         return
       case "pointer":
         void this.handleContentFrame(env as WireEnvelope<"pointer">)
         return
       case "error":
+        collabDebugLog("error", env.p as { code?: unknown; reason?: unknown })
         this.handleError(env.p as { code?: unknown; reason?: unknown; fatal?: unknown })
         return
       default:

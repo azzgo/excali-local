@@ -43,6 +43,7 @@ vi.mock("@/features/editor/lib/excalidraw", () => ({
       onExcalidrawAPI?.({
         updateScene: vi.fn(),
         getSceneElements: () => [],
+        getSceneElementsIncludingDeleted: () => [],
         getAppState: () => ({}),
         getFiles: () => ({}),
         addFiles: () => {},

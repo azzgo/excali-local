@@ -43,6 +43,7 @@ import { formatLabel, useLabelMode } from "./labels";
 import { PresenceFeed } from "./presence";
 import { ROUTES } from "./routes";
 import type { CollabRoomMeta, CollabSessionHandle, RosterMember } from "./use-collab-session";
+import { uniqueRosterForRender } from "./roster";
 
 interface SessionChromeProps {
   room: CollabRoomMeta;
@@ -80,16 +81,7 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
     ]);
     return () => clearTimeout(timer);
   }, [session.peers]);
-  // Render-time dedupe: live peers win over departing entries (same key).
-  const renderedRoster: Array<{ m: RosterMember; leaving: boolean }> = [];
-  const seen = new Set<string>();
-  for (const m of session.peers) {
-    seen.add(m.profileId);
-    renderedRoster.push({ m, leaving: false });
-  }
-  for (const m of departed) {
-    if (!seen.has(m.profileId)) renderedRoster.push({ m, leaving: true });
-  }
+  const renderedRoster = uniqueRosterForRender(session.peers, departed);
 
   // --- conn dot (061 §1 vocabulary — 046 refines copy/tooltip) ------------
   const conn = session.conn;

@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { formatLabel, useLabelMode } from "./labels";
 import type { CollabSessionHandle, RosterMember } from "./use-collab-session";
+import { uniqueRosterForRender } from "./roster";
 
 interface PresenceFeedProps {
   session: CollabSessionHandle;
@@ -51,16 +52,7 @@ export function PresenceFeed({ session }: PresenceFeedProps) {
     ]);
     return () => clearTimeout(timer);
   }, [session.peers]);
-  // Render-time dedupe: live members win over departing entries (same key).
-  const rendered: Array<{ m: RosterMember; leaving: boolean }> = [];
-  const seen = new Set<string>();
-  for (const m of session.peers) {
-    seen.add(m.profileId);
-    rendered.push({ m, leaving: false });
-  }
-  for (const m of departed) {
-    if (!seen.has(m.profileId)) rendered.push({ m, leaving: true });
-  }
+  const rendered = uniqueRosterForRender(session.peers, departed);
 
   return (
     <div data-testid="collab-presence-feed" className="w-64 space-y-2">

@@ -155,6 +155,46 @@ describe("SessionChrome — chrome bar", () => {
       { timeout: 1000 },
     );
   });
+
+  test("duplicate same-profile peers render ONE dot (roster key invariant, resume race)", () => {
+    // Defensive: even if the session state ships the same profile twice
+    // (half-open old conn + fresh conn from a forced resume), the chrome
+    // must never produce duplicate React keys / doubled dots.
+    const dupPeers: RosterMember[] = [
+      PEERS[0],
+      { ...PEERS[1], connId: "conn-a-stale" },
+      { ...PEERS[1], connId: "conn-a-fresh" },
+    ];
+    renderChrome(makeSession({ peers: dupPeers }));
+    expect(screen.getAllByTestId(/^collab-roster-dot-/)).toHaveLength(2);
+    expect(screen.getAllByTestId("collab-roster-dot-a3f9c2d1")).toHaveLength(1);
+  });
+
+  test("rejoined live dot suppresses the departing fade entry (one dot per profile)", async () => {
+    const { rerender } = renderChrome(makeSession());
+    expect(screen.getAllByTestId(/^collab-roster-dot-/)).toHaveLength(3);
+
+    // member leaves → the fade entry appears (opacity 0)
+    rerender(
+      <SessionChrome
+        room={ROOM}
+        session={makeSession({ peers: PEERS.slice(0, 2) })}
+      />,
+    );
+    expect(screen.getAllByTestId("collab-roster-dot-9c1d2e3f")).toHaveLength(1);
+
+    // …and rejoins with a FRESH connId while the fade entry lingers — the
+    // live entry wins; exactly one dot, no duplicate key
+    const rejoined: RosterMember[] = [
+      ...PEERS.slice(0, 2),
+      { ...PEERS[2], connId: "conn-b-fresh" },
+    ];
+    rerender(
+      <SessionChrome room={ROOM} session={makeSession({ peers: rejoined })} />,
+    );
+    expect(screen.getAllByTestId("collab-roster-dot-9c1d2e3f")).toHaveLength(1);
+    expect(screen.getAllByTestId(/^collab-roster-dot-/)).toHaveLength(3);
+  });
 });
 
 describe("SessionChrome — actions", () => {

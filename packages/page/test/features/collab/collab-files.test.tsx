@@ -201,6 +201,7 @@ function makeApi(appState: Record<string, unknown> = {}) {
       }
     }),
     getSceneElements: vi.fn(() => elementsStore),
+    getSceneElementsIncludingDeleted: vi.fn(() => elementsStore),
     getAppState: vi.fn(() => appState),
     getFiles: vi.fn(() => filesStore),
     addFiles: vi.fn((files: unknown) => {

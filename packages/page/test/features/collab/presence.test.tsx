@@ -295,6 +295,7 @@ function makeApi(): ExcalidrawImperativeAPI {
   return {
     updateScene: vi.fn(),
     getSceneElements: vi.fn(() => []),
+    getSceneElementsIncludingDeleted: vi.fn(() => []),
     getAppState: vi.fn(() => ({})),
     getFiles: vi.fn(() => ({})),
   } as unknown as ExcalidrawImperativeAPI;
