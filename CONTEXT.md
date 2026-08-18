@@ -68,6 +68,10 @@ _Avoid_: Save flow, deferred apply, draft state
 
 ## Collab
 
+**Display name**:
+The human-readable name a member shows as in collab rooms (roster, canvas chips). The profile default lives in the mint-once CollabIdentity record — profile-scoped, survives server switches and "Forget this server"; the Options collab section edits it. Each room also has its own per-room display name, held on the local rooms-list entry beside the mirrored room name: it is a one-time COPY of the profile default materialized at room entry (never a live reference — later edits to the default do not reach rooms already entered), afterwards a free-standing value the member may rename at will and that is reused on every re-entry. Both the default and per-room names are always non-empty (trimmed, ≤ 40 chars): the default starts as the minted short handle and can never be emptied — there is no fallback-to-handle state.
+_Avoid_: username (implies an account/credential), nickname
+
 **Room name**:
 The shared, broadcast name of a collab room. Room content like the scene: held relay-side,
 last-write-wins, renamable by any member (there is no room owner). Dies with the room —
