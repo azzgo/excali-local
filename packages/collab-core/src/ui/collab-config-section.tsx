@@ -322,7 +322,13 @@ export default function CollabConfigSection({
   }, [parsed, runDial]);
 
   useEffect(() => {
-    if (stage === "switch" && parsed !== null && dial.state === "ok") {
+    // 054/060: adopt on ok (reachable) AND skipped (loopback never probed) —
+    // mirroring the trust-flow connect button; loopback relays must switch too.
+    if (
+      stage === "switch" &&
+      parsed !== null &&
+      (dial.state === "ok" || dial.state === "skipped")
+    ) {
       void saveConfig(parsed);
     }
   }, [stage, parsed, dial.state, saveConfig]);
@@ -540,7 +546,7 @@ export default function CollabConfigSection({
   const noteBanner = (
     <div
       data-testid="collab-config-note"
-      className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
+      className="mt-4 mb-4 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300"
     >
       🌐 {t("CollabConfigWebappNote")}
     </div>
@@ -803,7 +809,7 @@ export default function CollabConfigSection({
           {/* Member invite (054 Q1/Q4): sentence + code, one amber caution
               line. Re-emits the stored {relay, org, sk, ck} — the same invite
               received. */}
-          <div className="mt-3 border-t pt-3">
+          <div className="mt-4 border-t pt-4">
             <button
               type="button"
               data-testid="collab-config-copy-invite"
@@ -825,7 +831,7 @@ export default function CollabConfigSection({
             )}
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-4">
             <button
               type="button"
               data-testid="collab-config-paste-new"

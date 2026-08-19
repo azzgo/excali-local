@@ -310,6 +310,34 @@ describe("webapp config mirror — paste → trust → save (049, 056/054/060)",
     expect(stored.relay).toBe("https://new.example.com");
   });
 
+  test("switch server with a loopback relay: dial skipped (060) → new config adopted (no hang)", async () => {
+    setStoredConfig(config);
+    render(<ConfigScreen lang="en" />);
+    await screen.findByText("Northwind");
+
+    // start the switch flow from the summary
+    fireEvent.click(screen.getByTestId("collab-config-paste-new"));
+    const loopback = serverInvite("http://127.0.0.1:1999", "Dev Local");
+    fireEvent.change(screen.getByTestId("collab-config-paste"), {
+      target: { value: encodeServerInvite(loopback) },
+    });
+    fireEvent.click(screen.getByTestId("collab-config-review"));
+
+    // Switch server → 060 loopback dial returns "skipped" (never probed).
+    // Before the fix this left the flow stuck on the red switch card (webapp
+    // bug: the adoption effect only checked dial.state === "ok").
+    fireEvent.click(screen.getByTestId("collab-config-switch-action"));
+
+    // adopted: stored config now points at the loopback relay, red card gone
+    await waitFor(() => {
+      const s = JSON.parse(localStorage.getItem(COLLAB_SERVER_CONFIG)!) as ServerConfig;
+      expect(s.relay).toBe("http://127.0.0.1:1999");
+      expect(s.org).toBe("Dev Local");
+    });
+    expect(await screen.findByTestId("collab-config-summary")).toBeTruthy();
+    expect(screen.queryByText("CollabSwitchTitle")).toBeNull();
+  });
+
   test("forget modal (056 Q7): rooms-stay-grayed copy, confirm clears the config", async () => {
     setStoredConfig(config);
     render(<ConfigScreen lang="en" />);
