@@ -16,9 +16,9 @@
  * storage access, DO storage corruption, rotated keys).
  */
 import { describe, expect, it } from "vitest"
-import { b64urlToBytes, bytesToB64url, contentCanon, deriveContentKey, encryptContent } from "collab-core"
+import { b64urlToBytes, bytesToB64url, contentCanon, deriveContentKey, encryptContent, fileGetCanon } from "collab-core"
 import type { ContentSigner, SignedFrame } from "collab-core"
-import { fileNotFound, rebuildCanon, toErrorPayload, verifyServe, verifyStore } from "./verify"
+import { fileNotFound, isPlaintextFileData, rebuildCanon, toErrorPayload, verifyFileGetRequest, verifyServe, verifyStore } from "./verify"
 import type { MemberKey, SignedContentEnvelope, StorableContentType } from "./verify"
 
 // ─── fixtures ────────────────────────────────────────────────────────────────
@@ -401,5 +401,71 @@ describe("round-trip", () => {
         signer: signed.signer,
       }),
     )
+  })
+})
+
+// ─── plaintext (team) file-data guard ────────────────────────────────────────
+
+describe("plaintext file-data (052 honest-relay)", () => {
+  it("isPlaintextFileData accepts a plaintext string p, rejects signed/ciphertext frames", () => {
+    expect(isPlaintextFileData({ v: 1, t: "file-data", p: "data:text/plain;base64,YQ==" })).toBe(true)
+    // signed/encrypted frames keep p as {c, iv} — NOT plaintext
+    expect(isPlaintextFileData({ v: 1, t: "file-data", p: { c: C, iv: IV }, sig: "x", signer: { profileId: "member-1", key: "k" } })).toBe(false)
+    // wrong type / empty p / non-file-data t
+    expect(isPlaintextFileData({ v: 1, t: "scene", p: "data:x" })).toBe(false)
+    expect(isPlaintextFileData({ v: 1, t: "file-data", p: "" })).toBe(false)
+    expect(isPlaintextFileData(null)).toBe(false)
+  })
+})
+
+// ─── file-get authorization gate ─────────────────────────────────────────────
+
+describe("verifyFileGetRequest (file-get gate)", () => {
+  it("accepts a member-signed file-get over the relay's own shareId + fileId", async () => {
+    const alice = await makeKeypair()
+    const canon = fileGetCanon(ROOM, FILE_ID)
+    const sig = bytesToB64url(new Uint8Array(await crypto.subtle.sign({ name: "Ed25519" }, alice.privateKey, new TextEncoder().encode(canon))))
+    await expect(verifyFileGetRequest(member(alice), ROOM, FILE_ID, sig)).resolves.toEqual({ ok: true })
+  })
+
+  it("refuses a missing/empty sig (CHUNK_INVALID, fatal:false)", async () => {
+    const alice = await makeKeypair()
+    await expect(verifyFileGetRequest(member(alice), ROOM, FILE_ID, undefined)).resolves.toEqual({
+      ok: false,
+      code: "CHUNK_INVALID",
+      reason: expect.stringContaining("signature"),
+    })
+  })
+
+  it("refuses a sig bound to a DIFFERENT room (cross-room smuggling)", async () => {
+    const alice = await makeKeypair()
+    // sig over OTHER_ROOM — the relay's own ROOM governs the canon
+    const canon = fileGetCanon(OTHER_ROOM, FILE_ID)
+    const sig = bytesToB64url(new Uint8Array(await crypto.subtle.sign({ name: "Ed25519" }, alice.privateKey, new TextEncoder().encode(canon))))
+    const res = await verifyFileGetRequest(member(alice), ROOM, FILE_ID, sig)
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.code).toBe("CHUNK_INVALID")
+  })
+
+  it("refuses a sig bound to a DIFFERENT fileId", async () => {
+    const alice = await makeKeypair()
+    const canon = fileGetCanon(ROOM, "other-file")
+    const sig = bytesToB64url(new Uint8Array(await crypto.subtle.sign({ name: "Ed25519" }, alice.privateKey, new TextEncoder().encode(canon))))
+    const res = await verifyFileGetRequest(member(alice), ROOM, FILE_ID, sig)
+    expect(res.ok).toBe(false)
+    if (!res.ok) expect(res.code).toBe("CHUNK_INVALID")
+  })
+
+  it("refuses a sig from a DIFFERENT key (not the admitted member)", async () => {
+    const alice = await makeKeypair()
+    const bob = await makeKeypair()
+    const canon = fileGetCanon(ROOM, FILE_ID)
+    const sig = bytesToB64url(new Uint8Array(await crypto.subtle.sign({ name: "Ed25519" }, bob.privateKey, new TextEncoder().encode(canon))))
+    const res = await verifyFileGetRequest(member(alice), ROOM, FILE_ID, sig)
+    expect(res.ok).toBe(false)
+    if (!res.ok) {
+      expect(res.code).toBe("CHUNK_INVALID")
+      expect(toErrorPayload(res).fatal).toBe(false)
+    }
   })
 })

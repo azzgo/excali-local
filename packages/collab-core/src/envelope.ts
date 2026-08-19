@@ -560,3 +560,54 @@ export async function verifyEd25519(
     return false
   }
 }
+
+// ─── file-get authorization signature ───────────────────────────────────────
+
+/**
+ * file-get authorization gate (goal: serve files to admitted members only).
+ *
+ * A `file-get` carries `{ fileId, sig }` — an Ed25519 signature over a
+ * dedicated canonical string that binds the requesting member's claim of
+ * room + fileId:
+ *
+ *   `excali-collab/v1:sign:{"t":"file-get","room":..,"fileId":..}``
+ *
+ * `room` is NEVER sent on the wire — the relay rebuilds the canon from ITS
+ * OWN shareId + the requested fileId (059 §4 spirit), so a sig bound to a
+ * different room fails verification by construction (cross-room smuggling).
+ * Signer (collab-core) and verifier (collab-relay) both use THIS single
+ * implementation, so they agree byte-for-byte with zero drift.
+ */
+export function fileGetCanon(room: string, fileId: string): string {
+  return `excali-collab/v1:sign:${JSON.stringify({ t: "file-get", room, fileId })}`
+}
+
+/** The signed `file-get` wire payload — `{fileId, sig}`; sig is b64url Ed25519 (64B). */
+export interface FileGetFrame {
+  fileId: string
+  sig: string
+}
+
+/** Sign a file-get claim with the member Ed25519 key (returned for the wire). */
+export async function signFileGet(
+  signer: ContentSigner,
+  room: string,
+  fileId: string,
+): Promise<FileGetFrame> {
+  const canon = new TextEncoder().encode(fileGetCanon(room, fileId))
+  const sig = new Uint8Array(await crypto.subtle.sign({ name: "Ed25519" }, signer.privateKey, canon))
+  return { fileId, sig: bytesToB64url(sig) }
+}
+
+/** Verify a file-get sig against a raw member public key (b64url). Returns
+ * false — never throws — mirroring verifyFrameSig's drop-silently contract.
+ * The canon is rebuilt from the VERIFIER's own room + fileId, so a sig bound
+ * to another room/fileId fails here. */
+export async function verifyFileGet(
+  room: string,
+  fileId: string,
+  sig: string,
+  publicKeyB64url: string,
+): Promise<boolean> {
+  return verifyEd25519(fileGetCanon(room, fileId), sig, publicKeyB64url)
+}

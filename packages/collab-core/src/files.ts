@@ -44,6 +44,7 @@ import {
   bytesToB64url,
   decryptContent,
   encryptContent,
+  signFileGet,
 } from "./envelope"
 import type { ContentSigner, SignedFrame } from "./envelope"
 import { PROTOCOL_VERSION } from "./wire"
@@ -216,8 +217,12 @@ export function sendFilePut(client: CollabClient, meta: FilePutMeta, dataFrame: 
 /** 051 §2: request a stored blob. The relay answers `file` + the data frame,
  *  or `error { code: FILE_NOT_FOUND, fatal: false }` (051 §4: placeholder +
  *  one retry on the client). */
-export function requestFileGet(client: CollabClient, fileId: string): void {
-  client.send({ v: PROTOCOL_VERSION, t: "file-get", p: { fileId } })
+export function requestFileGet(client: CollabClient, fileId: string, sig?: string): void {
+  client.send(
+    sig === undefined || sig === ""
+      ? { v: PROTOCOL_VERSION, t: "file-get", p: { fileId } }
+      : { v: PROTOCOL_VERSION, t: "file-get", p: { fileId, sig } },
+  )
 }
 
 // ─── in-session LRU cache (051 §6) ───────────────────────────────────────────
@@ -628,10 +633,22 @@ export class FileHydrator {
     this.retryTimers.add(handle)
   }
 
-  private sendGet(fileId: string): void {
+  private async sendGet(fileId: string): Promise<void> {
     if (!this.opts.client.isOpen) return // dropped — drain/deferred retry re-request
-    this.outstanding.push(fileId)
-    requestFileGet(this.opts.client, fileId)
+    // file-get authorization gate: every file-get carries an Ed25519 signature
+    // over fileGetCanon(roomId, fileId) with the member key — proves room
+    // membership to the relay. Team rooms sign too (member sig ⇒ membership).
+    // No signer → send the plain form; the relay refuses it with a non-fatal
+    // error and the client placeholder surfaces (051 §4).
+    const signer = this.opts.signer;
+    if (signer !== undefined) {
+      const request = await signFileGet(signer, this.opts.roomId, fileId);
+      this.outstanding.push(fileId);
+      requestFileGet(this.opts.client, fileId, request.sig);
+    } else {
+      this.outstanding.push(fileId);
+      requestFileGet(this.opts.client, fileId);
+    }
   }
 
   private resolve(fileId: string, result: FileFetchResult): void {

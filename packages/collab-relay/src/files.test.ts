@@ -10,7 +10,7 @@
  * PartyKit runtime needed.
  */
 import { describe, expect, it } from "vitest"
-import { b64urlToBytes, bytesToB64url, deriveContentKey, encryptContent } from "collab-core"
+import { b64urlToBytes, bytesToB64url, deriveContentKey, encryptContent, fileGetCanon } from "collab-core"
 import type { ContentSigner } from "collab-core"
 import { rebuildCanon } from "./verify"
 import type { MemberKey, SignedContentEnvelope, StorableContentType } from "./verify"
@@ -55,6 +55,14 @@ async function signEnvelope(
     sig: bytesToB64url(sig),
     signer: { profileId, key: kp.publicKeyB64url },
   }
+}
+
+/** Sign a file-get {fileId, sig} for the requesting member's keypair (the
+ * file-get authorization gate — sig over collab-core's fileGetCanon). */
+async function signGet(kp: Keypair, room: string, fileId: string): Promise<{ sig: string }> {
+  const canon = new TextEncoder().encode(fileGetCanon(room, fileId))
+  const sig = new Uint8Array(await crypto.subtle.sign({ name: "Ed25519" }, kp.privateKey, canon))
+  return { sig: bytesToB64url(sig) }
 }
 
 /** A real encrypted file-data frame via collab-core (058 §3.1 send path). */
@@ -203,7 +211,9 @@ describe("putFile / getFile", () => {
     expect(avail.p.fileId).toBe(fileId)
 
     // serve path: `file` header frame, then the envelope verbatim
-    await store.getFile(fileId, "conn-2")
+    const requester = await makeKeypair()
+    const g = await signGet(requester, ROOM, fileId)
+    await store.getFile("conn-2", { fileId, sig: g.sig }, member(requester))
     expect(hooks.sent).toHaveLength(2)
     const served = JSON.parse(hooks.sent[0])
     expect(served.t).toBe("file")
@@ -287,7 +297,9 @@ describe("putFile / getFile", () => {
 
   it("FILE_NOT_FOUND on a missing unit — never a crash (051 §4)", async () => {
     const { store, hooks } = makeStore()
-    await store.getFile("missing-file", "conn-2")
+    const requester = await makeKeypair()
+    const g = await signGet(requester, ROOM, "missing-file")
+    await store.getFile("conn-2", { fileId: "missing-file", sig: g.sig }, member(requester))
     expect(hooks.sent).toHaveLength(1)
     const p = JSON.parse(hooks.sent[0]).p
     expect(p.code).toBe("FILE_NOT_FOUND")
@@ -307,10 +319,13 @@ describe("putFile / getFile", () => {
 
     // tamper the stored ciphertext
     const rec = (await storage.get(`file:${fileId}`)) as StoredFileRecord
-    rec.envelope = { ...rec.envelope, p: { ...rec.envelope.p, c: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8" } }
+    const signed = rec.envelope as SignedContentEnvelope
+    rec.envelope = { ...signed, p: { ...signed.p, c: "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8" } }
     await storage.put(`file:${fileId}`, rec)
 
-    await store.getFile(fileId, "conn-2")
+    const requester = await makeKeypair()
+    const g = await signGet(requester, ROOM, fileId)
+    await store.getFile("conn-2", { fileId, sig: g.sig }, member(requester))
     // deleted, never served
     expect(await storage.get(`file:${fileId}`)).toBeUndefined()
     expect(hooks.sent).toHaveLength(1)
@@ -356,10 +371,101 @@ describe("putFile / getFile", () => {
     const unit = await signEnvelope("file-data", ROOM, c, IV, kp, "member-1", fileId)
     await storage.put(`file:${fileId}`, { fileId, mimeType: "image/png", size: bytes.length, envelope: unit })
 
-    await store.getFile(fileId, "conn-2")
+    const requester = await makeKeypair()
+    const g = await signGet(requester, ROOM, fileId)
+    await store.getFile("conn-2", { fileId, sig: g.sig }, member(requester))
     expect(hooks.sent).toHaveLength(2)
     const served = JSON.parse(hooks.sent[0])
     expect(served.t).toBe("file")
     expect(served.p.fileId).toBe(fileId)
+  })
+
+  it("TEAM plaintext file-data is stored + served verbatim (052 honest-relay)", async () => {
+    const { store, storage, hooks } = makeStore()
+    const bytes = new TextEncoder().encode("plaintext-blob")
+    const fileId = await deriveFileId(bytes)
+
+    // team room: the file-data data frame p is the raw dataURL string (unsigned)
+    store.beginPut("conn-1", { fileId, mimeType: "image/png", size: bytes.length })
+    const unit = { v: 1 as const, t: "file-data" as const, p: "data:image/png;base64,cGxhaW50ZXh0" }
+    const res = await store.putFile("conn-1", unit, member(await makeKeypair()))
+    expect(res).toEqual({ ok: true, fileId, stored: "stored" })
+    expect(await storage.get(`file:${fileId}`)).toBeDefined()
+
+    // broadcast file-available + serve the plaintext verbatim (no serve-verify)
+    expect(hooks.broadcasts.some((b) => JSON.parse(b).t === "file-available")).toBe(true)
+    const requester = await makeKeypair()
+    const g = await signGet(requester, ROOM, fileId)
+    await store.getFile("conn-2", { fileId, sig: g.sig }, member(requester))
+    expect(hooks.sent).toHaveLength(2)
+    const body = JSON.parse(hooks.sent[1])
+    expect(body.t).toBe("file-data")
+    expect(body.p).toBe("data:image/png;base64,cGxhaW50ZXh0") // plaintext served verbatim
+  })
+
+  it("file-get WITHOUT a signature is refused (non-fatal) and NOT served — file-get gate", async () => {
+    const kp = await makeKeypair()
+    const { store, storage, hooks } = makeStore()
+    const bytes = new TextEncoder().encode("gated")
+    const fileId = await deriveFileId(bytes)
+    const { frame } = await makeFileFrame(kp, bytes, ROOM, fileId)
+
+    store.beginPut("conn-1", { fileId, mimeType: "image/png", size: bytes.length })
+    await store.putFile("conn-1", frame, member(kp))
+    expect(await storage.get(`file:${fileId}`)).toBeDefined()
+
+    const requester = await makeKeypair()
+    await store.getFile("conn-2", { fileId }, member(requester)) // no sig
+    expect(hooks.sent).toHaveLength(1) // only the refusal error — nothing served
+    const p = JSON.parse(hooks.sent[0]).p
+    expect(p.code).toBe("CHUNK_INVALID")
+    expect(p.fatal).toBe(false)
+    expect(await storage.get(`file:${fileId}`)).toBeDefined() // unit still stored
+  })
+
+  it("file-get with a WRONG member signature is refused (non-fatal) and NOT served", async () => {
+    const kp = await makeKeypair()
+    const { store, storage, hooks } = makeStore()
+    const bytes = new TextEncoder().encode("wrong-sig")
+    const fileId = await deriveFileId(bytes)
+    const { frame } = await makeFileFrame(kp, bytes, ROOM, fileId)
+
+    store.beginPut("conn-1", { fileId, mimeType: "image/png", size: bytes.length })
+    await store.putFile("conn-1", frame, member(kp))
+
+    // an attacker (OTHER_KEY) signs a file-get but is NOT the admitted member
+    const attacker = await makeKeypair()
+    const g = await signGet(attacker, ROOM, fileId)
+    await store.getFile("conn-2", { fileId, sig: g.sig }, member(await makeKeypair()))
+    expect(hooks.sent).toHaveLength(1)
+    const p = JSON.parse(hooks.sent[0]).p
+    expect(p.code).toBe("CHUNK_INVALID")
+    expect(p.fatal).toBe(false)
+  })
+
+  it("file-get whose sig binds a DIFFERENT room/fileId is refused — cross-room smuggling fails", async () => {
+    const kp = await makeKeypair()
+    const { store, storage, hooks } = makeStore(ROOM)
+    const bytes = new TextEncoder().encode("cross-room-get")
+    const fileId = await deriveFileId(bytes)
+    const { frame } = await makeFileFrame(kp, bytes, ROOM, fileId)
+
+    store.beginPut("conn-1", { fileId, mimeType: "image/png", size: bytes.length })
+    await store.putFile("conn-1", frame, member(kp))
+    expect(await storage.get(`file:${fileId}`)).toBeDefined()
+
+    // a member signs a file-get over a DIFFERENT room — the relay's own ROOM governs
+    const requester = await makeKeypair()
+    const g = await signGet(requester, OTHER_ROOM, fileId)
+    await store.getFile("conn-2", { fileId, sig: g.sig }, member(requester))
+    expect(hooks.sent).toHaveLength(1)
+    const p = JSON.parse(hooks.sent[0]).p
+    expect(p.code).toBe("CHUNK_INVALID")
+    expect(p.fatal).toBe(false)
+
+    // a sig over a DIFFERENT fileId is also refused
+    const g2 = await signGet(requester, ROOM, "some-other-file")
+    await store.getFile("conn-2", { fileId, sig: g2.sig }, member(requester))
+    expect(hooks.sent).toHaveLength(2)
   })
 })

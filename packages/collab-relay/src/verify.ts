@@ -36,7 +36,7 @@
  * content-message variants; `MemberKey` bridges hello.key (057 §3) into
  * the roster member the room DO keeps. Flagged in the task 039 summary.
  */
-import { contentCanon, verifyEd25519, verifyFrameSig } from "collab-core"
+import { contentCanon, verifyEd25519, verifyFileGet, verifyFrameSig } from "collab-core"
 import type { ContentFrame, ContentType, EncryptedPayload, ErrorCode, SignerRef } from "collab-core"
 
 // ─── types ───────────────────────────────────────────────────────────────────
@@ -178,6 +178,38 @@ export function isSignedContentEnvelope(x: unknown): x is SignedContentEnvelope 
   )
 }
 
+
+/** A plaintext (team-room, honest-relay) file-data unit: `p` is the dataURL
+ * string, UNSIGNED (052: team vs private). The store/serve paths treat this
+ * as valid-by-construction — no signature, no ciphertext.
+ * @see isFileDataUnit for the signed-vs-plaintext disjunction */
+export interface PlaintextFileData {
+  v: 1
+  t: "file-data"
+  p: string
+}
+
+/** Structural guard: a team/plaintext file-data unit (unsigned, 052). */
+export function isPlaintextFileData(x: unknown): x is PlaintextFileData {
+  return (
+    x !== null &&
+    typeof x === "object" &&
+    !Array.isArray(x) &&
+    (x as Record<string, unknown>).v === 1 &&
+    (x as Record<string, unknown>).t === "file-data" &&
+    typeof (x as Record<string, unknown>).p === "string" &&
+    (x as Record<string, unknown>).p !== ""
+  )
+}
+
+/** A file-data unit — signed ciphertext (private) OR plaintext (team). */
+export type FileDataUnit = SignedContentEnvelope | PlaintextFileData
+
+/** Structural guard: any well-formed file-data unit (signed or plaintext).
+ * The store/serve codec check before serving/parsing a stored file. */
+export function isFileDataUnit(x: unknown): x is FileDataUnit {
+  return isSignedContentEnvelope(x) || isPlaintextFileData(x)
+}
 function fail(code: ErrorCode, reason: string): VerifyFailure {
   return { ok: false, code, reason }
 }
@@ -303,4 +335,43 @@ export async function verifyServe(
     )
   }
   return { ok: true, unit }
+}
+
+// ─── file-get authorization gate (058 §2.5 / file-gate) ─────────────────────
+
+/**
+ * Verify a connection's `file-get` authorization before serving (the file-get
+ * gate): the request must carry an Ed25519 signature over
+ * `excali-collab/v1:sign:{"t":"file-get","room":..,"fileId":..}` rebuilt
+ * from the RELAY's OWN shareId + the requested fileId, verified against the
+ * requesting connection's ADMITTED member key (`member`, from hello.key — 059
+ * §3). A valid sig proves the requester is an admitted member of THIS room:
+ * cross-room smuggling fails here by construction (the canon embeds the relay's
+ * own room id), so a sig bound to a different room/fileId is refused.
+ *
+ * Failures are non-fatal — CHUNK_INVALID when the sig is missing/malformed or
+ * does not verify. The caller must NOT serve the unit.
+ */
+export async function verifyFileGetRequest(
+  member: MemberKey,
+  shareId: string,
+  fileId: string,
+  sig: unknown,
+): Promise<StoreVerifyResult> {
+  if (typeof sig !== "string" || sig === "") {
+    return fail(
+      "CHUNK_INVALID",
+      "file-get requires a member signature over {t:file-get, room, fileId} — " +
+        "refused (file-get authorization gate)",
+    )
+  }
+  const sigOk = await verifyFileGet(shareId, fileId, sig, member.key)
+  if (!sigOk) {
+    return fail(
+      "CHUNK_INVALID",
+      `file-get signature does not verify against member "${member.profileId}"'s ` +
+        `admitted key for room "${shareId}" — file ${fileId} not served (file-get gate)`
+    )
+  }
+  return { ok: true }
 }

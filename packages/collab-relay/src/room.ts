@@ -350,9 +350,13 @@ export class RoomState {
         this.fileStore?.beginPut(connId, env.p)
         return
       case "file-get": {
-        const fileId = (env.p as { fileId?: unknown }).fileId
-        if (this.fileStore !== undefined && typeof fileId === "string") {
-          void this.fileStore.getFile(fileId, connId)
+        // file-get authorization gate (058 §2.5 / file-gate): the request must
+        // carry a member signature bound to this room + the requested fileId.
+        // Route the payload + the conn's admitted member key; FileStore verifies
+        // against that key before serving (fail closed, non-fatal).
+        const member = this.memberKeys?.get(connId)
+        if (this.fileStore !== undefined && member !== undefined) {
+          void this.fileStore.getFile(connId, env.p, member)
         }
         return
       }

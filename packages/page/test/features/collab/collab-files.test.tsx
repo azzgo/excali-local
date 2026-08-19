@@ -385,7 +385,10 @@ describe("collab file sync — on-demand hydration", () => {
     });
     // scene-load prefetch: file-get for the referenced blob (051 §4)
     await waitFor(() => expect(sentOfType(ws, "file-get")).toHaveLength(1));
-    expect(envelopeOf(ws.sent.find((s) => isEnvelope(s, "file-get"))!).p).toEqual({ fileId });
+    // file-get now carries the member sig too (file-get authorization gate)
+    const getP = envelopeOf(ws.sent.find((s) => isEnvelope(s, "file-get"))!).p as Record<string, unknown>;
+    expect(getP.fileId).toBe(fileId);
+    expect(typeof getP.sig).toBe("string");
 
     // relay answers: `file` header, then the data frame
     await act(async () => {
@@ -499,16 +502,18 @@ describe("collab file sync — on-demand hydration", () => {
       ws.message(sceneMessage([elA, elB], 2));
     });
     const gets = sentOfType(ws, "file-get");
-    expect(gets).toHaveLength(1);
-    expect(envelopeOf(gets[0]).p).toEqual({ fileId: fileA });
+    await waitFor(() => expect(sentOfType(ws, "file-get").length).toBe(1));
+    const getP = envelopeOf(sentOfType(ws, "file-get")[0]).p as Record<string, unknown>;
+    expect(getP.fileId).toBe(fileA);
 
     // scrolling the viewport right brings B into view → file-get B
     await act(async () => {
       result.current.onLocalViewportChange(-1500, 0, { value: 1 } as never);
     });
-    await waitFor(() => expect(sentOfType(ws, "file-get")).toHaveLength(2));
+    await waitFor(() => expect(sentOfType(ws, "file-get").length).toBe(2));
     const getsAfter = sentOfType(ws, "file-get");
-    expect(envelopeOf(getsAfter[1]).p).toEqual({ fileId: fileB });
+    const getP2 = envelopeOf(getsAfter[1]).p as Record<string, unknown>;
+    expect(getP2.fileId).toBe(fileB);
     unmount();
   });
 });

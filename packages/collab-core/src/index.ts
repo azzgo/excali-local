@@ -42,9 +42,12 @@ export {
   decryptContent,
   deriveContentKey,
   encryptContent,
+  fileGetCanon,
+  signFileGet,
   signHello,
-  verifyFrameSig,
   verifyEd25519,
+  verifyFileGet,
+  verifyFrameSig,
 } from "./envelope"
 export type {
   ContentFrame,
@@ -54,6 +57,7 @@ export type {
   DeriveContentKeyInput,
   EncryptContentInput,
   EncryptedPayload,
+  FileGetFrame,
   SignedFrame,
   SignerRef,
 } from "./envelope"

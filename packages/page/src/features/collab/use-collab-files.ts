@@ -66,19 +66,22 @@ export interface CreateRoomFileHydratorInput {
 }
 
 /** Create the room FileHydrator. PRIVATE rooms require the 050 content key
- *  (deriveContentKey({baseSecret: roomSecret, shareId})) + the member
- *  signer — the constructor throws FileConfigError without them; TEAM rooms
- *  pass key=null and no signer (plaintext dataURLs ride the wire, 051 §8). */
+ *  (deriveContentKey({baseSecret: roomSecret, shareId})); EVERY tier builds the
+ *  member Ed25519 signer, because every file-get carries a membership signature
+ *  (the file-get authorization gate) — team AND private rooms sign (member sig
+ *  proves room membership). Team rooms pass key=null (plaintext dataURLs ride
+ *  the wire, 051 §8). */
 export async function createRoomFileHydrator(input: CreateRoomFileHydratorInput): Promise<FileHydrator> {
   const { client, room, shareId, identity, onFileReady, onError } = input;
   const privacy = room.tier;
   let key: CryptoKey | null = null;
-  let signer: ContentSigner | undefined;
+  // the member Ed25519 signer is built for EVERY tier (file-get gate): private
+  // rooms use it for file-body signing too (058 §3.1), team rooms for file-gets.
+  const signer = await buildMemberSigner(identity);
   if (privacy === "private") {
     // buildClient already rejected a private room without its roomSecret
     // (054 no-key → fatal E2E_AUTH_FAILED) — the secret is guaranteed here.
     key = await deriveContentKey({ baseSecret: room.roomSecret!, shareId });
-    signer = await buildMemberSigner(identity);
   }
   return new FileHydrator({ client, privacy, roomId: shareId, key, signer, onFileReady, onError });
 }

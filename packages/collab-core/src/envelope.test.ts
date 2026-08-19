@@ -27,9 +27,12 @@ import {
   contentCanon,
   decryptContent,
   deriveContentKey,
+  fileGetCanon,
   encryptContent,
+  signFileGet,
   signHello,
   verifyEd25519,
+  verifyFileGet,
   verifyFrameSig,
 } from "./envelope"
 import type { ContentFrame, ContentSigner, ContentType, SignedFrame } from "./envelope"
@@ -867,5 +870,41 @@ describe("hello admission signature (057 §3)", () => {
     const sig = await signHello(hello, orgKey)
     const pk = bytesToB64url(new Uint8Array(await crypto.subtle.exportKey("raw", kp.publicKey)))
     await expect(verifyEd25519(helloCanon(hello), sig, pk)).resolves.toBe(true)
+  })
+})
+
+// ─── file-get authorization signature ────────────────────────────────────────
+
+describe("file-get authorization (fileGetCanon / signFileGet / verifyFileGet)", () => {
+  it("fileGetCanon is the exact dedicated canonical string (no c/iv)", () => {
+    expect(fileGetCanon("room-x", "f-1")).toBe(
+      `excali-collab/v1:sign:${JSON.stringify({ t: "file-get", room: "room-x", fileId: "f-1" })}`
+    )
+  })
+
+  it("signFileGet/verifyFileGet round-trip for the member key", async () => {
+    const signer = await makeSigner("u-1")
+    const pk = bytesToB64url(signer.publicKey as Uint8Array) // makeSigner already returns raw pub bytes
+    const frame = await signFileGet(signer, "room-x", "f-1")
+    expect(frame.fileId).toBe("f-1")
+    expect(frame.sig).toMatch(/^[A-Za-z0-9_-]{86}$/) // 64B Ed25519 ⇒ 86 b64url chars
+    await expect(verifyFileGet("room-x", "f-1", frame.sig, pk)).resolves.toBe(true)
+  })
+
+  it("a sig bound to a DIFFERENT room/fileId fails verification (cross-room smuggling)", async () => {
+    const signer = await makeSigner("u-1")
+    const pk = bytesToB64url(signer.publicKey as Uint8Array)
+    const frame = await signFileGet(signer, "room-x", "f-1")
+    // verifier rebuilds the canon from ITS OWN ids — these differ
+    await expect(verifyFileGet("room-y", "f-1", frame.sig, pk)).resolves.toBe(false)
+    await expect(verifyFileGet("room-x", "f-9", frame.sig, pk)).resolves.toBe(false)
+  })
+
+  it("a sig from a different member key fails verification", async () => {
+    const signer = await makeSigner("u-1")
+    const other = await makeSigner("u-2")
+    const pk = bytesToB64url(other.publicKey as Uint8Array)
+    const frame = await signFileGet(signer, "room-x", "f-1")
+    await expect(verifyFileGet("room-x", "f-1", frame.sig, pk)).resolves.toBe(false)
   })
 })

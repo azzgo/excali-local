@@ -46,8 +46,8 @@
 
 import { CHUNK_THRESHOLD, bytesToB64url, serializeEnvelope } from "collab-core"
 import type { ErrorCode } from "collab-core"
-import { fileNotFound, isSignedContentEnvelope, toErrorPayload, verifyServe, verifyStore } from "./verify"
-import type { ErrorPayload, MemberKey, SignedContentEnvelope } from "./verify"
+import { fileNotFound, isFileDataUnit, isPlaintextFileData, isSignedContentEnvelope, toErrorPayload, verifyFileGetRequest, verifyServe, verifyStore } from "./verify"
+import type { ErrorPayload, FileDataUnit, MemberKey, SignedContentEnvelope } from "./verify"
 import type { RoomHooks, RoomStorage } from "./room"
 
 /** 051 §7: per-file v1 cap, enforced on the REASSEMBLED payload the relay actually holds. */
@@ -95,8 +95,9 @@ export function parseFilePutHeader(x: unknown): FilePutHeader | null {
 
 /** The unit stored under `file:<fileId>` (052 §4 / 059 §6). */
 export interface StoredFileRecord {
-  /** pre-stamp signed file-data envelope — served verbatim (058 §1.3) */
-  envelope: SignedContentEnvelope
+  /** pre-stamp file-data envelope — served verbatim (058 §1.3 / 052): signed
+   *  ciphertext in private rooms, plaintext string in team rooms */
+  envelope: FileDataUnit
   /** plaintext routing metadata (051 §8: metadata is plaintext by design) */
   mimeType: string
   /** declared size from the file-put header */
@@ -110,7 +111,7 @@ export interface StoredFileRecord {
 export function parseFileRecord(raw: unknown): StoredFileRecord | null {
   if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return null
   const rec = raw as Record<string, unknown>
-  if (!isSignedContentEnvelope(rec.envelope)) return null
+  if (!isFileDataUnit(rec.envelope)) return null
   if (rec.envelope.t !== "file-data") return null
   if (typeof rec.mimeType !== "string" || rec.mimeType === "") return null
   if (typeof rec.size !== "number" || !Number.isFinite(rec.size) || rec.size < 0) return null
@@ -156,18 +157,20 @@ export interface FileStore {
    *   Different bytes under the same fileId overwrite (content-addressed
    *   key; last-write-wins) → stored:"stored".
    */
-  putFile(connId: string, unit: SignedContentEnvelope, member: MemberKey): Promise<PutFileResult>
+  putFile(connId: string, unit: FileDataUnit, member: MemberKey): Promise<PutFileResult>
 
   /**
-   * Serve a stored file to the requester: `file { fileId, mimeType }` then
-   * the stored envelope (chunked over the standard framing when > 200KB).
-   * Serve-verify first (059 §4, canon rebuilt from the relay's own room id
-   * + storage key); on any failure — missing, corrupt record, or failed
-   * verification — the unit is DELETED (when present) and the requester gets
-   * error{FILE_NOT_FOUND, fatal:false} (051 §4: placeholder + retry once).
-   * Never throws, never crashes the room.
+   * Serve a stored file to a requester whose file-get carries a valid member
+   * signature (the file-get authorization gate): `file { fileId, mimeType }`
+   * then the stored envelope (chunked over the standard framing when > 200KB).
+   * A missing/invalid/misattributed sig is refused with a non-fatal error and
+   * the unit is NOT served. Signed records are serve-verified (059 §4);
+   * plaintext (team) records are served verbatim (052). On any storage failure
+   * — missing, corrupt record, or failed serve-verification — the unit is
+   * DELETED (when present) and the requester gets error{FILE_NOT_FOUND,
+   * fatal:false} (051 §4: placeholder + retry once). Never crashes the room.
    */
-  getFile(fileId: string, connId: string): Promise<void>
+  getFile(connId: string, payload: unknown, member: MemberKey): Promise<void>
 
   /** Connection teardown — drop any in-flight file-put header (059 §4). */
   leave(connId: string): void
@@ -215,7 +218,7 @@ class FileStoreImpl implements FileStore {
     this.inflightHeaders.set(connId, header)
   }
 
-  async putFile(connId: string, unit: SignedContentEnvelope, member: MemberKey): Promise<PutFileResult> {
+  async putFile(connId: string, unit: FileDataUnit, member: MemberKey): Promise<PutFileResult> {
     // one in-flight upload per conn (059 §4) — consumed by this attempt, success or not
     const header = this.inflightHeaders.get(connId)
     this.inflightHeaders.delete(connId)
@@ -223,16 +226,36 @@ class FileStoreImpl implements FileStore {
     if (unit === null || typeof unit !== "object" || Array.isArray(unit)) {
       return { ok: false, code: "CHUNK_INVALID", reason: "file slot requires a well-formed file-data envelope (058 §2.2)" }
     }
-    if ((unit as { t?: unknown }).t !== "file-data") {
+    if (unit.t !== "file-data") {
       return { ok: false, code: "CHUNK_INVALID", reason: 'file slot only accepts t === "file-data" envelopes (058 §3.2)' }
     }
 
-    // store-verify (058 §3.2 / 059 §4): canon rebuilt from the relay's OWN ids.
-    // fileId undefined ⇒ the canonical missing-header rejection (058 §3.2).
-    const res = await verifyStore(unit, member, { shareId: this.roomId, fileId: header?.fileId })
-    if (!res.ok) {
-      // 058 §3.3: store-path failures are silent — no error frame, caller logs
-      return { ok: false, code: res.code, reason: res.reason }
+    // TEAM rooms ride plaintext file-data: `p` is the dataURL string, unsigned.
+    // 052 honest-relay model — there is no signature to verify, so store-verify
+    // is SKIPPED (the signed/encrypted store-verify below stays for PRIVATE).
+    // A missing file-put header is still a protocol violation (nothing to key by).
+    if (isPlaintextFileData(unit)) {
+      if (header === undefined) {
+        return {
+          ok: false,
+          code: "CHUNK_INVALID",
+          reason: "file-data requires the preceding file-put header on this connection (051 §2)",
+        }
+      }
+    } else if (isSignedContentEnvelope(unit)) {
+      // store-verify (058 §3.2 / 059 §4): canon rebuilt from the relay's OWN ids.
+      // fileId undefined ⇒ the canonical missing-header rejection (058 §3.2).
+      const res = await verifyStore(unit, member, { shareId: this.roomId, fileId: header?.fileId })
+      if (!res.ok) {
+        // 058 §3.3: store-path failures are silent — no error frame, caller logs
+        return { ok: false, code: res.code, reason: res.reason }
+      }
+    } else {
+      return {
+        ok: false,
+        code: "CHUNK_INVALID",
+        reason: "file-data envelope must be a signed/encrypted frame (private, 058 §2.2) or a plaintext string (team, 052)",
+      }
     }
 
     // 20MB v1 cap (051 §7), enforced on the REASSEMBLED payload — the bytes the
@@ -282,8 +305,23 @@ class FileStoreImpl implements FileStore {
     return { ok: true, fileId: header!.fileId, stored: "stored" }
   }
 
-  async getFile(fileId: string, connId: string): Promise<void> {
-    if (typeof fileId !== "string" || fileId === "") return // malformed file-get — drop
+  async getFile(connId: string, payload: unknown, member: MemberKey): Promise<void> {
+    // file-get authorization gate: the payload must be { fileId, sig }, sig an
+    // Ed25519 signature over the relay's own shareId + the requested fileId,
+    // verified against the requesting conn's admitted member key. Missing or
+    // invalid sig ⇒ non-fatal error, nothing served (fail closed).
+    const req = payload as { fileId?: unknown; sig?: unknown } | null
+    const fileId = req?.fileId
+    if (typeof fileId !== "string" || fileId === "") {
+      this.sendError(connId, "CHUNK_INVALID", "file-get payload must be { fileId: string, sig: string } (file-get gate)")
+      return
+    }
+    const gate = await verifyFileGetRequest(member, this.roomId, fileId, req?.sig)
+    if (!gate.ok) {
+      // refused — never serve, never throw, never crash the room (fatal:false)
+      this.sendErrorPayload(connId, toErrorPayload(gate))
+      return
+    }
 
     const key = fileKey(fileId)
     let raw: unknown
@@ -314,18 +352,22 @@ class FileStoreImpl implements FileStore {
       return
     }
 
-    // serve-verify (059 §4): canon rebuilt from the relay's OWN room id + storage
-    // key — cross-room smuggling fails here by construction (058 §4.2)
-    const served = await verifyServe(record.envelope, { shareId: this.roomId, fileId })
-    if (!served.ok) {
-      // deterministic failure never recovers — DELETE the unit, never serve it (059 §4)
-      try {
-        await this.storage.delete(key)
-      } catch {
-        /* ignore */
+    // serve-verify (059 §4 / 052): SIGNED records re-verify the sig with the
+    // canon rebuilt from the relay's OWN room id + storage key (cross-room
+    // smuggling fails by construction); PLAINTEXT (team) records are served
+    // verbatim — there is nothing to verify (052 honest-relay model).
+    if (isSignedContentEnvelope(record.envelope)) {
+      const served = await verifyServe(record.envelope, { shareId: this.roomId, fileId })
+      if (!served.ok) {
+        // deterministic failure never recovers — DELETE the unit, never serve it (059 §4)
+        try {
+          await this.storage.delete(key)
+        } catch {
+          /* ignore */
+        }
+        this.sendErrorPayload(connId, toErrorPayload(served))
+        return
       }
-      this.sendErrorPayload(connId, toErrorPayload(served))
-      return
     }
 
     // serve: `file { fileId, mimeType }` header, then the stored pre-stamp
