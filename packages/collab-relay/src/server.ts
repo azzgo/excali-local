@@ -26,6 +26,7 @@ import type { Connection, PartyKitServer, Room } from "partykit/server"
 import { PROTOCOL_VERSION, b64urlToBytes } from "collab-core"
 import type { ErrorCode, HelloPayload, RelayMessage } from "collab-core"
 import type { FrameGuardResult } from "./guards"
+import { configureRelayLog, createRelayLog } from "./relay-log"
 
 /** First-message grace window (052 §3): hello MUST arrive within 2s. */
 export const HELLO_GRACE_MS = 2_000
@@ -51,6 +52,8 @@ const CLOSE_CODES: Record<ErrorCode, number | undefined> = {
   FILE_NOT_FOUND: undefined,
 }
 
+const log = createRelayLog("server")
+
 // ─── env (059 §2 v2 authoritative; 052 §2 legacy fallback) ──────────────────
 
 /** Relay env. Values are JSON strings; v2 is authoritative when present. */
@@ -59,6 +62,8 @@ export interface RelayEnv {
   ORG_PUBKEYS?: string
   /** legacy (052 §2): JSON object org → b64url admission secret. */
   ORG_SECRETS?: string
+  /** "1" → enable relay debug-level logs (ghost-connection diagnosis). */
+  RELAY_LOG_DEBUG?: string
 }
 
 /** Parsed relay env — maps ready for admission lookups. */
@@ -383,6 +388,7 @@ function relayEnv(room: Room): RelayEnv {
   return {
     ORG_PUBKEYS: typeof env.ORG_PUBKEYS === "string" ? env.ORG_PUBKEYS : undefined,
     ORG_SECRETS: typeof env.ORG_SECRETS === "string" ? env.ORG_SECRETS : undefined,
+    RELAY_LOG_DEBUG: typeof env.RELAY_LOG_DEBUG === "string" ? env.RELAY_LOG_DEBUG : undefined,
   }
 }
 
@@ -449,7 +455,11 @@ export function createRelayServer(hooks: RelayServerHooks = {}): PartyKitServer 
   }
 
   return {
-    onConnect(conn, _room, _ctx) {
+    onConnect(conn, room, _ctx) {
+      // Configure the unified logger's debug gate from the relay env (idempotent):
+      // RELAY_LOG_DEBUG="1" surfaces diagnostic debug logs (ghost-connection).
+      const env = relayEnv(room)
+      configureRelayLog({ debug: env.RELAY_LOG_DEBUG === "1" })
       const shareId = deriveShareId(conn.uri)
       if (shareId === null) {
         refuse(conn, "ADMISSION_INVALID", "connection URL does not carry a /room/<shareId> path")
@@ -481,6 +491,24 @@ export function createRelayServer(hooks: RelayServerHooks = {}): PartyKitServer 
       }
 
       if (rec.welcomed) {
+        // In-session liveness probe: answer an application-level `ping` with a
+        // `pong` immediately — a pure server responsibility, NOT room-scoped,
+        // so it is answered even when the room-DO hooks are absent. No roster
+        // or storage side effect; the ping proves the data plane is alive.
+        if (typeof message === "string") {
+          let msg: unknown
+          try {
+            msg = JSON.parse(message)
+          } catch {
+            msg = null
+          }
+          const m = (msg ?? null) as Record<string, unknown> | null
+          if (m?.t === "ping") {
+            log.debug("answering pong for welcomed conn", { connId: conn.id, shareId: rec.shareId })
+            conn.send(JSON.stringify({ v: 1, t: "pong", p: {} }))
+            return
+          }
+        }
         // post-welcome routing is task 038/041's room DO — hand off when wired
         if (typeof message === "string") await hooks.onMessage?.(message, conn, room)
         return

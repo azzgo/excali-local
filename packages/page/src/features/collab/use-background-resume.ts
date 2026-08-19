@@ -1,39 +1,38 @@
 /**
- * Background/foreground resume policy for a collab session (061 §2).
+ * Probe-driven background/foreground resume policy for a collab session.
  *
- * A suspended or occluded renderer can leave a WebSocket half-open: the
- * connection remains OPEN while its data plane is dead, so no close event
- * starts the client's backoff ladder. A meaningful away→present transition —
- * hidden→visible or window blur→focus — forces a fresh dial. BFCache restores
- * use the same path because the frozen page may not emit either signal.
- * Quick switches stay on the live socket, and duplicate restore signals are
- * collapsed by the away threshold and cooldown.
+ * On any resume trigger (visibility → visible, window focus, BFCache restore,
+ * or user-activity events), the hook probes the current WebSocket with a
+ * lightweight ping/pong. Only if the probe fails (timeout) does it force a
+ * reconnect. This replaces the previous away-marking heuristic, which
+ * missed macOS gestures where neither visibilitychange nor blur fires
+ * (show-desktop swipe, Mission Control, Launchpad, native dialogs).
+ *
+ * A cooldown prevents signal bursts (e.g. rapid pointerdown events while
+ * drawing) from spamming probes. Quick tab switches that keep the socket
+ * alive are handled cheaply — one ping round-trip, no roster churn.
  */
 import { useEffect, useRef } from "react";
-import { collabDebugLog } from "collab-core";
+import { collabDebugLog, PROBE_TIMEOUT_MS } from "collab-core";
 import type { CollabClient } from "collab-core";
 
-const AWAY_RESUME_MS = 5_000;
 const RESUME_COOLDOWN_MS = 5_000;
 
-type ResumableClient = Pick<CollabClient, "state" | "reconnectNow">;
+type ResumableClient = Pick<CollabClient, "state" | "reconnectNow" | "probe">;
 
-/** Install and remove the page-level signals that recover stale sockets. */
+/**
+ * Install and remove the page-level signals that recover stale sockets.
+ * Resume triggers funnel into a single probe-driven decision: redial only
+ * when the socket is absent/dead.
+ */
 export function useBackgroundResume(getClient: () => ResumableClient | null): void {
-  const awayAtRef = useRef<number | null>(null);
   const lastResumeAtRef = useRef(0);
   const getClientRef = useRef(getClient);
   getClientRef.current = getClient;
 
   useEffect(() => {
-    const markAway = () => {
-      if (awayAtRef.current === null) awayAtRef.current = Date.now();
-    };
-
-    const requestResume = () => {
+    const considerResume = () => {
       const client = getClientRef.current();
-      // No session (boot/leave/unmount) or a terminal state (fatal admission,
-      // stale room key) — never resurrect either.
       if (client === null) {
         collabDebugLog("resume skipped: no client");
         return;
@@ -49,44 +48,56 @@ export function useBackgroundResume(getClient: () => ResumableClient | null): vo
         return;
       }
       lastResumeAtRef.current = now;
-      collabDebugLog("resume: forcing reconnectNow", { state });
-      client.reconnectNow();
-    };
 
-    const resumeIfAway = () => {
-      const awayAt = awayAtRef.current;
-      awayAtRef.current = null;
-      if (awayAt === null || Date.now() - awayAt < AWAY_RESUME_MS) return;
-      requestResume();
+      if (state !== "connected") {
+        // No live socket (connecting/reconnecting) — redial immediately
+        // to supersede any pending backoff timer.
+        collabDebugLog("resume: not connected, forcing redial", { state });
+        client.reconnectNow();
+        return;
+      }
+
+      // Connected: probe liveness before deciding to reconnect.
+      collabDebugLog("resume: probing liveness");
+      const captured = client;
+      void client.probe(PROBE_TIMEOUT_MS).then((alive) => {
+        if (getClientRef.current() !== captured) return; // session swapped
+        if (alive) {
+          collabDebugLog("resume: probe OK — socket alive");
+          return;
+        }
+        collabDebugLog("resume: probe FAILED — forcing redial");
+        captured.reconnectNow();
+      });
     };
 
     const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden") {
-        markAway();
-        return;
-      }
-      if (document.visibilityState === "visible") resumeIfAway();
+      if (document.visibilityState === "visible") considerResume();
     };
-    const onBlur = () => markAway();
-    const onFocus = () => resumeIfAway();
+    const onFocus = () => considerResume();
     const onPageShow = (event: Event) => {
       // persisted=true is a BFCache restore: the whole JS world was frozen,
-      // and visibilitychange/focus may never fire. Initial pageshow events do
-      // not resume.
+      // and visibilitychange/focus may never fire.
       if ((event as PageTransitionEvent).persisted !== true) return;
-      awayAtRef.current = null; // frozen time is unmeasurable — unconditional
-      requestResume();
+      considerResume();
     };
+    // User-activity events: catch cases where no visibility/focus signal
+    // fires (macOS show-desktop swipe, Mission Control, etc.). Throttled
+    // by RESUME_COOLDOWN_MS to avoid spam during drawing.
+    const onActivity = () => considerResume();
 
     document.addEventListener("visibilitychange", onVisibilityChange);
-    window.addEventListener("blur", onBlur);
     window.addEventListener("focus", onFocus);
     window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("pointerdown", onActivity, { passive: true });
+    window.addEventListener("keydown", onActivity, { passive: true });
+
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
-      window.removeEventListener("blur", onBlur);
       window.removeEventListener("focus", onFocus);
       window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("pointerdown", onActivity);
+      window.removeEventListener("keydown", onActivity);
     };
   }, []);
 }

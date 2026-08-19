@@ -140,6 +140,8 @@ export function buildRoomUrl(relay: string, shareId: string): string {
 export const RECONNECT_BASE_MS = 1000
 export const RECONNECT_MAX_MS = 30_000
 export const SCENE_THROTTLE_MS = 100
+/** Default liveness probe timeout (milliseconds). */
+export const PROBE_TIMEOUT_MS = 2_000
 /** Max wait for a dial to reach OPEN before closing it and retrying. */
 export const DIAL_TIMEOUT_MS = 10_000
 
@@ -532,6 +534,35 @@ export class CollabClient {
   addOpenListener(fn: () => void): () => void {
     this.openListeners.add(fn)
     return () => this.openListeners.delete(fn)
+  }
+
+  /**
+   * Liveness probe: send `ping` and resolve true when ANY frame arrives from
+   * the relay within timeoutMs (proving the data plane is alive), false on
+   * timeout or when there is no live socket. No side effects — the ping is
+   * a lightweight probe, not a state change.
+   */
+  probe(timeoutMs = PROBE_TIMEOUT_MS): Promise<boolean> {
+    const ws = this.ws
+    if (ws === null || ws.readyState !== WS_OPEN) return Promise.resolve(false)
+    if (this.stateValue !== "connected") return Promise.resolve(false)
+    // One-shot listener: ANY frame (pong or data) proves the data plane is
+    // alive. Independent of handleRaw — this probe listener is transient and
+    // never touches the normal message path.
+    return new Promise<boolean>((resolve) => {
+      let done = false
+      const settle = (result: boolean): void => {
+        if (done) return
+        done = true
+        clearTimeout(timer)
+        ws.removeEventListener?.("message", onFrame)
+        resolve(result)
+      }
+      const onFrame = (): void => settle(true)
+      const timer = setTimeout(() => settle(false), timeoutMs)
+      ws.addEventListener("message", onFrame)
+      this.sendEnvelope({ v: PROTOCOL_VERSION, t: "ping", p: {} })
+    })
   }
 
   // --- connection lifecycle --------------------------------------------------

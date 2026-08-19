@@ -19,15 +19,13 @@ import * as excalidraw from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { AppState } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { clearSession, loadSession, saveRoomMeta, saveSession } from "collab-core";
+import { clearSession, loadSession, saveRoomMeta, saveSession, PROBE_TIMEOUT_MS } from "collab-core";
 import type { Member } from "collab-core";
 import { getDrawingFullData, getDrawings, getRoom } from "@/features/editor/utils/indexdb";
 import { useCollabSession } from "@/features/collab/use-collab-session";
 import type { CollabIdentity, CollabRoomMeta } from "@/features/collab/use-collab-session";
 import type { ServerConfig } from "@/features/collab/storage";
 
-// Keep the integration threshold explicit; the policy owns this implementation detail.
-const AWAY_RESUME_MS = 5_000;
 
 vi.mock("@excalidraw/excalidraw", () => ({
   CaptureUpdateAction: {
@@ -847,7 +845,7 @@ describe("use-collab-session — 056 Q6 admission freeze + live gate", () => {
 /* background/foreground resume (stale-socket recovery)                */
 /* ------------------------------------------------------------------ */
 
-describe("use-collab-session — background resume", () => {
+describe("use-collab-session — background resume (probe-driven)", () => {
   const setVisibility = (state: "visible" | "hidden") => {
     Object.defineProperty(document, "visibilityState", {
       configurable: true,
@@ -864,50 +862,60 @@ describe("use-collab-session — background resume", () => {
     window.dispatchEvent(event);
   };
 
-  const dispatchBlur = () => window.dispatchEvent(new Event("blur"));
   const dispatchFocus = () => window.dispatchEvent(new Event("focus"));
 
-  /** Hide now, return to visible `elapsed` later. Date.now is spied only
-   * around the synchronous dispatches — no fake timers, so waitFor/act
-   * keep working with real scheduling. */
-  const hideAndReturn = async (elapsed: number) => {
-    const t0 = Date.now();
-    const spy = vi.spyOn(Date, "now");
-    spy.mockReturnValue(t0);
-    setVisibility("hidden");
-    await act(async () => {
-      dispatchVisibility();
-    });
-    spy.mockReturnValue(t0 + elapsed);
-    setVisibility("visible");
-    await act(async () => {
-      dispatchVisibility();
-    });
-    spy.mockRestore();
-  };
+  const dispatchActivity = (type: "pointerdown" | "keydown") =>
+    window.dispatchEvent(new Event(type));
+
+  /** Wait for the probe timeout to elapse (real timers, 2s + margin). */
+  const waitForProbeTimeout = () =>
+    new Promise((r) => setTimeout(r, PROBE_TIMEOUT_MS + 200));
 
   afterEach(() => {
     setVisibility("visible");
   });
 
-  test("hidden ≥ AWAY_RESUME_MS → visible forces one fresh dial and the session recovers", async () => {
+  test("visible with alive socket (pong arrives) → no reconnect", async () => {
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api);
+
+    await act(async () => {
+      setVisibility("visible");
+      dispatchVisibility();
+    });
+    // The probe sent a ping; deliver pong to prove the socket is alive.
+    await act(async () => {
+      ws.message(JSON.stringify({ v: 1, t: "pong", p: {} }));
+    });
+
+    // The probe resolved true → no reconnectNow was called.
+    expect(StubSocket.instances).toHaveLength(1);
+    expect(result.current.conn).toBe("connected");
+    unmount();
+  });
+
+  test("visible with dead socket (probe timeout) → reconnects and recovers", async () => {
     const api = makeApi();
     const { result, unmount, ws } = await dialAndWelcome(api);
     const socketsBefore = StubSocket.instances.length;
 
-    await hideAndReturn(AWAY_RESUME_MS + 1000);
+    await act(async () => {
+      setVisibility("visible");
+      dispatchVisibility();
+    });
+    // Don't deliver pong — let the probe time out.
+    await waitForProbeTimeout();
 
+    // Probe resolved false → reconnectNow created a fresh dial.
     await waitFor(() =>
       expect(StubSocket.instances.length).toBe(socketsBefore + 1),
     );
     expect(ws.readyState).toBe(3); // stale socket replaced
     const ws2 = lastSocket();
-    await act(async () => {
-      ws2.open();
-    });
+    await act(async () => { ws2.open(); });
     const hello2 = JSON.parse(ws2.sent[0]);
     expect(hello2.t).toBe("hello");
-    expect(hello2.p.profileId).toBe(IDENTITY.profileId); // same identity
+    expect(hello2.p.profileId).toBe(IDENTITY.profileId);
     await act(async () => {
       ws2.message(welcomeMessage(true, [], "conn-2"));
     });
@@ -915,121 +923,61 @@ describe("use-collab-session — background resume", () => {
     unmount();
   });
 
-  test("quick hide/visible (< AWAY_RESUME_MS) keeps the live socket", async () => {
+  test("focus with alive socket → no reconnect", async () => {
     const api = makeApi();
-    const { result, unmount } = await dialAndWelcome(api);
-    await hideAndReturn(500);
+    const { result, unmount, ws } = await dialAndWelcome(api);
+
+    await act(async () => { dispatchFocus(); });
+    // Deliver pong to satisfy the probe.
+    await act(async () => {
+      ws.message(JSON.stringify({ v: 1, t: "pong", p: {} }));
+    });
+
     expect(StubSocket.instances).toHaveLength(1);
     expect(result.current.conn).toBe("connected");
     unmount();
   });
 
-  test("blur → focus with visibilityState staying visible resumes after the threshold (macOS app switch)", async () => {
-    const api = makeApi();
-    const { unmount, ws } = await dialAndWelcome(api);
-    // the window stays on screen while another app is frontmost — never
-    // hidden, only blurred. Returning focuses it; no visibilitychange fires.
-    setVisibility("visible");
-
-    const t0 = Date.now();
-    const spy = vi.spyOn(Date, "now");
-    spy.mockReturnValue(t0);
-    await act(async () => {
-      dispatchBlur();
-    });
-    spy.mockReturnValue(t0 + AWAY_RESUME_MS + 1000);
-    await act(async () => {
-      dispatchFocus();
-    });
-    spy.mockRestore();
-
-    expect(StubSocket.instances).toHaveLength(2); // one fresh dial
-    expect(ws.readyState).toBe(3); // stale socket replaced
-    unmount();
-  });
-
-  test("app-switch return storm: blur/hidden away, focus/visible/pageshow return — exactly one dial", async () => {
+  test("BFCache pageshow (persisted=true) → probe timeout → reconnects; persisted=false → no resume", async () => {
     const api = makeApi();
     const { unmount } = await dialAndWelcome(api);
-    const t0 = Date.now();
-    const spy = vi.spyOn(Date, "now");
 
-    // switching away: blur first, then the window is fully occluded → hidden
-    spy.mockReturnValue(t0);
+    // Initial-load pageshow — never resumes.
     await act(async () => {
-      dispatchBlur();
-      setVisibility("hidden");
-      dispatchVisibility();
+      dispatchPageShow(false);
     });
+    expect(StubSocket.instances).toHaveLength(1);
 
-    // returning: focus, visible AND a BFCache pageshow can all fire together
-    spy.mockReturnValue(t0 + AWAY_RESUME_MS + 1000);
-    setVisibility("visible");
+    // BFCache restore — the socket is likely dead after a freeze.
     await act(async () => {
-      dispatchFocus();
-      dispatchVisibility();
       dispatchPageShow(true);
     });
-    spy.mockRestore();
-
-    expect(StubSocket.instances).toHaveLength(2); // exactly one fresh dial
-    unmount();
-  });
-
-  test("quick blur → focus (< AWAY_RESUME_MS) keeps the live socket", async () => {
-    const api = makeApi();
-    const { result, unmount } = await dialAndWelcome(api);
-    const t0 = Date.now();
-    const spy = vi.spyOn(Date, "now");
-    spy.mockReturnValue(t0);
-    await act(async () => {
-      dispatchBlur();
-    });
-    spy.mockReturnValue(t0 + 500);
-    await act(async () => {
-      dispatchFocus();
-    });
-    spy.mockRestore();
-    expect(StubSocket.instances).toHaveLength(1);
-    expect(result.current.conn).toBe("connected");
-    unmount();
-  });
-
-  test("BFCache pageshow (persisted=true) resumes; the initial-load pageshow does not", async () => {
-    const api = makeApi();
-    const { unmount } = await dialAndWelcome(api);
-
-    await act(async () => {
-      dispatchPageShow(false); // initial load — never resume
-    });
-    expect(StubSocket.instances).toHaveLength(1);
-
-    await act(async () => {
-      dispatchPageShow(true); // BFCache restore — the world was frozen
-    });
+    // No pong delivered → probe times out → reconnect.
+    await waitForProbeTimeout();
     expect(StubSocket.instances).toHaveLength(2);
     unmount();
   });
 
-  test("duplicate restore events within the cooldown do not storm", async () => {
+  test("cooldown collapses duplicate triggers into one probe", async () => {
     const api = makeApi();
-    const { unmount } = await dialAndWelcome(api);
+    const { unmount, ws } = await dialAndWelcome(api);
+
+    // Fire multiple triggers quickly — only the first should start a probe.
     const t0 = Date.now();
     const spy = vi.spyOn(Date, "now");
     spy.mockReturnValue(t0);
-    setVisibility("hidden");
     await act(async () => {
-      dispatchVisibility();
-    });
-    spy.mockReturnValue(t0 + AWAY_RESUME_MS + 1000);
-    setVisibility("visible");
-    await act(async () => {
-      // visibilitychange + pageshow can BOTH fire on one restore
+      dispatchFocus();
       dispatchVisibility();
       dispatchPageShow(true);
     });
     spy.mockRestore();
-    expect(StubSocket.instances).toHaveLength(2); // exactly one fresh dial
+
+    // All three triggers fired but only one ping was sent.
+    const pings = ws.sent.filter((s) => {
+      try { return JSON.parse(s).t === "ping"; } catch { return false; }
+    });
+    expect(pings).toHaveLength(1);
     unmount();
   });
 
@@ -1037,20 +985,22 @@ describe("use-collab-session — background resume", () => {
     const api = makeApi();
     const { unmount } = await dialAndWelcome(api);
     unmount();
-    await hideAndReturn(AWAY_RESUME_MS + 1000);
-    await act(async () => {
-      dispatchPageShow(true);
-    });
+    // After unmount, triggers must not cause new dials.
+    await act(async () => { dispatchFocus(); });
+    await act(async () => { dispatchVisibility(); });
+    await act(async () => { dispatchPageShow(true); });
+    await act(async () => { dispatchActivity("pointerdown"); });
+    // Wait for any in-flight probe to time out.
+    await waitForProbeTimeout();
     expect(StubSocket.instances).toHaveLength(1);
   });
 
   test("explicit leave() is not resurrected", async () => {
     const api = makeApi();
     const { result, unmount } = await dialAndWelcome(api);
-    await act(async () => {
-      result.current.leave();
-    });
-    await hideAndReturn(AWAY_RESUME_MS + 1000);
+    await act(async () => { result.current.leave(); });
+    await act(async () => { dispatchFocus(); });
+    await waitForProbeTimeout();
     expect(StubSocket.instances).toHaveLength(1);
     unmount();
   });
@@ -1068,7 +1018,8 @@ describe("use-collab-session — background resume", () => {
       );
     });
     await waitFor(() => expect(result.current.conn).toBe("rejected"));
-    await hideAndReturn(AWAY_RESUME_MS + 1000);
+    await act(async () => { dispatchFocus(); });
+    await waitForProbeTimeout();
     expect(StubSocket.instances).toHaveLength(1);
     unmount();
   });
@@ -1076,30 +1027,25 @@ describe("use-collab-session — background resume", () => {
   test("a fresh welcome clears the stale reconnect hint (061: ladder restarts)", async () => {
     const api = makeApi();
     const { result, unmount, ws } = await dialAndWelcome(api);
-    // server drop → retry scheduled → the hint appears next to the conn dot
-    await act(async () => {
-      ws.close(1006);
-    });
+    // Server drop → retry scheduled → the hint appears.
+    await act(async () => { ws.close(1006); });
     expect(result.current.reconnect).toEqual({ attempt: 0, delayMs: 1000 });
 
-    // the 1s backoff fires → fresh dial → fresh welcome
+    // The 1s backoff fires → fresh dial → fresh welcome.
     await waitFor(() => expect(StubSocket.instances).toHaveLength(2), {
       timeout: 4000,
     });
     const ws2 = lastSocket();
-    await act(async () => {
-      ws2.open();
-    });
+    await act(async () => { ws2.open(); });
     await act(async () => {
       ws2.message(welcomeMessage(true, [], "conn-2"));
     });
     await waitFor(() => expect(result.current.conn).toBe("connected"));
-    // the retry hint is gone — it must not linger next to a green dot
     expect(result.current.reconnect).toBeNull();
     unmount();
   });
 
-  test("resume always targets the live client across session-effect re-runs (StrictMode/HMR churn)", async () => {
+  test("resume targets the live client across session-effect re-runs (StrictMode/HMR churn)", async () => {
     const api = makeApi();
     const { result, rerender, unmount } = renderHook(
       (props: { room: CollabRoomMeta }) =>
@@ -1108,52 +1054,38 @@ describe("use-collab-session — background resume", () => {
     );
     await waitFor(() => expect(lastSocket()).toBeDefined());
     const ws1 = lastSocket();
-    await act(async () => {
-      ws1.open();
-    });
+    await act(async () => { ws1.open(); });
     await act(async () => {
       ws1.message(welcomeMessage());
     });
     await waitFor(() => expect(result.current.conn).toBe("connected"));
 
-    // session-effect re-run (dep identity change — StrictMode/HMR churn):
-    // the old client tears down and a fresh one boots through an async gap.
-    // First let the effect flush (cleanup ran: clientRef null; the re-run
-    // IIFO is awaiting IndexedDB on a macrotask).
+    // Session-effect re-run (dep identity change — StrictMode/HMR churn).
     await act(async () => {
       rerender({ room: { ...ROOM } });
     });
-    // Fire away→present SYNCHRONOUSLY inside the gap — clientRef.current is
-    // null, so the resume must no-op (no crash, no resurrection dial).
-    const t0 = Date.now();
-    const spy = vi.spyOn(Date, "now");
-    await act(async () => {
-      spy.mockReturnValue(t0);
-      setVisibility("hidden");
-      dispatchVisibility();
-      spy.mockReturnValue(t0 + AWAY_RESUME_MS + 1000);
-      setVisibility("visible");
-      dispatchVisibility();
-    });
-    spy.mockRestore();
 
-    // the re-run effect dials its own fresh client — and ONLY one: the
-    // null-window resume above added no extra dial and resurrected nothing
+    // Fire a trigger SYNCHRONOUSLY inside the gap — getClientRef is null,
+    // so considerResume must no-op (no crash, no dial).
+    await act(async () => { dispatchFocus(); });
+
+    // The re-run effect dials its own fresh client — and ONLY one.
     await waitFor(() => expect(StubSocket.instances).toHaveLength(2));
-    expect(ws1.readyState).toBe(3); // the replaced client is closed
+    expect(ws1.readyState).toBe(3);
     const ws2 = lastSocket();
-    await act(async () => {
-      ws2.open();
-    });
+    await act(async () => { ws2.open(); });
     await act(async () => {
       ws2.message(welcomeMessage(true, [], "conn-live"));
     });
     await waitFor(() => expect(result.current.conn).toBe("connected"));
 
-    // a later away→present resume targets the NEW client — exactly one dial
-    await hideAndReturn(AWAY_RESUME_MS + 1000);
-    expect(StubSocket.instances).toHaveLength(3);
-    expect(ws2.readyState).toBe(3); // its stale socket was replaced
+    // A later resume on the NEW client targets it correctly.
+    await act(async () => { dispatchFocus(); });
+    // Deliver pong so the probe succeeds — no extra dial.
+    await act(async () => {
+      ws2.message(JSON.stringify({ v: 1, t: "pong", p: {} }));
+    });
+    expect(StubSocket.instances).toHaveLength(2);
     unmount();
   });
 });

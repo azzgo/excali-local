@@ -44,7 +44,10 @@ import { RateGuard, RATE_REJECT_REASON, assertFrameSize } from "./guards"
 import { RoomState } from "./room"
 import type { RoomHooks, RoomStorage } from "./room"
 import { createRelayServer } from "./server"
+import { createRelayLog } from "./relay-log"
 import type { MemberKey } from "./verify"
+
+const hostLog = createRelayLog("host")
 
 /** One room DO's composed state — built lazily on the first admitted connection. */
 interface RoomHost {
@@ -114,16 +117,35 @@ export function createCollabServer(): PartyKitServer {
       const host = getHost(room)
       host.conns.set(conn.id, conn)
       connHost.set(conn, host)
+      hostLog.debug("admitted conn", { connId: conn.id, roomId: room.id })
       await host.state.join(conn.id, hello)
     },
-
     /** Post-welcome frames → room DO routing (scene/seed/pointer/chunk/files). */
     async onMessage(frame, conn) {
       const host = connHost.get(conn)
-      if (host === undefined) return // unknown / pre-admission connection
+      if (host === undefined) {
+        // GHOST-CONNECTION RECOVERY: a post-welcome frame from a conn that has
+        // no host entry means the WS survived a DO restart but this DO's
+        // connHost/conns/roster were rebuilt empty — the transport (ping/pong)
+        // is alive while the data plane is silently dropped at the host
+        // boundary. Instead of silently dropping (which desyncs the peer
+        // forever), close the ghost connection so the client redials and
+        // re-hellos, re-establishing roster membership. Non-1008 close ⇒ the
+        // client's onClose treats it as non-fatal and schedules a reconnect.
+        hostLog.warn("closing ghost connection (no host after DO restart)", {
+          connId: conn.id,
+          connUri: conn.uri,
+        })
+        try {
+          conn.close(1000, "session lost — resync please")
+        } catch {
+          /* already closed — nothing to do */
+        }
+        return
+      }
+      hostLog.debug("routing frame to room", { connId: conn.id, roomId: host.roomId })
       await host.state.message(conn.id, frame)
     },
-
     /**
      * ADR 0004 room probe: answer from the room DO's own state and close — no
      * admission, no roster entry, no member-visible side effect. `getHost` is
@@ -140,9 +162,13 @@ export function createCollabServer(): PartyKitServer {
     onClose(conn) {
       const host = connHost.get(conn)
       connHost.delete(conn)
-      if (host === undefined) return
+      if (host === undefined) {
+        hostLog.warn("closing conn with no host", { connId: conn.id })
+        return
+      }
       host.conns.delete(conn.id)
       host.rate.reset(conn.id)
+      hostLog.debug("closing conn", { connId: conn.id, roomId: host.roomId })
       host.state.leave(conn.id)
       host.files.leave(conn.id)
     },

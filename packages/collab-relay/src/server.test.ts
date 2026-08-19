@@ -397,6 +397,24 @@ describe("createRelayServer connection flow", () => {
     expect(conn.close).not.toHaveBeenCalled()
   })
 
+  it("answers a post-welcome ping with a pong (in-session liveness, no hooks needed)", async () => {
+    const kp = await makeKeypair()
+    const hello = await signHello(baseHello(), kp.privateKey)
+    const server = createRelayServer()
+    const conn = fakeConn("conn-1", WS_URI)
+    const room = fakeRoom(pubkeysEnv("acme", [kp.publicKeyB64url]))
+
+    server.onConnect?.(conn as unknown as Connection, room, FAKE_CTX)
+    await server.onMessage?.(JSON.stringify({ v: 1, t: "hello", p: hello }), conn as unknown as Connection, room)
+
+    await server.onMessage?.(JSON.stringify({ v: 1, t: "ping", p: {} }), conn as unknown as Connection, room)
+
+    // welcome (1) + pong (2) — the pong is a pure server reply, no makeKeypair hooks
+    expect(conn.send).toHaveBeenCalledTimes(2)
+    expect(JSON.parse(conn.send.mock.calls[1][0])).toEqual({ v: 1, t: "pong", p: {} })
+    expect(conn.close).not.toHaveBeenCalled()
+  })
+
   it("a room-probe first message → the onProbe hook answers and the connection closes (ADR 0004)", async () => {
     const onProbe = vi.fn(async (conn: Connection, _room: Room) => {
       conn.send(JSON.stringify({ v: 1, t: "room-probe", p: { roomName: "Q3 planning", snapshotAvailable: true, peerCount: 2 } }))

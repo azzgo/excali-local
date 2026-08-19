@@ -37,6 +37,7 @@ import { CHUNK_THRESHOLD, ChunkAssembler, MEMBER_NAME_MAX_LENGTH, ROOM_NAME_MAX_
 import type { ChunkFrame, ErrorCode, HelloPayload, Member, WireEnvelope } from "collab-core"
 import type { FileStore } from "./files"
 import { MAX_CHUNKS_PER_MESSAGE } from "./guards"
+import { createRelayLog } from "./relay-log"
 import type { MemberKey, SignedContentEnvelope } from "./verify"
 
 /** room.storage key holding the room's snapshot record (052 §4). */
@@ -52,6 +53,8 @@ export const MAX_FRAME_BYTES = 1024 * 1024
 /** 049 §2: the reason carried by the non-fatal SEED_REJECTED error. */
 export const SEED_REJECT_REASON =
   "room already has a snapshot — first seed wins (049 §2); reload the scene you just saw broadcast"
+
+const log = createRelayLog("room")
 
 /** Delivery seam — implemented by the PartyKit host (task 041). */
 export interface RoomHooks {
@@ -275,7 +278,18 @@ export class RoomState {
    * like any other message (transparent framing, 049 §3).
    */
   async message(connId: string, frame: string): Promise<void> {
-    if (!this.roster.has(connId)) return // unknown connection
+    if (!this.roster.has(connId)) {
+      // Ghost-connection tripwire (diagnostic, task 052 §4 / 059 §5): a data
+      // frame from a connId absent from the roster means the WS survived a DO
+      // restart/eviction but the session membership was lost — the transport
+      // (ping/pong) is alive while the data plane is silently dark. This warn
+      // makes the drop visible instead of a mystery desync.
+      log.warn("dropping frame from conn not in roster (ghost connection?)", {
+        connId,
+        rosterSize: this.roster.size,
+      })
+      return
+    }
     if (typeof frame !== "string" || new TextEncoder().encode(frame).length > MAX_FRAME_BYTES) {
       // 052 §5: an oversized single frame is misbehavior — drop + CHUNK_INVALID (non-fatal)
       this.sendError(connId, "CHUNK_INVALID", `frame exceeds the ${MAX_FRAME_BYTES}-byte single-frame cap (052 §5)`)

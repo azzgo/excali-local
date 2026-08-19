@@ -78,6 +78,7 @@ export type ClientMessage =
   | { v: 1; t: "chunk"; p: { id: string; n: number; i: number; d: string } }
   | { v: 1; t: "room-name"; p: { name: string } }
   | { v: 1; t: "member-name"; p: { name: string } }
+  | { v: 1; t: "ping"; p: {} } // in-session liveness probe (client→relay)
   | { v: 1; t: "room-probe"; p: {} }
 export type RelayMessage =
   | { v: 1; t: "welcome"; p: WelcomePayload }
@@ -95,6 +96,7 @@ export type RelayMessage =
   | { v: 1; t: "chunk"; p: { id: string; n: number; i: number; d: string } }
   | { v: 1; t: "room-name"; p: { name: string }; from: string }
   | { v: 1; t: "member-name"; p: { name: string }; from: string }
+  | { v: 1; t: "pong"; p: {} } // in-session liveness answer (relay→client)
   | { v: 1; t: "room-probe"; p: RoomProbePayload }
 
 /**

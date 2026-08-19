@@ -540,6 +540,78 @@ describe("background resume (reconnectNow)", () => {
 })
 
 // ---------------------------------------------------------------------------
+// Liveness probe
+// ---------------------------------------------------------------------------
+
+describe("probe (in-session liveness)", () => {
+  it("resolves true when any frame (pong) arrives before the timeout", async () => {
+    const { client, socket } = makeClient()
+    client.connect()
+    socket().open()
+    socket().message(welcomeMessage())
+
+    const p = client.probe()
+    expect(socket().sent[1]).toEqual(JSON.stringify({ v: 1, t: "ping", p: {} }))
+
+    socket().message(JSON.stringify({ v: 1, t: "pong", p: {} }))
+    await expect(p).resolves.toBe(true)
+  })
+
+  it("resolves true on ANY frame (a data frame also proves the data plane is alive)", async () => {
+    const { client, socket } = makeClient()
+    client.connect()
+    socket().open()
+    socket().message(welcomeMessage())
+
+    const p = client.probe()
+    socket().message(JSON.stringify({ v: 1, t: "member-name", p: { name: "Bob" }, from: "conn-x" }))
+    await expect(p).resolves.toBe(true)
+  })
+
+  it("resolves false on timeout when no frame arrives", async () => {
+    const { client, socket } = makeClient()
+    client.connect()
+    socket().open()
+    socket().message(welcomeMessage())
+
+    const p = client.probe(2_000)
+    vi.advanceTimersByTime(1_999)
+    await expect(Promise.race([p, Promise.resolve("pending")])).resolves.toBe("pending")
+    vi.advanceTimersByTime(1)
+    await expect(p).resolves.toBe(false)
+  })
+
+  it("resolves false immediately when there is no live socket (ws null)", async () => {
+    const { client } = makeClient()
+    await expect(client.probe()).resolves.toBe(false)
+  })
+
+  it("resolves false immediately when NOT in the connected state (mid-dial)", async () => {
+    const { client, socket } = makeClient()
+    client.connect() // dialing — state is "connecting", socket not yet OPEN
+    expect(socket().readyState).toBe(0)
+    expect(client.state).toBe("connecting")
+    await expect(client.probe()).resolves.toBe(false)
+  })
+
+  it("does NOT interfere with normal message handling (handleRaw still processes frames)", async () => {
+    const onScene = vi.fn()
+    const { client, socket } = makeClient({ onScene })
+    client.connect()
+    socket().open()
+    socket().message(welcomeMessage())
+
+    const p = client.probe()
+    socket().message(JSON.stringify({ v: 1, t: "scene", p: { elements: [{ id: "a" }], seq: 1 }, from: "remote" }))
+    await expect(p).resolves.toBe(true)
+    await Promise.resolve() // flush the async decrypt-check continuation (fake timers: no setTimeout)
+    // the same frame still reached the typed scene handler despite the probe
+    expect(onScene).toHaveBeenCalledTimes(1)
+    expect(onScene.mock.calls[0][0]).toMatchObject({ t: "scene", seq: 1 })
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Send path
 // ---------------------------------------------------------------------------
 
