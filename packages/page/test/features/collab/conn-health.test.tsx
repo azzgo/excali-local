@@ -248,9 +248,15 @@ describe("ConnHealthBanners", () => {
   });
 
   test("offline banner while reconnecting; reset notice only with real conflicts", () => {
+    vi.useFakeTimers();
     const { rerender } = render(
-      <ConnHealthBanners session={session({ conn: "connecting", reconnect: { attempt: 1, delayMs: 2000 } })} />,
+      <ConnHealthBanners session={session({ conn: "reconnecting", reconnect: { attempt: 1, delayMs: 2000 } })} />,
     );
+    // offline is debounced (1.5s entry) — nothing yet
+    expect(screen.queryByTestId("collab-offline-banner")).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
     expect(screen.getByTestId("collab-offline-banner")).toBeTruthy();
 
     rerender(
@@ -258,8 +264,13 @@ describe("ConnHealthBanners", () => {
         session={session({ conn: "connected", reconnect: null, resets: NOTICE })}
       />,
     );
+    // back live: minimum residency (1s hold) before collapsing
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
     expect(screen.queryByTestId("collab-offline-banner")).toBeNull();
     expect(screen.getByTestId("collab-reset-notice")).toBeTruthy();
+    vi.useRealTimers();
   });
 });
 
@@ -451,6 +462,10 @@ describe("degraded hint (061 Q5)", () => {
         })}
       />,
     );
+    // offline banner is debounced (1.5s entry)
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
     expect(screen.getByTestId("collab-offline-banner")).toBeTruthy();
     expect(screen.queryByTestId("collab-degraded-hint")).toBeNull();
     vi.useRealTimers();

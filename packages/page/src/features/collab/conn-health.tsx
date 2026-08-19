@@ -326,6 +326,45 @@ const DEGRADED_WINDOW_MS = 5 * 60 * 1000;
  * leave) clears the phase. Leave mirrors the 053 leave modal: close +
  * back to My Rooms.
  */
+
+/**
+ * Debounce the offline banner so a fast self-healing reconnect (e.g. the
+ * ghost-connection recovery — `reconnecting` for only tens of ms) doesn't
+ * flash a large DOM block in and out, shifting layout twice. Entry debounce
+ * `enterMs`: the banner shows only once offline has persisted that long.
+ * Minimum residency `holdMs`: once shown it holds before collapsing, so a
+ * quick recovery doesn't blink out. Returns the debounced boolean.
+ */
+function useOfflineBanner(offline: boolean, enterMs = 1500, holdMs = 1000): boolean {
+  const [show, setShow] = useState(false);
+  const enteredAtRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!offline) {
+      // Back live: hold for holdMs before collapsing so we don't shift layout
+      // twice in quick succession.
+      if (show) {
+        const timer = window.setTimeout(() => setShow(false), holdMs);
+        return () => window.clearTimeout(timer);
+      }
+      enteredAtRef.current = null;
+      return;
+    }
+    // Offline (or still offline): start/keep the entry clock once.
+    if (enteredAtRef.current === null) enteredAtRef.current = Date.now();
+    if (show) return; // already showing — hold it
+    const elapsed = Date.now() - enteredAtRef.current;
+    if (elapsed >= enterMs) {
+      setShow(true);
+    } else {
+      const timer = window.setTimeout(() => setShow(true), enterMs - elapsed);
+      return () => window.clearTimeout(timer);
+    }
+  }, [offline, show, enterMs, holdMs]);
+
+  return show;
+}
+
 function useReentryCard(
   conn: CollabClientState,
   reconnect: { attempt: number; delayMs: number } | null,
@@ -691,6 +730,9 @@ export function ConnHealthBanners({
   const [saving, setSaving] = useState(false);
   const offline =
     connDisplayState(session.conn, session.reconnect) === "reconnecting";
+  // Debounced: a fast self-healing reconnect (ghost recovery) must not flash
+  // the large offline banner in/out — see useOfflineBanner.
+  const showOffline = useOfflineBanner(offline);
   const live =
     connDisplayState(session.conn, session.reconnect) === "connected";
   const reentry = useReentryCard(
@@ -736,7 +778,7 @@ export function ConnHealthBanners({
           onLeave={reentry.leave}
         />
       )}
-      {!fatal && !reentry.show && offline && (
+      {!fatal && !reentry.show && showOffline && (
         <OfflineBanner peers={session.peers} />
       )}
       {!fatal && live && hint && <DegradedHint />}
