@@ -369,6 +369,8 @@ export function useCollabSession({
   const connIdToProfileRef = useRef<Map<string, string>>(new Map());
   const seqRef = useRef(0);
   const firstSceneRef = useRef(false);
+  /** ADR 0007: latched by `onReconnect`; the next single scene is the reconciliation snapshot. */
+  const midReconnectRef = useRef(false);
   /** Echo-guard triad: timing, remote-content, and established-content markers
    * cover synchronous and delayed updateScene echoes; see onLocalChange. */
   const applyingRemoteRef = useRef(false);
@@ -745,7 +747,11 @@ export function useCollabSession({
 
       const callbacks: CollabSessionCallbacks = {
         onConn: setConn,
-        onReconnect: (info) => setReconnect(info),
+        // ADR 0007: the next scene becomes the reconciliation snapshot.
+        onReconnect: (info) => {
+          midReconnectRef.current = true;
+          setReconnect(info);
+        },
         onError: (err) => setLastError(err),
         onWelcome: (welcome) => {
           // 061: a healthy welcome restarts the backoff ladder — the retry
@@ -876,6 +882,16 @@ export function useCollabSession({
         onScene: (scene) => {
           const source = scene.from ?? "relay-snapshot";
           const previousSeq = lastAppliedSeqRef.current.get(source);
+          const elements = scene.t === "seed" ? scene.scene : scene.elements;
+
+          // ADR 0007: a post-reconnect reconciliation snapshot. The relay's seq resets on DO
+          // eviction, so bypass the live seq gate once and reconcile instead.
+          if (midReconnectRef.current) {
+            midReconnectRef.current = false;
+            reconcilePostReconnect(source, scene.seq, elements);
+            return;
+          }
+
           // A reconnect/decrypt race can deliver an older scene after a
           // newer one from the same relay source. Never let it replace the
           // newer canvas state. `seq` is per sender, so the gate is scoped
@@ -885,7 +901,6 @@ export function useCollabSession({
           setSnapshotAvailable(true);
           // 058 §1.3: seed and scene are the SAME resync path for the
           // receiver — normalize the union.
-          const elements = scene.t === "seed" ? scene.scene : scene.elements;
           const isFirst = !firstSceneRef.current;
           firstSceneRef.current = true;
           seqRef.current = Math.max(seqRef.current, scene.seq);
@@ -1018,6 +1033,7 @@ export function useCollabSession({
       }
       pendingPointerRef.current = null;
       firstSceneRef.current = false;
+      midReconnectRef.current = false;
       lastAppliedSeqRef.current.clear();
       localBaselineRef.current = null;
       localSceneRef.current = null;
@@ -1034,6 +1050,86 @@ export function useCollabSession({
   }, [admission, room, identity, excalidrawAPI, shareId]);
 
   useBackgroundResume(() => clientRef.current);
+
+  /** Shared three-way merge for re-entry (ADR 0005) and mid-session reconnect (ADR 0007):
+   * mergeScene → applyScene → reset notice → rebroadcast-if-divergent → persist. */
+  const reconcileScene = useCallback(
+    ({
+      base,
+      ours,
+      theirs,
+      appState,
+    }: {
+      base: readonly unknown[];
+      ours: readonly unknown[];
+      theirs: readonly unknown[];
+      appState: unknown;
+    }) => {
+      // 061 §3: offline/local edits → three-way merge, online wins on conflicts;
+      // local-only creates (including a first Pencil stroke) survive the snapshot.
+      const merged = mergeScene({
+        base: base as MergeElement[],
+        ours: ours as MergeElement[],
+        theirs: theirs as MergeElement[],
+      });
+      // 052: the merged scene may keep image refs unique to ours — register
+      // them so the first-apply prefetch can hydrate them.
+      hydratorRef.current?.observeElements(merged.scene);
+      applyScene(merged.scene);
+      if (merged.resets.length > 0) {
+        setResets({
+          count: merged.resets.length,
+          ids: merged.resets.map((r) => r.id),
+          at: Date.now(),
+          editN: merged.resets.filter((r) => r.kind !== "delete-vs-edit").length,
+          delN: merged.resets.filter((r) => r.kind === "delete-vs-edit").length,
+        });
+      }
+      const mergedScene: CollabScene = { elements: merged.scene, appState };
+      const synced: CollabScene = { elements: [...theirs], appState: {} };
+      baseSceneRef.current = synced;
+      localSceneRef.current = mergedScene;
+      localDirtyRef.current = !elementsEqual(merged.scene, theirs);
+      persistSession(mergedScene);
+      // Only rebroadcast when the merged result differs from the online scene
+      // (a local-only create survived); a redundant full-scene broadcast is the flash.
+      if (localDirtyRef.current) {
+        seqRef.current += 1;
+        clientRef.current?.sendScene([...merged.scene], seqRef.current);
+      }
+    },
+    [applyScene, persistSession],
+  );
+
+  /** ADR 0007: consume the one post-reconnect snapshot — merge if we had unsynced edits, else adopt silently. */
+  const reconcilePostReconnect = useCallback(
+    (source: string, seq: number, elements: readonly unknown[]) => {
+      lastAppliedSeqRef.current.set(source, seq);
+      setSnapshotAvailable(true);
+      seqRef.current = Math.max(seqRef.current, seq);
+      hydratorRef.current?.observeElements([...elements]);
+      const base = baseSceneRef.current?.elements ?? [];
+      const ours = localSceneRef.current?.elements ?? [];
+      if (localDirtyRef.current) {
+        reconcileScene({
+          base,
+          ours,
+          theirs: elements,
+          appState: localSceneRef.current?.appState ?? {},
+        });
+        return;
+      }
+      // No unsynced local edits → adopt the relay snapshot as-is (silent).
+      applyScene(elements);
+      const synced: CollabScene = { elements: [...elements], appState: {} };
+      baseSceneRef.current = synced;
+      localSceneRef.current = synced;
+      localDirtyRef.current = false;
+      persistSession(synced);
+      scanViewportFiles(null);
+    },
+    [applyScene, persistSession, reconcileScene, scanViewportFiles],
+  );
 
   const handleFirstScene = useCallback(
     (scene: IncomingScene, elements: readonly unknown[]) => {
@@ -1067,47 +1163,16 @@ export function useCollabSession({
         ? pendingLocal.elements
         : pending?.edited.elements ?? null;
       if (mergeBase !== null && mergeOurs !== null) {
-        // 061 §3: offline/local edits → three-way merge, online wins on
-        // conflicts; local-only creates (including a first Pencil stroke)
-        // survive the snapshot.
-        const merged = mergeScene({
-          base: mergeBase as MergeElement[],
-          ours: mergeOurs as MergeElement[],
-          theirs: elements as MergeElement[],
-        });
-        // 052: the merged scene may keep image refs unique to ours —
-        // register them so the first-apply prefetch can hydrate them.
-        hydratorRef.current?.observeElements(merged.scene);
-        applyScene(merged.scene);
-        if (merged.resets.length > 0) {
-          setResets({
-            count: merged.resets.length,
-            ids: merged.resets.map((r) => r.id),
-            at: Date.now(),
-            editN: merged.resets.filter((r) => r.kind !== "delete-vs-edit").length,
-            delN: merged.resets.filter((r) => r.kind === "delete-vs-edit").length,
-          });
-        }
-        const mergedScene: CollabScene = {
-          elements: merged.scene,
+        // 061 §3: offline/local edits → three-way merge, online wins on conflicts;
+        // local-only creates survive. Delegated to the shared reconcileScene helper.
+        reconcileScene({
+          base: mergeBase,
+          ours: mergeOurs,
+          theirs: elements,
           appState: pendingLocal?.appState ?? pending?.edited.appState ?? {},
-        };
-        const synced: CollabScene = { elements: [...elements], appState: {} };
-        baseSceneRef.current = synced;
-        localSceneRef.current = mergedScene;
-        localDirtyRef.current = !elementsEqual(merged.scene, elements);
+        });
         pendingLocalSceneRef.current = null;
         pendingMergeRef.current = null;
-        persistSession(mergedScene);
-        // ADR 0005: rebroadcast ONLY when the merged result actually differs
-        // from the online scene (local-only creates/adds survived). A merged
-        // result identical to the online scene adds nothing the others don't
-        // already have — the old "rebroadcast even when online won" rule was
-        // the flash (a redundant full-scene broadcast to every canvas).
-        if (localDirtyRef.current) {
-          seqRef.current += 1;
-          clientRef.current?.sendScene([...merged.scene], seqRef.current);
-        }
         return;
       }
       // Never synced (base null) → relay snapshot wins as-is (053 rule A /
@@ -1122,7 +1187,7 @@ export function useCollabSession({
       pendingMergeRef.current = null;
       persistSession(synced);
     },
-    [applyScene, persistSession],
+    [applyScene, persistSession, reconcileScene],
   );
 
   /** Seed the room with the current canvas (first seed wins, 049 §2). */
@@ -1164,6 +1229,7 @@ export function useCollabSession({
     setLastSyncedAt(null);
     setReady(false);
     firstSceneRef.current = false;
+    midReconnectRef.current = false;
     lastAppliedSeqRef.current.clear();
     localBaselineRef.current = null;
     localSceneRef.current = null;

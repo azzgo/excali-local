@@ -1329,3 +1329,150 @@ describe("use-collab-session — re-entry rule (ADR 0005)", () => {
     unmount();
   });
 });
+
+// ─── mid-session reconnect conflict merge (ADR 0007) ───────────────────
+
+describe("use-collab-session — mid-session reconnect conflict merge (ADR 0007)", () => {
+  // A relay drop closes the socket → the client schedules a retry → `onReconnect`
+  // latches `midReconnectRef`. The retry timer (RECONNECT_BASE_MS = 1000ms)
+  // dials a fresh socket; we greet it and deliver the post-reconnect snapshot,
+  // which the hook treats as the reconciliation frame.
+  async function reconnect(ws: StubSocket): Promise<StubSocket> {
+    await act(async () => {
+      ws.close();
+    });
+    await waitFor(() => expect(StubSocket.instances.length).toBe(2), { timeout: 3000 });
+    const ws2 = StubSocket.instances.at(-1) as StubSocket;
+    await act(async () => { ws2.open(); });
+    await act(async () => {
+      ws2.message(welcomeMessage(true, [], "conn-2"));
+    });
+    return ws2;
+  }
+
+  test("both-side offline edits → three-way merge + resets + online kept", async () => {
+    const baseEl = { id: "el-1", type: "rectangle", version: 1, versionNonce: 1, x: 0 };
+    const localEl = { ...baseEl, version: 2, versionNonce: 2, x: 50 }; // our offline edit
+    const peerEl = { ...baseEl, version: 3, versionNonce: 3, x: 99 }; // peer's offline edit
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api);
+
+    // First scene establishes the shared base (no cache → pure apply).
+    await act(async () => {
+      ws.message(sceneMessage([baseEl], 1));
+    });
+    // A local edit made while the relay is down.
+    await act(async () => {
+      result.current.onLocalChange(
+        [localEl] as unknown as ExcalidrawElement[],
+        {} as AppState,
+        {},
+      );
+    });
+
+    // Relay dies → reconnect → resends its (peer-edited) snapshot.
+    const ws2 = await reconnect(ws);
+    (api.updateScene as ReturnType<typeof vi.fn>).mockClear();
+    await act(async () => {
+      ws2.message(sceneMessage([peerEl], 5, "conn-2"));
+    });
+
+    // edit-edit conflict → online wins; the merged scene applied + reset stashed.
+    const lastCall = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+    expect(lastCall.elements).toEqual([peerEl]);
+    // online won → the merge helper does NOT rebroadcast (its own
+    // diverges-only guard); the relay's normal lastScene rebroadcast on
+    // reconnect is a separate path.
+    unmount();
+  });
+
+  test("blip: local edit already reached relay → adopted silently, no reset notice", async () => {
+    const baseEl = { id: "el-1", type: "rectangle", version: 1, versionNonce: 1, x: 0 };
+    const localEl = { ...baseEl, version: 2, versionNonce: 2, x: 50 };
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api);
+
+    await act(async () => {
+      ws.message(sceneMessage([baseEl], 1));
+    });
+    // Local edit made while connected…
+    await act(async () => {
+      result.current.onLocalChange(
+        [localEl] as unknown as ExcalidrawElement[],
+        {} as AppState,
+        {},
+      );
+    });
+    // …and the relay echoes it straight back (live) → dirty cleared, base caught up.
+    await act(async () => {
+      ws.message(sceneMessage([localEl], 2, "conn-1"));
+    });
+    expect(result.current.resets).toBeNull();
+
+    // A mere blip: the relay resends the SAME (already-delivered) snapshot.
+    const ws2 = await reconnect(ws);
+    (api.updateScene as ReturnType<typeof vi.fn>).mockClear();
+    await act(async () => {
+      ws2.message(sceneMessage([localEl], 5, "conn-2"));
+    });
+    // no unsynced local edit → silent adopt, no merge, no amber notice.
+    expect(result.current.resets).toBeNull();
+    const lastCall = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+    expect(lastCall.elements).toEqual([localEl]);
+    unmount();
+  });
+
+  test("no local edit during the outage → adopts relay snapshot silently, no merge", async () => {
+    const baseEl = { id: "el-1", type: "rectangle", version: 1, versionNonce: 1, x: 0 };
+    const peerEl = { ...baseEl, version: 2, versionNonce: 2, x: 99 }; // relay advanced
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api);
+
+    await act(async () => {
+      ws.message(sceneMessage([baseEl], 1));
+    });
+    // No local change this time.
+    const ws2 = await reconnect(ws);
+    (api.updateScene as ReturnType<typeof vi.fn>).mockClear();
+    await act(async () => {
+      ws2.message(sceneMessage([peerEl], 5, "conn-2"));
+    });
+    expect(result.current.resets).toBeNull();
+    const lastCall = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+    expect(lastCall.elements).toEqual([peerEl]);
+    unmount();
+  });
+
+  test("local-only create survives the merge and is rebroadcast", async () => {
+    const baseEl = { id: "el-1", type: "rectangle", version: 1, versionNonce: 1, x: 0 };
+    const created = { id: "el-2", type: "line", version: 1, versionNonce: 1, x: 10 };
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api);
+
+    await act(async () => {
+      ws.message(sceneMessage([baseEl], 1));
+    });
+    // A purely local create during the outage (peer changed nothing on the base).
+    await act(async () => {
+      result.current.onLocalChange(
+        [baseEl, created] as unknown as ExcalidrawElement[],
+        {} as AppState,
+        {},
+      );
+    });
+
+    const ws2 = await reconnect(ws);
+    (api.updateScene as ReturnType<typeof vi.fn>).mockClear();
+    await act(async () => {
+      ws2.message(sceneMessage([baseEl], 5, "conn-2"));
+    });
+    // local-only create survives the online wins merge.
+    const lastCall = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
+    expect(lastCall.elements).toEqual([baseEl, created]);
+    // merged ≠ online → the create is rebroadcast to the room.
+    await waitFor(() =>
+      expect(ws2.sent.some((s) => isEnvelope(s, "scene"))).toBe(true),
+    );
+    unmount();
+  });
+});

@@ -69,3 +69,9 @@ accepted — 2026-08-18
   copy: "This room is empty" is now only shown when the relay says so.
 - The seed prompt's staged choices become unreachable in live rooms through the UI;
   the session-layer rule is the backstop that makes this a guarantee rather than a hope.
+- The 061 §3 merge block now lives in one shared `reconcileScene` helper in the
+  session hook, reused by both re-entry (this ADR) and the ADR 0007 mid-session
+  reconnect branch — re-entry passes its `pending.base`/`pending.edited`/
+  `pendingLocal` tuple, mid-session passes `baseSceneRef`/`localSceneRef`/the
+  post-reconnect scene. Both go through the identical online-wins + forced
+  reset + amber notice + rebroadcast-if-divergent path.

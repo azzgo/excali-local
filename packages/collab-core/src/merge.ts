@@ -11,8 +11,11 @@
  *   edits conflicted — the online version was kept").
  * - Single-side changes (create/edit/delete on one side only) merge cleanly
  *   with NO warning.
- * - Applies identically to mid-session recovery and re-entry — this module is
- *   that single code path.
+ * - Re-entry (ADR 0005) and mid-session reconnect (ADR 0007) are the SAME code
+ *   path: both call `reconcileScene` with their own base/ours/theirs. Mid-session
+ *   fires only after `onReconnect` when the local canvas has unsynced edits
+ *   (`localDirtyRef`) AND the snapshot diverges; that one frame bypasses the live
+ *   seq gate once (the relay's seq resets on DO eviction / ghost recovery).
  *
  * Why a client-side merge at all: the tgz `reconcileElements` tie-break is
  * version/nonce-ordered and cannot express "server wins on conflict". We diff
