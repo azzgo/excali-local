@@ -5,8 +5,9 @@
  *
  * Layout: the exclusive one-row SessionChrome above the canvas (053 round 2:
  * the chrome is its OWN row, NOT excalidraw's internal slot; canvas below),
- * a reserved banner strip under it (061 §8 — 046/047 fill the conn-health
- * banners), then the Excalidraw mount (same props as local-editor.tsx).
+ * then the Excalidraw mount (same props as local-editor.tsx). Session-level
+ * notifications (conn-health + config propagation) float over the top-right of
+ * the canvas as a toast stack so the canvas never reflows when they appear.
  *
  * Boot states:
  * - no server configured → notice + links (the room needs a relay to join)
@@ -202,26 +203,22 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
     <div data-testid="collab-room" className="flex h-svh flex-col overflow-hidden bg-background">
       {/* the exclusive one-row session chrome above the canvas (053) */}
       <SessionChrome room={room} session={session} />
-      {/* 046/047 seam: conn-health banner strip renders here (061 §8 — a
-          conditional one-row strip under the chrome, pushes the canvas down).
-          056 Q6 config-change propagation banner shares the strip: a config
-          change under a live session raises it (no auto-reconnect). */}
-      <div data-testid="collab-conn-banner-slot" className="min-h-0">
-        <ConfigPropagationBanner live={session.live} />
-        {/* 047: conn-health edges — re-entry card, degraded hint, fatal banner
-            (061 Q4/Q5/Q7) share the strip with the offline banner + reset
-            notice; 056's propagation banner stays above them (config change
-            under a live session is a different concern). */}
-        <ConnHealthBanners
-          session={session}
-          excalidrawAPI={excalidrawAPI}
-          // ADR 0004: the shared room name (mirror) wins once the relay
-          // states it — the boot label is only the fallback.
-          roomLabel={session.roomName ?? room.label}
-          relay={server.relay}
-        />
-      </div>
+
+      {/* Session-level notification stack — floats over the top-right of the
+       * canvas so alerts never push the canvas down. */}
       <div className="relative flex-1 overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 z-50">
+          <div data-testid="collab-notification-stack" className="pointer-events-auto absolute right-4 top-4 flex w-80 max-w-[calc(100%-2rem)] flex-col gap-2">
+            <ConfigPropagationBanner live={session.live} />
+            <ConnHealthBanners
+              session={session}
+              excalidrawAPI={excalidrawAPI}
+              roomLabel={session.roomName ?? room.label}
+              relay={server.relay}
+            />
+          </div>
+        </div>
+
         <Excalidraw
           autoFocus
           langCode={lang}
@@ -239,6 +236,7 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
             session.onLocalViewportChange(scrollX, scrollY, zoom)
           }
         />
+
         {/* seed prompt — empty room, no cache (053/061 rule C). Minimal
             inline version; TODO(043-replace): swap in 043's SeedPrompt
             (gallery picker + start blank) once that task lands. */}

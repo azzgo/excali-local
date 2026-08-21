@@ -2,6 +2,10 @@
  * Connection-health UI — Wayfinder 061 (task 046): the conn dot (4 states),
  * the offline banners and the amber reset notice.
  *
+ * Banner redesign: conn-health alerts render as a floating toast stack in the
+ * top-right of the canvas area instead of a full-width strip, so the canvas
+ * never reflows when alerts appear/disappear.
+ *
  * 061 §1 — conn-dot vocabulary:
  *   live (green steady, dot only) · connecting (blue pulse, first connect) ·
  *   reconnecting (amber pulse, lost + retrying) · rejected (red steady, fatal
@@ -23,9 +27,9 @@
  *   selection highlight, auto-clear, never touches undo); "Got it" dismisses;
  *   per-recovery state, never modal. Clean resyncs stay silent.
  *
- * 047 seam: the re-entry card, the degraded hint and the fatal banner fill
- * the same banner slot — `ConnHealthBanners` is the composition point
- * (`BannerSlotProps` is the state slice they consume).
+ * 047 seam: the re-entry card, the degraded hint and the fatal banner render
+ * in the same floating toast stack — `ConnHealthBanners` is the composition
+ * point (`BannerSlotProps` is the state slice they consume).
  *
  * 047 — re-entry card (061 Q4): dialing with no welcome for 10s → red card
  * with the 054 "nobody answered" copy family (NEVER the rejected family)
@@ -43,6 +47,7 @@ import { DIAL_TIMEOUT_MS } from "collab-core";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
 import { ROUTES } from "./routes";
 import type {
   CollabResetNotice,
@@ -180,13 +185,23 @@ export interface OfflineBannerProps {
 
 export function OfflineBanner({ peers }: OfflineBannerProps) {
   const [t] = useTranslation();
+  const [dismissed, setDismissed] = useState(false);
   // Q3: "N collaborators were in the room when it dropped" — self excluded.
   const collaborators = Math.max(0, peers.length - 1);
+  if (dismissed) return null;
   return (
     <div
       data-testid="collab-offline-banner"
-      className="mx-3 mt-1.5 flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs dark:border-amber-500/40 dark:bg-amber-500/10"
+      className="relative flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 pr-6 text-xs shadow-sm dark:border-amber-500/40 dark:bg-amber-500/10"
     >
+      <button
+        type="button"
+        aria-label={t("AgentDismiss")}
+        className="absolute right-1 top-1 rounded p-1 text-muted-foreground/70 transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+        onClick={() => setDismissed(true)}
+      >
+        <X className="size-3" />
+      </button>
       <span className="mt-1 size-2 shrink-0 animate-pulse rounded-full bg-amber-500" />
       <div className="min-w-0 grow">
         <div
@@ -264,8 +279,16 @@ export function ResetNotice({ notice, excalidrawAPI }: ResetNoticeProps) {
   return (
     <div
       data-testid="collab-reset-notice"
-      className="mx-3 mt-1.5 flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs dark:border-amber-500/40 dark:bg-amber-500/10"
+      className="relative flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 pr-6 text-xs shadow-sm dark:border-amber-500/40 dark:bg-amber-500/10"
     >
+      <button
+        type="button"
+        aria-label={t("AgentDismiss")}
+        className="absolute right-1 top-1 rounded p-1 text-muted-foreground/70 transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+        onClick={() => setDismissedAt(notice.at)}
+      >
+        <X className="size-3" />
+      </button>
       <span className="mt-1 size-2 shrink-0 animate-pulse rounded-full bg-amber-500" />
       <div className="min-w-0 grow">
         <div
@@ -469,11 +492,21 @@ export function ReentryCard({
 }: ReentryCardProps) {
   const [t, i18n] = useTranslation();
   const lang = i18n?.resolvedLanguage ?? "en";
+  const [closed, setClosed] = useState(false);
+  if (closed) return null;
   return (
     <div
       data-testid="collab-reentry-card"
-      className="mx-3 mt-1.5 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs dark:border-red-500/40 dark:bg-red-500/10"
+      className="relative rounded-md border border-red-300 bg-red-50 px-3 py-2 pr-6 text-xs shadow-sm dark:border-red-500/40 dark:bg-red-500/10"
     >
+      <button
+        type="button"
+        aria-label={t("AgentDismiss")}
+        className="absolute right-1 top-1 rounded p-1 text-muted-foreground/70 transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+        onClick={() => setClosed(true)}
+      >
+        <X className="size-3" />
+      </button>
       <div className="flex items-start gap-2.5">
         <span className="mt-1 size-2 shrink-0 rounded-full bg-red-500" />
         <div className="min-w-0 grow">
@@ -510,7 +543,10 @@ export function ReentryCard({
           data-testid="collab-reentry-retry"
           size="sm"
           className="px-2 text-xs"
-          onClick={onRetry}
+          onClick={() => {
+            setClosed(false);
+            onRetry();
+          }}
         >
           {t("CollabRetry")}
         </Button>
@@ -586,11 +622,21 @@ function useDegradedHint(
 /** 061 Q5: the one-shot amber hint — shown once per session, while live. */
 export function DegradedHint() {
   const [t] = useTranslation();
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
   return (
     <div
       data-testid="collab-degraded-hint"
-      className="mx-3 mt-1.5 flex items-start gap-2.5 rounded-md border border-dashed border-amber-300 bg-amber-50 px-3 py-2 text-xs dark:border-amber-500/40 dark:bg-amber-500/10"
+      className="relative flex items-start gap-2.5 rounded-md border border-dashed border-amber-300 bg-amber-50 px-3 py-2 pr-6 text-xs shadow-sm dark:border-amber-500/40 dark:bg-amber-500/10"
     >
+      <button
+        type="button"
+        aria-label={t("AgentDismiss")}
+        className="absolute right-1 top-1 rounded p-1 text-muted-foreground/70 transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+        onClick={() => setDismissed(true)}
+      >
+        <X className="size-3" />
+      </button>
       <span className="mt-1 size-2 shrink-0 animate-pulse rounded-full bg-amber-500" />
       <div className="min-w-0 grow">
         <div
@@ -638,12 +684,22 @@ export function FatalBanner({
   saving = false,
 }: FatalBannerProps) {
   const [t] = useTranslation();
+  const [dismissed, setDismissed] = useState(false);
   const gcm = error.code === "E2E_AUTH_FAILED";
+  if (dismissed) return null;
   return (
     <div
       data-testid="collab-fatal-banner"
-      className="mx-3 mt-1.5 flex items-start gap-2.5 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-xs dark:border-red-500/40 dark:bg-red-500/10"
+      className="relative flex items-start gap-2.5 rounded-md border border-red-300 bg-red-50 px-3 py-2 pr-6 text-xs shadow-sm dark:border-red-500/40 dark:bg-red-500/10"
     >
+      <button
+        type="button"
+        aria-label={t("AgentDismiss")}
+        className="absolute right-1 top-1 rounded p-1 text-muted-foreground/70 transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+        onClick={() => setDismissed(true)}
+      >
+        <X className="size-3" />
+      </button>
       <span className="mt-1 size-2 shrink-0 rounded-full bg-red-500" />
       <div className="min-w-0 grow">
         <div
@@ -686,10 +742,10 @@ export function FatalBanner({
 
 
 /* ------------------------------------------------------------------ */
-/* banner slot (061 §8)                                                 */
+/* toast stack (061 §8)                                                 */
 /* ------------------------------------------------------------------ */
 
-/** 061 §8: the banner strip under the chrome bar — the composition point.
+/** 061 §8: the floating toast stack composition point.
  * 047 composition rules (never stack wrongly):
  *   fatal banner        — lastError.fatal (red = fatal only, 061 Q6)
  *   re-entry card       — pre-welcome dialing past 10s (061 Q4); while it

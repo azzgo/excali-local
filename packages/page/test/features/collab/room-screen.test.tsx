@@ -156,9 +156,9 @@ describe("RoomScreen — boot states", () => {
     await screen.findByTestId("collab-session-chrome");
     // the room label defaults to the short shareId (no stored room entry)
     expect(screen.getByTestId("collab-room-label").textContent).toBe(SHARE_ID.slice(0, 6));
-    // canvas mounts below the chrome; 046/047 banner strip reserved
+    // canvas mounts below the chrome; notifications float over it
     expect(screen.getByTestId("mock-excalidraw")).toBeTruthy();
-    expect(screen.getByTestId("collab-conn-banner-slot")).toBeTruthy();
+    expect(screen.getByTestId("collab-notification-stack")).toBeTruthy();
     // the session dials the room WS
     await waitFor(() => expect(lastSocket()).toBeDefined());
   });

@@ -23,6 +23,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { X } from "lucide-react";
 import { getBrowser } from "@/lib/utils";
 import { COLLAB_SERVER_CONFIG } from "./storage";
 
@@ -63,13 +64,29 @@ interface ConfigPropagationBannerProps {
 export function ConfigPropagationBanner({ live }: ConfigPropagationBannerProps) {
   const [t] = useTranslation();
   const { changed } = useConfigPropagation(live);
-  if (!changed) return null;
+  const [dismissed, setDismissed] = useState(false);
+
+  // Reset dismissal when the underlying config-change signal goes away and
+  // comes back (so a later change under a live session is still surfaced).
+  useEffect(() => {
+    if (changed) setDismissed(false);
+  }, [changed]);
+
+  if (!changed || dismissed) return null;
   return (
     <div
       data-testid="collab-config-propagation"
-      className="flex items-center gap-3 border-b border-amber-300 bg-amber-50 px-4 py-2 text-xs dark:border-amber-500/40 dark:bg-amber-500/10"
+      className="relative flex items-start gap-2.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 pr-6 text-xs shadow-sm dark:border-amber-500/40 dark:bg-amber-500/10"
     >
-      <span className="shrink-0 text-amber-600 dark:text-amber-400">⚠</span>
+      <button
+        type="button"
+        aria-label={t("AgentDismiss")}
+        className="absolute right-1 top-1 rounded p-1 text-muted-foreground/70 transition-colors hover:bg-black/5 hover:text-foreground dark:hover:bg-white/10"
+        onClick={() => setDismissed(true)}
+      >
+        <X className="size-3" />
+      </button>
+      <span className="mt-1 shrink-0 text-amber-600 dark:text-amber-400">⚠</span>
       <div className="min-w-0 grow">
         <div className="font-semibold text-amber-800 dark:text-amber-300">
           {t("CollabConfigChangeTitle")}
