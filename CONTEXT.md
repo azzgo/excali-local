@@ -86,9 +86,10 @@ the roster, and without any side effect visible to members inside.
 _Avoid_: pre-request, peek, room-info lookup
 
 **Staged seed**:
-The scene picked at the seed prompt (blank or gallery drawing), parked in the session
-cache before entering the room. A never-synced draft: if the room turns out to have
-content, the staged seed is discarded silently — it never merges and never broadcasts.
+The scene staged into the session cache before entering the room — picked at the
+seed prompt (blank or gallery drawing) or carried in by a canvas handoff. A
+never-synced draft: if the room turns out to have content, the staged seed is
+discarded silently — it never merges and never broadcasts.
 _Avoid_: pending scene, initial scene
 
 **Re-entry rule**:
@@ -99,3 +100,11 @@ three-way soft-merge the offline edits against the room's scene, online wins on
 conflicts (losers surface as a reset notice). Room death is never surfaced, so a
 dead-room-reseeded return behaves identically to an alive-room reconnect.
 _Avoid_: re-activation rule (061 §3's wire-level name for the same merge), seed merge
+
+**Canvas handoff**:
+The one-shot, per-tab carry-over of the local editor's current canvas into a freshly
+minted room: staged straight into the session cache as the room's first seed,
+skipping both the seed prompt and the share step. Consumed exactly once; any
+leftover (stale or stranded off the room path) handoff is void. The minted room
+carries an auto-provenance default name, renamed in-room per the ADR 0004 rule.
+_Avoid_: export-to-collab, clipboard scene

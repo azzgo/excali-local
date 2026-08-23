@@ -120,6 +120,14 @@ room invite = excali-collab:v1:room:<b64url(JSON { shareId, tier, roomSecret?, f
 Paste a room invite in the collab editor to join the room; create a room there to
 mint one.
 
+**One-click from the editor.** The Local editor's top-right **Collab ▾** menu
+mints a room from your current canvas: "Create room from this canvas" stages the
+live scene as the room's seed (an empty/dead room adopts it — first seed wins)
+and drops you straight into `#room/<shareId>`. The room is created as a team
+room with the auto label "Untitled room" — rename it from the session bar. The
+second item, "Open collaboration page", lands on the collab home (join / my
+rooms / server config). The Quick editor toolbar is unchanged.
+
 ## Key rotation
 
 Rotation = **redeploy with a new `ORG_PUBKEYS` array + hand out fresh server invites**.
