@@ -14,7 +14,6 @@ import { toast } from "sonner";
 import { saveSession, type CollabScene } from "collab-core";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
-import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -116,14 +115,9 @@ const TopRightToolbar = ({
             excalidrawAPI={excalidrawAPI}
             editorType="local"
           />
-          {/* Region divider between AgentControl and the icon group — shadcn
-              Radix Separator, full button-row height (h-9) so it reads as a
-              separator, not a decorative icon. */}
-          <Separator
-            orientation="vertical"
-            className="h-9"
-            data-testid="toolbar-separator"
-          />
+          {/* No divider line — region separation is whitespace alone: a wider
+              gap (2× the icon-button gap) between AgentControl and the icons. */}
+          <div className="w-4 shrink-0" aria-hidden="true" />
         </>
       )}
       {!isGalleryOpen && (
