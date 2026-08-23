@@ -261,7 +261,15 @@
     "message": "切换团队服务器？"
   },
   "CollabSwitchBodyA": {
-    "message": "将以 $new$ 替换 $old$。"
+    "message": "将以 $new$ 替换 $old$。",
+    "placeholders": {
+      "old": {
+        "content": "$1"
+      },
+      "new": {
+        "content": "$2"
+      }
+    }
   },
   "CollabSwitchBodyB": {
     "message": "房间仍保留在“我的房间”中并显示为灰色 — 不会被删除。切回旧服务器后，旧房间会重新可用。"
@@ -318,13 +326,23 @@
     "message": "显示"
   },
   "CollabConfigInviteInvalid": {
-    "message": "此邀请无效：$reason$"
+    "message": "此邀请无效：$reason$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
   },
   "CollabConfigInviteNotFound": {
     "message": "未在此文本中找到服务器邀请。请粘贴管理员发送的完整邀请。"
   },
   "CollabServerClipboard": {
-    "message": "在 Excali Local → 选项 → 协作 中连接「$org$」："
+    "message": "在 Excali Local → 选项 → 协作 中连接「$org$」：",
+    "placeholders": {
+      "org": {
+        "content": "$1"
+      }
+    }
   },
   "CollabSrvUnreachTitle": {
     "message": "无法连接此服务器"
@@ -364,5 +382,11 @@
   },
   "CollabRelayUrl": {
     "message": "中继地址"
+  },
+  "Collab": {
+    "message": "协作"
+  },
+  "CollabDescription": {
+    "message": "配置团队实时协作中继与你的显示名称。"
   }
 }

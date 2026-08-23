@@ -261,7 +261,15 @@
     "message": "Switch team server?"
   },
   "CollabSwitchBodyA": {
-    "message": "This replaces $old$ with $new$."
+    "message": "This replaces $old$ with $new$.",
+    "placeholders": {
+      "old": {
+        "content": "$1"
+      },
+      "new": {
+        "content": "$2"
+      }
+    }
   },
   "CollabSwitchBodyB": {
     "message": "Your rooms stay in My Rooms, grayed out — nothing is deleted. Rooms from the old server reconnect if you switch back."
@@ -318,13 +326,23 @@
     "message": "Reveal"
   },
   "CollabConfigInviteInvalid": {
-    "message": "This invite is invalid: $reason$"
+    "message": "This invite is invalid: $reason$",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
   },
   "CollabConfigInviteNotFound": {
     "message": "No server invite found in this text. Paste the full invite from your admin."
   },
   "CollabServerClipboard": {
-    "message": "Connect to「$org$」 in Excali Local → Options → Collaboration:"
+    "message": "Connect to「$org$」 in Excali Local → Options → Collaboration:",
+    "placeholders": {
+      "org": {
+        "content": "$1"
+      }
+    }
   },
   "CollabSrvUnreachTitle": {
     "message": "Can't reach this server"
@@ -364,5 +382,11 @@
   },
   "CollabRelayUrl": {
     "message": "Relay address"
+  },
+  "Collab": {
+    "message": "Collaboration"
+  },
+  "CollabDescription": {
+    "message": "Configure your team's realtime-collaboration relay and your display name."
   }
 }

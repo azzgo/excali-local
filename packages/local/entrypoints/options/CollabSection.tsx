@@ -44,6 +44,7 @@ const i18nT: ConfigT = (key, params) => {
 
 const CollabSection = () => (
   <CollabConfigSection
+    embedded
     t={i18nT}
     onToast={({ title, variant }) => {
       if (title === undefined) return;

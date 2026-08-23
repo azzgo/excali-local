@@ -13,7 +13,6 @@ import { IconX } from "@tabler/icons-react";
 
 import AgentControl from "./AgentControl";
 import CollabSection from "./CollabSection";
-import { Spike } from "collab-core/ui";
 const OptionsPage = () => {
   const [fontConfig, setFontConfig] = useState<FontConfig>({
     handwriting: null,
@@ -75,8 +74,7 @@ const OptionsPage = () => {
         <div className="mb-6">
           <AgentControl />
         </div>
-        <Spike />
-        <div className="mb-4">
+        <div className="border-t border-gray-200 pt-6 dark:border-gray-700">
           <header className="mb-4">
             <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">
               {t("Font")}
@@ -105,7 +103,13 @@ const OptionsPage = () => {
             />
           </div>
         </div>
-        <div className="mb-4">
+        <div className="mt-6 border-t border-gray-200 pt-6 dark:border-gray-700">
+          <header className="mb-4">
+            <h2 className="text-xl font-semibold mb-2 text-gray-900 dark:text-white">
+              {t("Collab")}
+            </h2>
+            <p className="text-xs text-gray-500">{t("CollabDescription")}</p>
+          </header>
           <CollabSection />
         </div>
       </div>

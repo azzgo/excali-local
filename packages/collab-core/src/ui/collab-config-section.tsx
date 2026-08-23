@@ -67,6 +67,13 @@ export interface CollabConfigSectionProps {
   onToast?: (msg: ConfigToast) => void;
   /** Optional back-to-landing link (webapp only). */
   onBack?: () => void;
+  /**
+   * Embedded (Options section) mode: drops the full-page shell (min-h-svh
+   * centering / muted backdrop / own <h1> — the host supplies its own
+   * section title) and renders as a plain block flow. Omit for the webapp
+   * full-page `#config` view (zero regression).
+   */
+  embedded?: boolean;
 }
 
 type Stage = "empty" | "review" | "trust" | "switch" | "summary";
@@ -121,6 +128,7 @@ export default function CollabConfigSection({
   t,
   onToast,
   onBack,
+  embedded = false,
 }: CollabConfigSectionProps) {
   const [config, setConfig] = useState<ServerConfig | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -461,18 +469,21 @@ export default function CollabConfigSection({
       <div className="mt-3 rounded-lg border bg-muted/40 p-3 text-xs">
         <div className="flex items-center justify-between gap-2 py-0.5">
           <span className="text-muted-foreground">{t("CollabParsedOrg")}</span>
-          <span className="font-medium">{invite.org}</span>
+          <span className="min-w-0 break-all font-medium">{invite.org}</span>
         </div>
-        <div className="flex items-center justify-between gap-2 py-0.5">
+        {/* relay row is STACKED (label line + URL line) so a long relay URL
+            wraps inside the card instead of spilling out of it — mirrors the
+            summary card's stacked layout; loopback badge rides the URL line end */}
+        <div className="py-0.5">
           <span className="text-muted-foreground">{t("CollabParsedRelay")}</span>
-          <span className="flex items-center gap-2 font-mono break-all">
-            {invite.relay}
+          <div className="mt-0.5 flex items-center gap-2">
+            <span className="min-w-0 flex-1 break-all font-mono">{invite.relay}</span>
             {isLoopbackRelay(invite.relay) && (
               <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
                 {t("CollabLocalRelay")}
               </span>
             )}
-          </span>
+          </div>
         </div>
         {preview !== null && preview.hasKeys && (
           <span className="mt-2 inline-block rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700 dark:border-green-800 dark:bg-green-950 dark:text-green-400">
@@ -486,14 +497,14 @@ export default function CollabConfigSection({
   const unreachableCard = (invite: ParsedServerInvite, onCancel: () => void) => (
     <div className="mt-3 rounded-lg border border-red-300 bg-red-50 p-3 text-xs dark:border-red-500/40 dark:bg-red-500/10">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-mono break-all text-red-700 dark:text-red-400">
+        <span className="min-w-0 break-all font-mono text-red-700 dark:text-red-400">
           {invite.relay}
         </span>
         <span className="shrink-0 rounded-full border border-red-200 bg-red-100 px-2 py-0.5 text-[10px] text-red-700 dark:border-red-800 dark:bg-red-900/40 dark:text-red-400">
           {t("CollabStatusDown")}
         </span>
       </div>
-      <div className="mt-1 text-muted-foreground">{invite.org}</div>
+      <div className="mt-1 min-w-0 break-all text-muted-foreground">{invite.org}</div>
       {/* 054 srv.unreach.t/b — word-identical, locked copy */}
       <p className="mt-2 font-semibold text-red-700 dark:text-red-400">
         {t("CollabSrvUnreachTitle")}
@@ -626,7 +637,7 @@ export default function CollabConfigSection({
         </p>
         {dial.state === "checking" && (
           <div className="mt-3 flex items-center justify-between gap-2 rounded-lg border bg-muted/40 p-3">
-            <span className="font-mono text-sm break-all">{parsed.relay}</span>
+            <span className="min-w-0 font-mono text-sm break-all">{parsed.relay}</span>
             {badge("grey", t("CollabDialing"))}
           </div>
         )}
@@ -894,11 +905,16 @@ export default function CollabConfigSection({
   return (
     <div
       data-testid="collab-config"
-      className="flex min-h-svh flex-col items-center justify-center bg-muted/30 p-6"
+      className={
+        embedded
+          ? ""
+          : "flex min-h-svh flex-col items-center justify-center bg-muted/30 p-6"
+      }
     >
-      <div className="w-full max-w-md">
-        <h1 className="text-lg font-semibold tracking-tight">{t("CollabConfigTitle")}</h1>
-        {/* 056 webapp banner (verbatim): the config lives in THIS browser */}
+      <div className={embedded ? "" : "w-full max-w-md"}>
+        {!embedded && (
+          <h1 className="text-lg font-semibold tracking-tight">{t("CollabConfigTitle")}</h1>
+        )}
         {noteBanner}
 
         {/* 059 d6/d9: display-name row is rendered in ALL stages, unconditionally */}
