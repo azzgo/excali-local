@@ -1,7 +1,8 @@
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import {
-  IconChevronDown,
   IconCircleNumber1,
+  IconDotsVertical,
+  IconSeparatorVertical,
   IconExternalLink,
   IconLayoutGrid,
   IconPresentation,
@@ -20,7 +21,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Separator } from "@/components/ui/separator";
 import { useAtomValue } from "jotai";
 import { galleryIsOpenAtom } from "../../gallery/store/gallery-atoms";
 import { useSlide } from "../hooks/use-slide";
@@ -116,10 +116,12 @@ const TopRightToolbar = ({
             excalidrawAPI={excalidrawAPI}
             editorType="local"
           />
-          <Separator
-            orientation="vertical"
-            className="h-9"
+          {/* Divider glyph (non-interactive icon), not a hairline — reads as
+              a separator, stays visually distinct from the ⋮ More button. */}
+          <IconSeparatorVertical
+            aria-hidden="true"
             data-testid="toolbar-separator"
+            className="size-4 shrink-0 text-muted-foreground/40"
           />
         </>
       )}
@@ -137,16 +139,19 @@ const TopRightToolbar = ({
       {editorType === "local" && (
         <>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                data-testid="collab-menu-trigger"
-                className="gap-1"
-              >
-                {t("Collab")}
-                <IconChevronDown className="size-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
+            {/* Canonical nesting: tooltip outside, trigger inside — Hint swallows
+                unknown props, so it must wrap (not sit under) the trigger for
+                DropdownMenuTrigger asChild's events to reach the Button. */}
+            <Hint label={t("Collab")} align="end" sideOffset={8}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  data-testid="collab-menu-trigger"
+                >
+                  <IconUsersGroup className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+            </Hint>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
                 data-testid="collab-menu-create"
@@ -166,16 +171,16 @@ const TopRightToolbar = ({
             </DropdownMenuContent>
           </DropdownMenu>
           <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                data-testid="more-menu-trigger"
-                className="gap-1"
-              >
-                {t("More")}
-                <IconChevronDown className="size-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
+            <Hint label={t("More")} align="end" sideOffset={8}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  data-testid="more-menu-trigger"
+                >
+                  <IconDotsVertical className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+            </Hint>
             <DropdownMenuContent align="end">
               {!isMobile && (
                 <DropdownMenuItem
