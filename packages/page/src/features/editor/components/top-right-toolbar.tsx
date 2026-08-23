@@ -2,7 +2,6 @@ import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import {
   IconCircleNumber1,
   IconDotsVertical,
-  IconSeparatorVertical,
   IconExternalLink,
   IconLayoutGrid,
   IconPresentation,
@@ -15,6 +14,7 @@ import { toast } from "sonner";
 import { saveSession, type CollabScene } from "collab-core";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
+import { Separator } from "@/components/ui/separator";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -116,12 +116,13 @@ const TopRightToolbar = ({
             excalidrawAPI={excalidrawAPI}
             editorType="local"
           />
-          {/* Divider glyph (non-interactive icon), not a hairline — reads as
-              a separator, stays visually distinct from the ⋮ More button. */}
-          <IconSeparatorVertical
-            aria-hidden="true"
+          {/* Region divider between AgentControl and the icon group — shadcn
+              Radix Separator, full button-row height (h-9) so it reads as a
+              separator, not a decorative icon. */}
+          <Separator
+            orientation="vertical"
+            className="h-9"
             data-testid="toolbar-separator"
-            className="size-4 shrink-0 text-muted-foreground/40"
           />
         </>
       )}
