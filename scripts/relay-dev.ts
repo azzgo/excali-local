@@ -5,21 +5,19 @@
  *      when present (re-seeding must NOT rotate keys — a dev's invite keeps
  *      working across days, 060 §2); otherwise a fresh 32-byte seed + 32-byte
  *      org content key (`ck`, 057 §1) are generated and written.
- *   2. `.env` (gitignored) for `partykit dev`: `ORG_PUBKEYS` (v2, 059 §2) with
- *      the Ed25519 public key derived from the seed, plus the legacy
- *      `ORG_SECRETS` object (052 §2) for compatibility. PartyKit's
- *      findUpSync dotenv auto-loads it; the vars are also passed into the
- *      spawned process explicitly.
+ *   2. `.dev.vars` (gitignored, packages/collab-relay/) for `wrangler dev`:
+ *      `ORG_PUBKEYS` (v2, 059 §2) with the Ed25519 public key derived from
+ *      the seed, plus the legacy `ORG_SECRETS` object (052 §2) for
+ *      compatibility. Wrangler auto-loads `.dev.vars` from the project dir;
+ *      the vars are also passed into the spawned process explicitly.
  *   3. Prints a paste-ready server invite for `http://127.0.0.1:1999`
  *      (loopback carve-out, 060 §1) via collab-core `encodeServerInvite`.
- *   4. Runs `partykit dev` (cwd = packages/collab-relay). If the relay
- *      package is not wired yet (no party.config.ts / partykit.json — task
- *      041 owns it), prints a hint and exits cleanly: keys + invite are the
- *      script's core value and are still produced.
+ *   4. Runs `wrangler dev` (cwd = packages/collab-relay). If the relay is
+ *      not wired yet (no wrangler.jsonc), prints a hint and exits cleanly:
+ *      keys + invite are the script's core value and are still produced.
  *   5. `--https` (optional TLS-parity mode, 060 §1): mkcert certs
- *      `.dev-cert.pem` / `.dev-key.pem` (local CA) and passes partykit's
- *      native `--https --https-key-path --https-cert-path` flags (verified
- *      in partykit 0.0.115 bin).
+ *      `.dev-cert.pem` / `.dev-key.pem` (local CA) and passes wrangler's
+ *      `--local-protocol https --https-key-path --https-cert-path` flags.
  *
  * Run: `pnpm relay:dev` / `pnpm relay:dev:https` (tsx).
  */
@@ -30,14 +28,14 @@ import { fileURLToPath } from "node:url"
 import {
   b64urlToBytes,
   bytesToB64url,
+  deriveEd25519Pubkey,
   encodeServerInvite,
-  seedToPkcs8,
 } from "../packages/collab-core/src/index"
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const RELAY_DIR = path.join(REPO_ROOT, "packages", "collab-relay")
 const KEYS_PATH = path.join(REPO_ROOT, ".dev-keys.json")
-const ENV_PATH = path.join(REPO_ROOT, ".env")
+const DEV_VARS_PATH = path.join(RELAY_DIR, ".dev.vars")
 const DEV_CERT_PATH = path.join(REPO_ROOT, ".dev-cert.pem")
 const DEV_KEY_PATH = path.join(REPO_ROOT, ".dev-key.pem")
 
@@ -45,15 +43,8 @@ const DEV_KEY_PATH = path.join(REPO_ROOT, ".dev-key.pem")
 const ORG = "local"
 const RELAY_URL = "http://127.0.0.1:1999"
 
-/** Config files that mean the relay is wired (041 plans party.config.ts; partykit 0.0.115 reads partykit.json*). */
-const CONFIG_FILES = [
-  "party.config.ts",
-  "party.config.js",
-  "party.config.mjs",
-  "partykit.json",
-  "partykit.json5",
-  "partykit.jsonc",
-]
+/** Config files that mean the relay is wired (wrangler config for partyserver). */
+const CONFIG_FILES = ["wrangler.jsonc", "wrangler.toml"]
 
 interface DevKeys {
   /** 43-char b64url Ed25519 seed (32 bytes) — the idempotency anchor (060 §2). */
@@ -108,40 +99,12 @@ function loadOrCreateKeys(): DevKeys {
   return keys
 }
 
-/**
- * Derive the 32-byte Ed25519 public key from the seed (057 §1): PKCS#8 wrap
- * via collab-core `seedToPkcs8`, WebCrypto import, JWK export, take the raw
- * public key from the RFC 8037 OKP `x` field. (Node's WebCrypto rejects
- * `exportKey("spki")` on a private key — spki is public-key-only per spec —
- * so the raw pk rides the JWK `x` field instead.) The import is extractable
- * here (keygen-only; the client runtime uses `extractable:false`, 057 §1).
- */
-async function derivePubkey(seedB64url: string): Promise<string> {
-  const pkcs8 = seedToPkcs8(b64urlToBytes(seedB64url))
-  const privKey = await crypto.subtle.importKey("pkcs8", pkcs8, { name: "Ed25519" }, true, ["sign"])
-  const jwk = (await crypto.subtle.exportKey("jwk", privKey)) as { x: string; d: string }
-  const rawPk = b64urlToBytes(jwk.x)
-  if (rawPk.length !== 32) {
-    throw new Error(`relay-dev: unexpected raw pk length ${rawPk.length} (expected 32)`)
-  }
-  const pk = bytesToB64url(rawPk)
-
-  // Self-check the derived pk (057 §1 format): sign with the seed, verify with the raw pk.
-  const pubKey = await crypto.subtle.importKey("raw", rawPk, { name: "Ed25519" }, false, ["verify"])
-  const msg = new TextEncoder().encode("excali-local relay-dev pk self-check")
-  const sig = new Uint8Array(await crypto.subtle.sign("Ed25519", privKey, msg))
-  if (!(await crypto.subtle.verify("Ed25519", pubKey, sig, msg))) {
-    throw new Error("relay-dev: derived pk failed sign/verify self-check")
-  }
-  return pk
-}
-
-/** Write `.env` (gitignored): ORG_PUBKEYS (059 §2 v2) + legacy ORG_SECRETS (052 §2 object shape). */
-function writeEnv(pk: string, seedB64url: string): void {
+/** Write `.dev.vars` (gitignored) for wrangler dev: ORG_PUBKEYS (059 §2 v2) + legacy ORG_SECRETS (052 §2). */
+function writeDevVars(pk: string, seedB64url: string): void {
   const pubkeys = JSON.stringify([{ org: ORG, pubkeys: [pk] }])
   const secrets = JSON.stringify({ [ORG]: seedB64url })
-  writeFileSync(ENV_PATH, `ORG_PUBKEYS=${pubkeys}\nORG_SECRETS=${secrets}\n`)
-  console.log(`relay-dev: wrote ${ENV_PATH} (ORG_PUBKEYS + legacy ORG_SECRETS)`)
+  writeFileSync(DEV_VARS_PATH, `ORG_PUBKEYS=${pubkeys}\nORG_SECRETS=${secrets}\n`)
+  console.log(`relay-dev: wrote ${DEV_VARS_PATH} (ORG_PUBKEYS + legacy ORG_SECRETS)`)
 }
 
 /** Print the paste-ready server invite (049 §4 / 057 §2 encoding, 060 §1 loopback rule). */
@@ -165,11 +128,9 @@ function ensureHttpsCerts(): void {
     return
   }
   console.log("relay-dev: generating mkcert certs for localhost + 127.0.0.1 …")
-  const res = spawnSync(
-    "mkcert",
-    ["-cert-file", DEV_CERT_PATH, "-key-file", DEV_KEY_PATH, "localhost", "127.0.0.1"],
-    { stdio: "inherit" },
-  )
+  const res = spawnSync("mkcert", ["-cert-file", DEV_CERT_PATH, "-key-file", DEV_KEY_PATH, "localhost", "127.0.0.1"], {
+    stdio: "inherit",
+  })
   if (res.error) {
     console.error(`relay-dev: mkcert failed to start (${res.error.message}) — is mkcert installed? (brew install mkcert)`)
     process.exit(1)
@@ -180,32 +141,32 @@ function ensureHttpsCerts(): void {
   }
 }
 
-/** Parse the `.env` we just wrote (trivial key=value, no quotes) for explicit env passing. */
-function readEnvVars(): Record<string, string | undefined> {
+/** Parse the `.dev.vars` we just wrote (trivial key=value, no quotes) for explicit env passing. */
+function readDevVars(): Record<string, string | undefined> {
   const vars: Record<string, string | undefined> = {}
-  for (const line of readFileSync(ENV_PATH, "utf8").split("\n")) {
+  for (const line of readFileSync(DEV_VARS_PATH, "utf8").split("\n")) {
     const eq = line.indexOf("=")
     if (eq > 0) vars[line.slice(0, eq)] = line.slice(eq + 1)
   }
   return vars
 }
 
-function runPartykitDev(https: boolean): void {
-  const args = ["--filter", "./packages/collab-relay", "exec", "partykit", "dev"]
+function runWranglerDev(https: boolean): void {
+  const args = ["--filter", "./packages/collab-relay", "exec", "wrangler", "dev", "--port", "1999"]
   if (https) {
-    args.push("--https", "--https-key-path", DEV_KEY_PATH, "--https-cert-path", DEV_CERT_PATH)
+    args.push("--local-protocol", "https", "--https-key-path", DEV_KEY_PATH, "--https-cert-path", DEV_CERT_PATH)
   }
   const child = spawn("pnpm", args, {
     cwd: REPO_ROOT,
     stdio: "inherit",
-    env: { ...process.env, ...readEnvVars() },
+    env: { ...process.env, ...readDevVars() },
   })
   child.on("exit", (code, signal) => {
-    if (signal) console.log(`relay-dev: partykit dev terminated by ${signal}`)
+    if (signal) console.log(`relay-dev: wrangler dev terminated by ${signal}`)
     process.exit(code ?? 0)
   })
   child.on("error", (err) => {
-    console.error(`relay-dev: failed to spawn partykit dev: ${err.message}`)
+    console.error(`relay-dev: failed to spawn wrangler dev: ${err.message}`)
     process.exit(1)
   })
 }
@@ -214,22 +175,19 @@ async function main(): Promise<void> {
   const https = process.argv.includes("--https")
 
   const keys = loadOrCreateKeys()
-  const pk = await derivePubkey(keys.seed)
-  writeEnv(pk, keys.seed)
+  const pk = await deriveEd25519Pubkey(keys.seed)
+  writeDevVars(pk, keys.seed)
   printInvite(keys)
 
   if (!relayIsWired()) {
-    console.log(
-      "relay-dev: packages/collab-relay is not wired yet — no party.config.ts / partykit.json",
-    )
-    console.log("relay-dev: (that file lands with task 041). Keys + invite are ready;")
-    console.log("relay-dev: run `pnpm relay:dev` again once the relay is wired.")
+    console.log("relay-dev: packages/collab-relay is not wired yet — no wrangler.jsonc")
+    console.log("relay-dev: keys + invite are ready; run `pnpm relay:dev` again once the relay is wired.")
     return
   }
 
   if (https) ensureHttpsCerts()
-  console.log(https ? "relay-dev: starting `partykit dev --https` …" : "relay-dev: starting `partykit dev` …")
-  runPartykitDev(https)
+  console.log(https ? "relay-dev: starting `wrangler dev --https` …" : "relay-dev: starting `wrangler dev` …")
+  runWranglerDev(https)
 }
 
 main().catch((err) => {

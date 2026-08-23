@@ -14,12 +14,14 @@
   },
   "dependencies": {
     "collab-core": "workspace:*",
-    "partykit": "^0.0.115"
+    "partyserver": "^0.5.10"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260820.1",
     "@types/node": "^26.1.2",
     "fake-indexeddb": "^6",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "wrangler": "^4.125.0"
   }
 }

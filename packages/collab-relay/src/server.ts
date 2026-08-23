@@ -2,7 +2,7 @@
  * collab-relay — WS upgrade + signed-hello admission (goal 023 task 037).
  *
  * Authority: 049 §1/§2 (hello/welcome/error semantics, fatal-close posture),
- * 052 §3 (connection lifecycle: PartyKit auto-accepts the socket — no
+ * 052 §3 (connection lifecycle: the DO auto-accepts the socket — no
  * reject-before-accept hook sees frame payloads — so admission is post-
  * accept close-on-fail; 2s hello grace timer), 057 §3/§5 (canonical hello
  * string; ADMISSION_INVALID reason text), 059 §2/§3 (v2 env ORG_PUBKEYS,
@@ -16,13 +16,15 @@
  * message routing — lands in task 038; post-welcome frames are dropped
  * here.
  *
- * PartyKit module (object-literal) server form: the runtime dispatches
- * `onConnect(conn, room, ctx)` / `onMessage(msg, conn, room)` /
- * `onRequest(req, room)` — `room` gives access to `room.env` (the relay
- * env). Task 041 wires this into party.config.ts (route `/room/:shareId`).
+ * Runtime seam: this module is runtime-agnostic (no partyserver import) —
+ * it hands back a `ServerHandlers` object the partyserver host (index.ts)
+ * binds. The host provides `conn` (partyserver Connection — `uri` carries
+ * the upgrade request URL, surviving hibernation) and `room` (RoomLike:
+ * id + env + storage from the DO instance).
  */
 
-import type { Connection, PartyKitServer, Room } from "partykit/server"
+import type { Connection, WSMessage } from "partyserver"
+import type { RoomStorage } from "./room"
 import { PROTOCOL_VERSION, b64urlToBytes } from "collab-core"
 import type { ErrorCode, HelloPayload, RelayMessage } from "collab-core"
 import type { FrameGuardResult } from "./guards"
@@ -357,12 +359,11 @@ export function parseFirstMessage(raw: string): FirstMessageParse {
 
 /**
  * Extract the `<shareId>` from a `/room/<shareId>` WS URL (049 §2 route)
- * or from partykit 0.0.115's own room routes — `/party/<shareId>` (the
- * main worker) and `/parties/main/<shareId>` (task 041 finding, verified
- * against the dev runtime: the facade's `getRoomAndPartyFromPathname`
- * only maps `/party/` and `/parties/` paths to a room DO, so the wire
- * contract's `/room/` path is NOT servable by this runtime; kept for
- * gateway compatibility and the unit tests).
+ * or from the partyserver router's own paths — `/party/<shareId>` (the
+ * wire contract's route; index.ts hand-routes it because partyserver's
+ * routePartykitRequest expects a two-segment `/party/:server/:name`) and
+ * `/parties/main/<shareId>` (legacy partykit shape, kept for gateway
+ * compatibility and the unit tests).
  */
 export function deriveShareId(uri: string): string | null {
   try {
@@ -382,8 +383,15 @@ export function deriveShareId(uri: string): string | null {
   }
 }
 
-/** Read the relay env off a PartyKit room (values are JSON strings; absent → undefined). */
-function relayEnv(room: Room): RelayEnv {
+/** The room surface the admission/hooks layer needs — runtime-agnostic, implemented by the partyserver host (index.ts). */
+export interface RoomLike {
+  id: string
+  env: RelayEnv
+  storage: RoomStorage
+}
+
+/** Read the relay env off a room (values are JSON strings; absent → undefined). */
+function relayEnv(room: RoomLike): RelayEnv {
   const env = room.env
   return {
     ORG_PUBKEYS: typeof env.ORG_PUBKEYS === "string" ? env.ORG_PUBKEYS : undefined,
@@ -417,35 +425,42 @@ export interface RelayServerHooks {
    * Admission success — REPLACES the stub welcome. The room DO joins here
    * (RoomState.join sends the real welcome with snapshot + peers).
    */
-  onAdmitted?(conn: Connection, room: Room, hello: HelloPayload): void | Promise<void>
+  onAdmitted?(conn: Connection, room: RoomLike, hello: HelloPayload): void | Promise<void>
   /** Post-welcome frame routing — the room DO's message path (038/041). */
-  onMessage?(frame: string, conn: Connection, room: Room): void | Promise<void>
+  onMessage?(frame: string, conn: Connection, room: RoomLike): void | Promise<void>
   /**
    * Room probe (ADR 0004): a `room-probe` FIRST message — the shareId-keyed
    * pre-join query. No admission, no roster side effect: the room DO answers
    * from its storage and the connection is closed. When the hook is absent,
    * the server answers with the empty-room facts so the contract stays total.
    */
-  onProbe?(conn: Connection, room: Room): void | Promise<void>
+  onProbe?(conn: Connection, room: RoomLike): void | Promise<void>
   /** Connection teardown — the room DO's leave path (038/041). */
   onClose?(conn: Connection): void
 }
 
+/** The host-bound server surface — what the partyserver host (index.ts) binds. */
+export interface ServerHandlers {
+  onConnect(conn: Connection, room: RoomLike, ctx: unknown): void
+  onMessage(raw: WSMessage, conn: Connection, room: RoomLike): Promise<void>
+  onClose(conn: Connection): void
+  onRequest(): Response
+}
+
 /**
- * Build the relay PartyKit server (module/object-literal form — callbacks
- * receive the room, giving access to room.env). A fresh instance per call
- * keeps per-connection pending state isolated (tests create their own).
+ * Build the relay connection handlers (runtime-agnostic — the partyserver
+ * host binds them). A fresh instance per DO keeps per-connection pending
+ * state isolated (tests create their own).
  *
- * Connection lifecycle (052 §3 / 059 §3): PartyKit auto-accepts the
- * socket; onConnect arms a 2s grace timer for the first message, which
- * MUST be hello. Admission failures send `error { fatal: true }` and then
- * close (1003 for PROTOCOL_VERSION, 1008 for ADMISSION_INVALID /
+ * Connection lifecycle (052 §3 / 059 §3): the DO auto-accepts the socket;
+ * onConnect arms a 2s grace timer for the first message, which MUST be
+ * hello. Admission failures send `error { fatal: true }` and then close
+ * (1003 for PROTOCOL_VERSION, 1008 for ADMISSION_INVALID /
  * ROOM_CLAIM_MISMATCH). Success emits `welcome` with
- * `snapshotAvailable: false` and `peers: []` — or, when task 041's
- * hooks are wired, hands off to the room DO via onAdmitted/onMessage/
- * onClose.
+ * `snapshotAvailable: false` and `peers: []` — or, when the hooks are
+ * wired, hands off to the room DO via onAdmitted/onMessage/onClose.
  */
-export function createRelayServer(hooks: RelayServerHooks = {}): PartyKitServer {
+export function createRelayServer(hooks: RelayServerHooks = {}): ServerHandlers {
   const pending = new Map<string, PendingConnection>()
 
   const refuse = (conn: Connection, code: ErrorCode, reason: string, fatal = true): void => {
@@ -460,7 +475,7 @@ export function createRelayServer(hooks: RelayServerHooks = {}): PartyKitServer 
       // RELAY_LOG_DEBUG="1" surfaces diagnostic debug logs (ghost-connection).
       const env = relayEnv(room)
       configureRelayLog({ debug: env.RELAY_LOG_DEBUG === "1" })
-      const shareId = deriveShareId(conn.uri)
+      const shareId = deriveShareId(conn.uri ?? "")
       if (shareId === null) {
         refuse(conn, "ADMISSION_INVALID", "connection URL does not carry a /room/<shareId> path")
         return
@@ -595,13 +610,9 @@ export function createRelayServer(hooks: RelayServerHooks = {}): PartyKitServer 
     },
 
     onRequest() {
-      // The room endpoint is WS-only: any plain HTTP request is a 404
-      // (partykit routes /room/<shareId> here; other paths never reach the
-      // party — 049 §2 route).
+      // The room endpoint is WS-only: any plain HTTP request reaching the DO
+      // is a 404 (049 §2 route).
       return new Response("not found", { status: 404 })
     },
   }
 }
-
-/** The relay server singleton — `src/index.ts` default-export for task 041's party.config.ts. */
-export const relayServer: PartyKitServer = createRelayServer()

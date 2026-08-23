@@ -149,3 +149,24 @@ cap. File/image sync (fileId references + on-demand chunked fetch + `addFiles`) 
 Plus the review amendment: **relay stores no plaintext** (per-org E2E + signature
 verification; see Content privacy above). Hostless confirmed; host trigger stays deferred
 to real host powers (kick, rename, transfer).
+
+## Implementation note (shipping runtime, post-acceptance)
+
+The decision record above says "PartyKit reference implementation". Shipped reality after
+Cloudflare's acquisition of PartyKit:
+
+- **Runtime: legacy `partykit` 0.0.x → `partyserver` 0.5.x** (the same team/design, as a
+  plain library over Durable Objects). `packages/collab-relay` runs on workerd via
+  `wrangler dev` (local) / `wrangler deploy` (your own Cloudflare account — no PartyKit
+  cloud, no login).
+- **Wire contract unchanged.** The client still dials the single-segment
+  `ws(s)://relay/party/<shareId>` route; `src/index.ts` hand-routes it via
+  `idFromName(shareId)` because `routePartykitRequest` expects a two-segment shape.
+  Admission/room/files/guards logic is runtime-agnostic (unchanged).
+- **Dev loop** (`pnpm relay:dev`): seeds `.dev-keys.json`, writes
+  `packages/collab-relay/.dev.vars`, spawns `wrangler dev` on 127.0.0.1:1999.
+- **Keygen** (`pnpm relay:keygen --org … --relay …`): the production org keypair +
+  server-invite generator (the doc'd `org-keygen` tool, now real).
+- **Non-Cloudflare self-hosting** is not provided by workerd itself, but DO runtimes
+  like [celld](https://github.com/denoland/celld) execute wrangler bundles (Workers +
+  DO, SQLite cells) on your own machines — a viable path without a WS-server rewrite.

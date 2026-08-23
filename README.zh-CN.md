@@ -12,7 +12,7 @@ Excali Local 是一个浏览器扩展，让 **Excalidraw 完全离线可用**：
 
 ## v1.8.0 新特性
 
-- **实时协作** — 无宿主、端到端加密的房间，跑在你自行部署的中继之上（约 150 行的 PartyKit 参考实现；没有 Excali Local 后端——中继只转发密文）。团队房间对组织端到端加密，私有房间按房间端到端加密；包含文件同步。→ [协作指南](docs/COLLAB.zh-CN.md) · [ADR 0003](docs/adr/0003-byo-relay-realtime-collab.md)
+- **实时协作** — 无宿主、端到端加密的房间，跑在你自行部署的中继之上（约 150 行的 partyserver 参考实现，Cloudflare Workers；没有 Excali Local 后端——中继只转发密文）。团队房间对组织端到端加密，私有房间按房间端到端加密；包含文件同步。→ [协作指南](docs/COLLAB.zh-CN.md) · [ADR 0003](docs/adr/0003-byo-relay-realtime-collab.md)
 
 ## v1.7.0 新特性
 

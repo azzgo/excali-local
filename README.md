@@ -12,7 +12,7 @@ Excali Local is a browser extension that brings **Excalidraw fully offline**: sc
 
 ## New in v1.8.0
 
-- **Realtime collaboration** — hostless, end-to-end-encrypted rooms over a relay you deploy yourself (a ~150-line PartyKit reference; no Excali Local backend — the relay forwards ciphertext only). Team rooms are E2E to your org, private rooms E2E per room; file sync included. → [Collaboration Guide](docs/COLLAB.md) · [ADR 0003](docs/adr/0003-byo-relay-realtime-collab.md)
+- **Realtime collaboration** — hostless, end-to-end-encrypted rooms over a relay you deploy yourself (a ~150-line partyserver reference on Cloudflare Workers; no Excali Local backend — the relay forwards ciphertext only). Team rooms are E2E to your org, private rooms E2E per room; file sync included. → [Collaboration Guide](docs/COLLAB.md) · [ADR 0003](docs/adr/0003-byo-relay-realtime-collab.md)
 
 ## New in v1.7.0
 

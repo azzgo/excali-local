@@ -35,3 +35,7 @@ packages/bridge/bin/
 .dev-cert.pem
 .dev-key.pem
 .partykit/
+
+# collab-relay dev loop — partyserver/wrangler local state + dev vars
+.wrangler/
+.dev.vars

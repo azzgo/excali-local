@@ -1,185 +1,207 @@
 /**
- * collab-relay PartyKit entry (task 037) + room-DO composition (task 041).
+ * collab-relay partyserver entry (task 037/041) — room-DO composition.
  *
- * The default export is the PartyKit `Server`-shaped object (module /
- * object-literal form — `PartyKitServer`): task 041 wires it into
- * partykit.json with the `/party/<shareId>` route (see deriveShareId in
- * server.ts for the path finding — partykit 0.0.115 only maps `/party/`
- * and `/parties/` paths to a room DO). PartyKit's HTTP entry point for
- * this shape is `onRequest` (there is no `fetch` method on the
- * object-literal server; the WS upgrade itself is handled by the platform
- * and surfaces as `onConnect`).
+ * Runtime: partyserver 0.5.x on workerd (Cloudflare Workers Durable Objects).
+ * The default export is a plain `{ fetch }` handler that hand-routes
+ * `/party/<shareId>` → one DO per shareId (`idFromName`), preserving the
+ * client's wire-contract path exactly (collab-core `buildRoomUrl` dials
+ * `party/<shareId>` — a ONE-segment route; partyserver's own
+ * `routePartykitRequest` expects a two-segment `/party/:server/:name`, so it
+ * is NOT used). Non-`/party/` paths 404 at the fetch layer; plain HTTP that
+ * reaches the DO 404s via the overridden `onRequest`.
  *
- * Task 041 composition: createCollabServer() composes
- *   - server.ts admission (signed-hello gate, grace timer, fatal closes),
- *   - room.ts RoomState (roster, welcome/peer deltas, first-seed-wins
- *     snapshot in room.storage, scene relay, chunk reassembly),
- *   - files.ts FileStore (content-addressed put/get, 20MB cap),
- *   - guards.ts (per-message size gate + per-conn rate flood guard).
- * The composition lives in the server hooks (RelayServerHooks); every
- * helper stays re-exported for tests.
+ * DO-instance model: each room DO is one `CollabRoomServer` instance, so the
+ * composed state (conns, memberKeys, rate, files, state) is per-instance —
+ * the legacy partykit module-level `WeakMap<Room, RoomHost>` registry is
+ * gone. Hibernation (`static options = { hibernate: true }`) mirrors the
+ * documented production semantics: in-memory fields are rebuilt on wake
+ * (`ensureComposed`), storage and WebSockets survive; sockets whose roster
+ * was lost hit the ghost-connection recovery (close → client redials →
+ * re-hello → re-join).
  *
- * Room DO model: each `/party/<shareId>` room is one Durable Object.
- * RoomState rehydrates the snapshot from room.storage on join, so DO
- * hibernation wakes (052 §4) rebuild state from storage.
- *
- * DO-isolation note (verified live on partykit 0.0.115): workerd packs
- * every room DO of a project into the SAME isolate, with ONE module
- * instance — so a module-scoped `Map<shareId, RoomHost>` is SHARED across
- * DO instances. A recreated/restarted DO delivers a NEW `Room` object, and
- * continuing to use a cached host (holding the OLD room's `storage` and
- * `Connection` objects) from the new DO throws workerd's "Cannot perform
- * I/O on behalf of a different Durable Object" and silently fails storage
- * reads. The host registry is therefore keyed by the `Room` OBJECT
- * (WeakMap) — one host per DO instance — and connections are mapped to
- * their host the same way. `room`/`conn` objects are stable within their
- * DO instance, so each room gets exactly one host and every I/O (storage,
- * send, broadcast) stays on the DO that owns it.
+ * Wire/admission/room logic (server.ts / room.ts / files.ts / guards.ts /
+ * verify.ts) is runtime-agnostic and unchanged.
  */
-import type { Connection, PartyKitServer, Room } from "partykit/server"
+import { Server } from "partyserver"
+import type { Connection, ConnectionContext, WSMessage } from "partyserver"
 import type { HelloPayload } from "collab-core"
 import { createFileStore } from "./files"
 import type { FileStore } from "./files"
 import { RateGuard, RATE_REJECT_REASON, assertFrameSize } from "./guards"
 import { RoomState } from "./room"
 import type { RoomHooks, RoomStorage } from "./room"
-import { createRelayServer } from "./server"
+import { createRelayServer, deriveShareId } from "./server"
+import type { RelayEnv, ServerHandlers } from "./server"
 import { createRelayLog } from "./relay-log"
 import type { MemberKey } from "./verify"
 
 const hostLog = createRelayLog("host")
 
-/** One room DO's composed state — built lazily on the first admitted connection. */
-interface RoomHost {
-  roomId: string
+/** Relay env + the DO binding the router needs (structural type — no workers-types dependency). */
+export interface RelayEnvExt extends RelayEnv {
+  RelayRoom: {
+    idFromName(name: string): unknown
+    get(id: unknown): { fetch(request: Request): Promise<Response> }
+  }
+}
+
+/** Composed per-room state + the admission handlers, built lazily per DO instance. */
+interface Composed {
+  handlers: ServerHandlers
   state: RoomState
   files: FileStore
-  /** live connections (connId → PartyKit Connection) — the send/broadcast targets */
-  conns: Map<string, Connection>
-  /** connId → admitted member key (058 §3.2 store-verify identity, from hello.key) */
-  memberKeys: Map<string, MemberKey>
-  /** task 041 flood guard — one per room, buckets per conn */
-  rate: RateGuard
 }
 
 /**
- * Build the composed relay server. A fresh instance per call keeps the
- * host registry isolated (tests create their own).
- *
- * See the header note on DO isolation: hosts are keyed by the `Room`
- * OBJECT (WeakMap), so a recreated DO gets a fresh host backed by its own
- * storage/connections and never performs I/O on another DO's objects.
+ * One room DO: admission (server.ts) composed with the room state machine
+ * (room.ts) + file store (files.ts) + guards. Instance fields are per-room —
+ * no module-scoped registry needed.
  */
-export function createCollabServer(): PartyKitServer {
-  const hosts = new WeakMap<Room, RoomHost>()
-  /** Connection → its room host — close-time leave + guard routing. */
-  const connHost = new WeakMap<Connection, RoomHost>()
+export class CollabRoomServer extends Server<RelayEnvExt> {
+  // Hibernation mirrors the documented production semantics: in-memory fields
+  // are discarded on ~10s idle, storage + WebSockets survive (new_sqlite_classes
+  // DOs); on wake the fresh instance rebuilds state via ensureComposed and any
+  // socket whose roster was lost hits the ghost-connection recovery.
+  static options = { hibernate: true }
 
-  const getHost = (room: Room): RoomHost => {
-    let host = hosts.get(room)
-    if (host === undefined) {
-      const shareId = room.id
-      host = {} as RoomHost
-      const hooks: RoomHooks = {
-        send: (connId, frame) => host!.conns.get(connId)?.send(frame),
-        broadcast: (frame, exceptConnId) => {
-          for (const [connId, conn] of host!.conns) {
-            if (connId !== exceptConnId) conn.send(frame)
-          }
-        },
-      }
-      const storage = room.storage as unknown as RoomStorage
-      host.roomId = shareId
-      host.conns = new Map()
-      host.memberKeys = new Map()
-      host.rate = new RateGuard()
-      host.files = createFileStore({ roomId: shareId, storage, hooks })
-      host.state = new RoomState({ roomId: shareId, hooks, storage, fileStore: host.files, memberKeys: host.memberKeys })
-      hosts.set(room, host)
-    }
-    return host
+
+  private composed: Composed | undefined
+
+  /** Live connection targets (connId → partyserver Connection) — the send/broadcast hooks. */
+  private conns = new Map<string, Connection>()
+
+  /** connId → admitted member key (058 §3.2 store-verify identity, from hello.key). */
+  private memberKeys = new Map<string, MemberKey>()
+
+  /** Flood guard — one per room, buckets per conn. */
+  private rate = new RateGuard()
+
+  /** The RoomLike surface the handlers bind (id from the DO name, env + storage from the DO).
+   * partyserver exposes `.env` / `.ctx` at runtime; the typed surface is opaque here,
+   * so access them through a structural cast. */
+  private doCtx(): { storage: unknown } {
+    return (this as unknown as { ctx: { storage: unknown } }).ctx
   }
 
-  return createRelayServer({
-    /** 041 guards: size gate on every frame; rate flood guard post-admission. */
-    frameGuard(conn, frame) {
-      const size = assertFrameSize(frame)
-      if (!size.ok) return size
-      const host = connHost.get(conn)
-      if (host !== undefined && !host.rate.allow(conn.id)) {
-        return { ok: false, code: "CHUNK_INVALID", reason: RATE_REJECT_REASON, fatal: false }
-      }
-      return { ok: true }
-    },
+  private roomLike() {
+    const self = this as unknown as { env: RelayEnvExt }
+    return {
+      id: this.name,
+      env: self.env,
+      storage: this.doCtx().storage as unknown as RoomStorage,
+    }
+  }
 
-    /** Admission success → room DO join (welcome + snapshot + peer{join}). */
-    async onAdmitted(conn, room, hello) {
-      const host = getHost(room)
-      host.conns.set(conn.id, conn)
-      connHost.set(conn, host)
-      hostLog.debug("admitted conn", { connId: conn.id, roomId: room.id })
-      await host.state.join(conn.id, hello)
-    },
-    /** Post-welcome frames → room DO routing (scene/seed/pointer/chunk/files). */
-    async onMessage(frame, conn) {
-      const host = connHost.get(conn)
-      if (host === undefined) {
-        // GHOST-CONNECTION RECOVERY: a post-welcome frame from a conn that has
-        // no host entry means the WS survived a DO restart but this DO's
-        // connHost/conns/roster were rebuilt empty — the transport (ping/pong)
-        // is alive while the data plane is silently dropped at the host
-        // boundary. Instead of silently dropping (which desyncs the peer
-        // forever), close the ghost connection so the client redials and
-        // re-hellos, re-establishing roster membership. Non-1008 close ⇒ the
-        // client's onClose treats it as non-fatal and schedules a reconnect.
-        hostLog.warn("closing ghost connection (no host after DO restart)", {
-          connId: conn.id,
-          connUri: conn.uri,
-        })
-        try {
-          conn.close(1000, "session lost — resync please")
-        } catch {
-          /* already closed — nothing to do */
+  /** Build the composed state exactly once per DO instance (idempotent across hibernation wakes). */
+  private ensureComposed(): Composed {
+    if (this.composed !== undefined) return this.composed
+    const shareId = this.name
+    const hooks: RoomHooks = {
+      send: (connId, frame) => this.conns.get(connId)?.send(frame),
+      broadcast: (frame, exceptConnId) => {
+        for (const [connId, conn] of this.conns) {
+          if (connId !== exceptConnId) conn.send(frame)
         }
-        return
-      }
-      hostLog.debug("routing frame to room", { connId: conn.id, roomId: host.roomId })
-      await host.state.message(conn.id, frame)
-    },
-    /**
-     * ADR 0004 room probe: answer from the room DO's own state and close — no
-     * admission, no roster entry, no member-visible side effect. `getHost` is
-     * deliberately used WITHOUT connHost/conns registration, so the probe
-     * connection never appears in the room (and its close is a no-op).
-     */
-    async onProbe(conn, room) {
-      const host = getHost(room)
-      const facts = await host.state.probe()
-      conn.send(JSON.stringify({ v: 1, t: "room-probe", p: facts }))
-    },
+      },
+    }
+    const storage = this.doCtx().storage as unknown as RoomStorage
+    const files = createFileStore({ roomId: shareId, storage, hooks })
+    const state = new RoomState({
+      roomId: shareId,
+      hooks,
+      storage,
+      fileStore: files,
+      memberKeys: this.memberKeys,
+    })
+    const composed: Composed = {
+      handlers: createRelayServer({
+        /** Guards: size gate on every frame; rate flood guard post-admission. */
+        frameGuard: (conn, frame) => {
+          const size = assertFrameSize(frame)
+          if (!size.ok) return size
+          if (!this.rate.allow(conn.id)) {
+            return { ok: false, code: "CHUNK_INVALID", reason: RATE_REJECT_REASON, fatal: false }
+          }
+          return { ok: true }
+        },
+        /** Admission success → room DO join (welcome + snapshot + peer{join}). */
+        onAdmitted: async (conn, room, hello) => {
+          this.conns.set(conn.id, conn)
+          hostLog.debug("admitted conn", { connId: conn.id, roomId: room.id })
+          await state.join(conn.id, hello)
+        },
+        /** Post-welcome frames → room DO routing (scene/seed/pointer/chunk/files). */
+        onMessage: async (frame, conn) => {
+          // GHOST-CONNECTION RECOVERY: a post-welcome frame from a conn with no
+          // membership means the WS survived a DO restart/hibernation but this
+          // instance's conns/roster were rebuilt empty — the transport
+          // (ping/pong) is alive while the data plane is silently dropped.
+          // Close the ghost so the client redials and re-hellos, re-establishing
+          // roster membership. Non-fatal close ⇒ the client schedules a reconnect.
+          if (this.conns.has(conn.id)) {
+            hostLog.debug("routing frame to room", { connId: conn.id, roomId: this.name })
+            await state.message(conn.id, frame)
+            return
+          }
+          hostLog.warn("closing ghost connection (no membership after DO restart)", { connId: conn.id })
+          try {
+            conn.close(1000, "session lost — resync please")
+          } catch {
+            /* already closed — nothing to do */
+          }
+        },
+        /** Room probe (ADR 0004): answer from the room's own state — no admission, no roster entry. */
+        onProbe: async (conn, room) => {
+          const facts = await state.probe()
+          conn.send(JSON.stringify({ v: 1, t: "room-probe", p: facts }))
+        },
+        /** Teardown → room DO leave (peer{leave} broadcast) + flood-guard cleanup. */
+        onClose: (conn) => {
+          this.conns.delete(conn.id)
+          this.rate.reset(conn.id)
+          state.leave(conn.id)
+          files.leave(conn.id)
+        },
+      }),
+      state,
+      files,
+    }
+    this.composed = composed
+    return composed
+  }
 
-    /** Teardown → room DO leave (peer{leave} broadcast) + flood-guard cleanup. */
-    onClose(conn) {
-      const host = connHost.get(conn)
-      connHost.delete(conn)
-      if (host === undefined) {
-        hostLog.warn("closing conn with no host", { connId: conn.id })
-        return
-      }
-      host.conns.delete(conn.id)
-      host.rate.reset(conn.id)
-      hostLog.debug("closing conn", { connId: conn.id, roomId: host.roomId })
-      host.state.leave(conn.id)
-      host.files.leave(conn.id)
-    },
-  })
+  onConnect(conn: Connection, ctx: ConnectionContext): void {
+    this.ensureComposed().handlers.onConnect(conn, this.roomLike(), ctx)
+  }
+
+  async onMessage(conn: Connection, message: WSMessage): Promise<void> {
+    await this.ensureComposed().handlers.onMessage(message, conn, this.roomLike())
+  }
+
+  onClose(conn: Connection): void {
+    const composed = this.composed
+    if (composed === undefined) return // never reached the handlers layer (e.g. hibernation-surviving socket)
+    this.conns.delete(conn.id)
+    this.rate.reset(conn.id)
+    composed.state.leave(conn.id)
+    composed.files.leave(conn.id)
+  }
+
+  onRequest(): Response {
+    // The room endpoint is WS-only: any plain HTTP request reaching the DO is a 404.
+    return new Response("not found", { status: 404 })
+  }
 }
 
-/** The relay server singleton — partykit.json `main` default-export. */
-export const relayServer: PartyKitServer = createCollabServer()
+/** The relay entry — wrangler.jsonc `main` default-export. */
+export default {
+  async fetch(request: Request, env: RelayEnvExt): Promise<Response> {
+    const shareId = deriveShareId(request.url)
+    if (shareId === null) return new Response("not found", { status: 404 })
+    const id = env.RelayRoom.idFromName(shareId)
+    return env.RelayRoom.get(id).fetch(request)
+  },
+} satisfies { fetch(request: Request, env: RelayEnvExt): Promise<Response> }
 
-export default relayServer
 
-export * from "./server"
 export type { HelloPayload }
-export type { Connection, PartyKitServer, Room }

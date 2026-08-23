@@ -59,7 +59,8 @@ detail, read the doc relevant to your task (links below).
 | `pnpm bridge:test` | `go test ./...` for the Go daemon (ws codec, pidfile, server).
 | `pnpm skill:pack` | Cross-compile + refresh `skills/excali-local/bin/` (needs Go). |
 | `pnpm skill:check` | Zero-drift gate: skill docs == wire contract. |
-| `pnpm relay:dev` / `relay:dev:https` | One-command collab-relay dev loop: idempotent seed, `.env` + invite print, `partykit dev` (optional mkcert TLS). |
+| `pnpm relay:dev` / `relay:dev:https` | One-command collab-relay dev loop: idempotent seed, `.dev.vars` + invite print, `wrangler dev` (optional mkcert TLS). |
+| `pnpm relay:keygen` | Production org keypair + server invite generator (`--org` / `--relay`). |
 
 Full list + build/release/CSP detail: [docs/BUILD_AND_RELEASE.md](docs/BUILD_AND_RELEASE.md).
 

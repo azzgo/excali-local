@@ -124,6 +124,25 @@ trusts the membership; bandwidth abuse is not part of the v1 threat model.
 **What the code does**: documented behavior — the relay is not intended for
 public/multi-tenant operation.
 
+### Effective single-org: rooms are org-unbound (v1)
+
+**What**: multi-org is the planned design, but v1 ships effectively single-org:
+the dev loop registers one org (`local`), each client holds exactly one server
+config (one org label), and rooms are never bound to an org. Any member admitted
+to the relay can connect to any room whose shareId they hold — org scoping
+decides only what a client can *decrypt* (team rooms: this org's `ck`), not
+which rooms it can reach.
+
+**Why**: the org label and the `ORG_PUBKEYS` env schema are deliberate
+forward-compat — the array already accepts multiple entries, so a future
+multi-org deployment needs no breaking change; per-org room isolation would
+need an org→room binding that v1 deliberately does not have.
+
+**What the code does**: `ORG_PUBKEYS` accepts an array of orgs; admission
+verifies the hello's org signature against every registered key for that org;
+no code ever compares the hello's org with the room. Room-level isolation
+between orgs is future work, not a v1 property.
+
 ### Rooms die when empty
 
 **What**: a room's snapshot and files are deleted when the room is empty and the

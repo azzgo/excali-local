@@ -2,7 +2,7 @@
 
 [English](./COLLAB.md)
 
-Excali Local 1.8.0 的实时协作：**无宿主、端到端加密的房间，跑在你自行部署的中继（relay）之上**。Excali Local 项目本身不运营任何后端——扩展项目没有任何服务器，中继是一个小巧的 PartyKit 参考实现，只负责在你的团队浏览器之间转发密文。
+Excali Local 1.8.0 的实时协作：**无宿主、端到端加密的房间，跑在你自行部署的中继（relay）之上**。Excali Local 项目本身不运营任何后端——扩展项目没有任何服务器，中继是一个小巧的 partyserver 参考实现（Cloudflare Durable Objects），只负责在你的团队浏览器之间转发密文。
 
 决策记录：[ADR 0003 — 自带中继的实时协作](adr/0003-byo-relay-realtime-collab.md)。
 
@@ -10,7 +10,7 @@ Excali Local 1.8.0 的实时协作：**无宿主、端到端加密的房间，�
 
 ## 概览
 
-- **每个扩展一个中继。** 每个团队部署一次中继（PartyKit，约 150 行）。扩展**永久地、同一时刻只连接一个中继**；接受新服务器邀请即替换已存配置，不存在多中继列表。
+- **每个扩展一个中继。** 每个团队部署一次中继（一个小型 partyserver 项目，约 150 行）。扩展**永久地、同一时刻只连接一个中继**；接受新服务器邀请即替换已存配置，不存在多中继列表。
 - **无宿主房间。** 协作会话是本地优先画布之上的一层临时叠加。没有创建者权威、没有房主、没有房间注册表：一个房间就是它的邀请载荷加上中继的内存快照。保存仍然是显式的（每个成员"保存到我的图库"）。
 - **默认端到端加密。** 团队房间对**组织（org）**端到端加密；私有房间**按房间**端到端加密。中继只存储和转发**密文 + 成员签名**——它不持有任何组织的解密密钥。
 - **包含文件同步。** 图片/文件引用走同一条线路协议，按需分块拉取，blob 加密传输（单文件 20MB 上限，见[已知限制](KNOWN_LIMITATIONS.zh-CN.md)）。
@@ -18,16 +18,33 @@ Excali Local 1.8.0 的实时协作：**无宿主、端到端加密的房间，�
 
 ## 部署一个中继
 
+中继是一个 [partyserver](https://github.com/cloudflare/partykit/tree/main/packages/partyserver)
+项目（Cloudflare Workers + Durable Objects）。用 wrangler 部署到**你自己的
+Cloudflare 账号**——不需要 PartyKit 云、无需额外登录；或用 `wrangler dev` 本地跑
+（见[本地开发循环](#本地开发循环)）。
+
+> **不用 Cloudflare？** Durable Objects 运行时可以自托管：
+> [celld](https://github.com/denoland/celld) 内嵌 V8、直接执行 wrangler 打包产物
+> （Workers + Durable Objects）跑在你自己的机器上——每个 DO 由 SQLite 支撑、
+> 复制到你自有的 bucket（S3/GCS/Azure），无控制面。这是本中继可行的非
+> Cloudflare 路径，无需重写 WS 服务器；本仓库未做实战验证。
+
 ### 1. 前置条件
 
 ```bash
 pnpm install          # 工作区安装（中继包是工作区成员）
-npx partykit login    # PartyKit 账号
+npx wrangler login    # Cloudflare 账号（或 export CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN）
 ```
 
 ### 2. 生成密钥与服务器邀请
 
-中继包自带 `org-keygen` 工具：一次性派生组织的 Ed25519 密钥对，并打印 (a) 供下方环境变量使用的 `pk` 行，以及 (b) 面向你的中继 URL 和组织标签的、可直接粘贴的**服务器邀请**。
+```bash
+pnpm relay:keygen --org acme --relay https://excali-local-collab-relay.<账号>.workers.dev
+```
+
+打印 (a) 供下方环境变量使用的 `ORG_PUBKEYS` 条目，以及 (b) 面向你的组织标签和
+中继 URL 的、可直接粘贴的**服务器邀请**。输出请妥善保密——`sk`/`ck` 仅存在于
+客户端配置（见下）。
 
 ```text
 server invite = excali-collab:v1:srv:<b64url(JSON { relay, org, sk, ck })>
@@ -44,7 +61,7 @@ server invite = excali-collab:v1:srv:<b64url(JSON { relay, org, sk, ck })>
 `ORG_PUBKEYS` —— JSON 数组 `{ org, pubkeys[] }`，其中每个 pubkey 是组织的 32 字节 Ed25519 公钥（b64url，43 字符）：
 
 ```jsonc
-// partykit.json vars，或 `partykit secret set ORG_PUBKEYS '…'`
+// wrangler.jsonc "vars"，或 `npx wrangler secret put ORG_PUBKEYS '…'`
 // [{"org":"acme","pubkeys":["x57…","yQ2…"]}]
 [
   { "org": "acme", "pubkeys": ["<pk b64url>"] }
@@ -52,21 +69,22 @@ server invite = excali-collab:v1:srv:<b64url(JSON { relay, org, sk, ck })>
 ```
 
 - **每个组织的数组即轮换宽限期**：在重新签发窗口期内同时保留旧、新密钥，之后删掉旧的并重新部署（见[密钥轮换](#密钥轮换)）。
-- 一个中继可托管多个组织——每个组织一条。
+- 一个中继可托管多个组织——每个组织一条。**多 org 是计划中的设计；v1 实现实际为
+  单 org**——开发循环只注册一个组织（`local`），每个客户端也只持有一份服务器配置
+  （一个 org 标签）。数组结构是向前兼容的：以后新增组织只是改配置，不是破坏性变更。
+  多 org 注册针对的是*准入密钥*，不是房间租户——见[安全模型](#安全模型)。
 - `ORG_PUBKEYS` 为空/格式错误 ⇒ **所有准入全部失败**（故障时默认关闭）。
 - 旧版：1.8 之前的中继使用 `ORG_SECRETS`（org → secret 对象）。v2 中继只要存在 `ORG_PUBKEYS` 就完全禁用旧路径。
 
 ### 4. 部署
 
 ```bash
-npx partykit deploy   # → https://<name>.partykit.dev
+npx wrangler deploy   # → https://excali-local-collab-relay.<账号>.workers.dev
 ```
 
-自定义域名可通过 PartyKit 控制台或 `partykit.json` 的 `domain` 字段配置。
+上传到**你自己的** Cloudflare 账号（worker 名称来自 `packages/collab-relay/wrangler.jsonc`）。自定义域名：Cloudflare 控制台或 `wrangler.jsonc` 的 `routing` 规则。
 
 ### 5. 配置扩展
-
-打开**选项 → 协作（Options → Collaboration）**并粘贴服务器邀请。信任确认会先显示 **`<中继 URL> · <组织标签>`** 再存储任何内容——这一对信息正是你要决定信任的对象。接受即替换已存服务器配置（单中继不变式）。
 
 ## 生成与分享邀请
 
@@ -113,16 +131,16 @@ room invite = excali-collab:v1:room:<b64url(JSON { shareId, tier, roomSecret?, f
 ## 本地开发循环
 
 ```bash
-pnpm relay:dev        # 一条命令：seed → .env → 打印邀请 → partykit dev
+pnpm relay:dev        # 一条命令：seed → .dev.vars → 打印邀请 → wrangler dev
 pnpm relay:dev:https  # 可选 TLS 对等模式（mkcert）
 ```
 
 `pnpm relay:dev`：
 
 1. **幂等 seed** — 在仓库根目录生成一次 `.dev-keys.json`（组织 Ed25519 种子 + 内容密钥）；再次运行直接复用（重新 seed **不得**轮换密钥——你的开发邀请要跨天持续有效）。
-2. 写入 `.env`（已 gitignore）：`ORG_PUBKEYS`（v2）+ 兼容用的旧版 `ORG_SECRETS`。PartyKit dev 服务器会自动加载它。
+2. 写入 `packages/collab-relay/.dev.vars`（已 gitignore）：`ORG_PUBKEYS`（v2）+ 兼容用的旧版 `ORG_SECRETS`。wrangler dev 会自动加载它。
 3. 打印**面向 `http://127.0.0.1:1999` 的可直接粘贴服务器邀请**——回环例外：`http:/ws:` 只接受 IP 字面量 `127.0.0.1` / `[::1]`；远程流量保持仅 TLS。
-4. 针对 `packages/collab-relay` 运行 `partykit dev`。
+4. 针对 `packages/collab-relay` 运行 `wrangler dev`（端口 1999）。
 
 从全新克隆到跑通协作：
 
@@ -135,10 +153,10 @@ pnpm page:dev                     # 终端 2 和 3 —— 两个编辑器窗口
 ```
 
 - **两个窗口测管道，两个 profile 测加密。** 成员密钥每安装实例铸造一次，所以同一 profile 的两个窗口共享一个成员密钥——测广播/名单没问题，但诚实的成员签名验证测试需要两个 profile（或 Chrome + Firefox）。
-- **清空状态模拟。** `partykit dev` 默认持久化房间状态（`packages/collab-relay/.partykit/state`——已 gitignore），与生产环境的驱逐语义相反。`rm -rf packages/collab-relay/.partykit/` 可模拟房间死亡，走一遍"死房间重新播种"的提示路径。
-- **`--https`（mkcert）：** `pnpm relay:dev:https` 生成本地 CA 证书（`.dev-cert.pem` / `.dev-key.pem`）并以 partykit 原生 `--https` 模式运行——得到真实的 `https://localhost:1999`，用于一次性 TLS 对等检查（重连/TLS 失败 UX、严格 https 解析路径）。
+- **清空状态模拟。** `wrangler dev` 默认持久化房间状态（`packages/collab-relay/.wrangler/state`——已 gitignore），与生产环境的驱逐语义相反。`rm -rf packages/collab-relay/.wrangler/state` 可模拟房间死亡，走一遍"死房间重新播种"的提示路径。
+- **`--https`（mkcert）：** `pnpm relay:dev:https` 生成本地 CA 证书（`.dev-cert.pem` / `.dev-key.pem`）并以 wrangler 的 `--local-protocol https` 模式运行——得到真实的 `https://localhost:1999`，用于一次性 TLS 对等检查（重连/TLS 失败 UX、严格 https 解析路径）。
 
-**本地开发无法模拟的**（PartyKit 官方文档）：dev 服务器从不休眠，驱逐时机不可观测。休眠路径要做一次已部署中继的冒烟测试：成员保持连接、空闲 ≥10 秒、重连，确认快照仍然存活。
+**本地开发无法模拟的**（workerd 官方文档）：dev 服务器从不休眠，驱逐时机不可观测。休眠路径要做一次已部署中继的冒烟测试：成员保持连接、空闲 ≥10 秒、重连，确认快照仍然存活。
 
 ## 房间生命周期
 
@@ -162,6 +180,10 @@ pnpm page:dev                     # 终端 2 和 3 —— 两个编辑器窗口
 ## 安全模型
 
 - **准入 = Ed25519 签名，而非密钥比对。** `hello` 携带对完整 hello 载荷（域名前缀、固定属性顺序）的组织签名，外加成员的公钥（每安装铸造一次）。中继针对该组织注册的每一个 `pk` 验证——所以它能*验证*准入，但**不能铸造邀请、不能冒充成员**（它从不持有 `sk`）。
+- **org 是准入 + 加密标签，不是房间租户。** 任何被准入到中继的成员，只要拿到某房间
+  的 shareId 就能连进去——hello 绑定的 org 只决定他能*解密*什么（团队房间：本 org 的
+  `ck`；私有房间：房间自己的密钥）。房间从不绑定 org；组织之间的房间级隔离是将来
+  的工作——v1 实际为单 org（见上文"设置环境变量"）。
 - **逐消息 E2E。** 内容密钥 = `HKDF-SHA256(baseSecret, salt=shareId)`，其中 `baseSecret` 是 `ck`（团队）或 `roomSecret`（私有）；每条消息 AES-GCM-256、全新 96 位随机 nonce；AAD 绑定类型 + 房间（或文件 ID）；密文内部的单调 `seq` 防重放；每条消息独立可解密，重连不需要任何加密状态。
 - **每条加密帧都有成员签名**（Ed25519，签 `(t, room, c, iv)`）。客户端验证收到的每一帧并把签名者与名单交叉核对；中继只在其存储/服务边界验证、全程不解密。失败静默丢弃——数据面自愈（全场景 LWW，下一帧胜出）。
 - **中继能做什么、不能做什么。** 它能验证准入、转发流量、存储和服务密文——也能**丢弃或扣留**任何东西（活性 DoS，是已记录的限制）。它不能读取内容、无法被察觉地篡改、不能以成员身份伪造帧、不能跨房间走私内容。

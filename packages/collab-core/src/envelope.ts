@@ -32,7 +32,7 @@
  *
  * WebCrypto only — dependency-free (collab-core constraint).
  */
-import { helloCanon, type HelloPayload } from "./wire"
+import { helloCanon, seedToPkcs8, type HelloPayload } from "./wire"
 
 // ─── protocol constants ──────────────────────────────────────────────────────
 
@@ -236,6 +236,34 @@ export function b64urlToBytes(s: string): Uint8Array<ArrayBuffer> {
     if (i + 3 < bodyLen) out[o++] = ((c & 0x03) << 6) | d
   }
   return out
+}
+/**
+ * Derive the 32-byte Ed25519 public key (b64url, 43 chars) from a seed —
+ * the ORG_PUBKEYS entry the relay verifies against (057 §1/§2). PKCS#8 wrap
+ * via seedToPkcs8, WebCrypto import, JWK export, raw pk from the RFC 8037
+ * OKP `x` field. (Node/Workers WebCrypto rejects exportKey("spki") on a
+ * private key — spki is public-key-only per spec — so the raw pk rides the
+ * JWK `x` field instead.) Self-checks the derivation with a sign/verify.
+ * Keygen-only helper: the client runtime never derives from a seed.
+ */
+export async function deriveEd25519Pubkey(seedB64url: string): Promise<string> {
+  const pkcs8 = seedToPkcs8(b64urlToBytes(seedB64url))
+  const privKey = await crypto.subtle.importKey("pkcs8", pkcs8, { name: "Ed25519" }, true, ["sign"])
+  const jwk = (await crypto.subtle.exportKey("jwk", privKey)) as { x: string; d: string }
+  const rawPk = b64urlToBytes(jwk.x)
+  if (rawPk.length !== 32) {
+    throw new Error(`deriveEd25519Pubkey: unexpected raw pk length ${rawPk.length} (expected 32)`)
+  }
+  const pk = bytesToB64url(rawPk)
+
+  // Self-check the derived pk (057 §1 format): sign with the seed, verify with the raw pk.
+  const pubKey = await crypto.subtle.importKey("raw", rawPk, { name: "Ed25519" }, false, ["verify"])
+  const msg = new TextEncoder().encode("excali-collab deriveEd25519Pubkey self-check")
+  const sig = new Uint8Array(await crypto.subtle.sign("Ed25519", privKey, msg))
+  if (!(await crypto.subtle.verify("Ed25519", pubKey, sig, msg))) {
+    throw new Error("deriveEd25519Pubkey: derived pk failed sign/verify self-check")
+  }
+  return pk
 }
 
 // ─── AAD (050 §5 / §8, verbatim) ─────────────────────────────────────────────

@@ -44,7 +44,7 @@ const KIB = 1024
 const MIB = 1024 * 1024
 
 describe("serializeEnvelope", () => {
-  it("exports CHUNK_THRESHOLD = 100 * 1024 (under the PartyKit 128KB value cap)", () => {
+  it("exports CHUNK_THRESHOLD = 100 * 1024 (under the workerd 128KB value cap)", () => {
     expect(CHUNK_THRESHOLD).toBe(100 * 1024)
   })
 

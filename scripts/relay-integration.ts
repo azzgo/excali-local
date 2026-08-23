@@ -1,5 +1,5 @@
 /**
- * relay-integration — the Wayfinder-060 emulation matrix against `partykit dev`,
+ * relay-integration — the Wayfinder-060 emulation matrix against `wrangler dev`,
  * driving real wire-protocol clients (collab-core codec: signHello,
  * helloCanon, serializeEnvelope, ChunkAssembler) over real WebSockets.
  *
@@ -7,24 +7,24 @@
  *
  * Dev loop (060 §2/§3):
  *   - Two-terminal flow: `pnpm relay:dev` in terminal 1 (seeds .dev-keys.json
- *     + .env, spawns partykit dev on http://127.0.0.1:1999), then this script
- *     in terminal 2 — it DETECTS the running dev server and drives it.
+ *     + .dev.vars, spawns wrangler dev on http://127.0.0.1:1999), then this
+ *     script in terminal 2 — it DETECTS the running dev server and drives it.
  *   - Self-spawn flow: no dev server running → the script spawns its own
- *     `partykit dev` (with --var ORG_PUBKEYS for the key-rotation phases),
+ *     `wrangler dev` (with --var ORG_PUBKEYS for the key-rotation phases),
  *     waits for readiness, runs the matrix, and kills it on exit.
- *   - Room-death emulation (060 §3): `.partykit/state` persists by default;
+ *   - Room-death emulation (060 §3): `.wrangler/state` persists by default;
  *     wipe it BETWEEN rounds to simulate fresh-room eviction:
- *       rm -rf packages/collab-relay/.partykit/state
+ *       rm -rf packages/collab-relay/.wrangler/state
  *   - NOT representative locally (060 §3 — do not read failures into these):
  *     DO hibernation (dev never hibernates) and eviction timing.
  *
- * IMPORTANT path finding (task 041): partykit 0.0.115 only routes WS upgrades
- * to the main worker's room DO via `/party/<shareId>` (or `/parties/main/…`)
- * — the legacy `/room/<shareId>` path is 404'd by the dev server. The relay
- * accepts `/party/` (server.ts deriveShareId), and collab-core's buildRoomUrl
- * + CollabClient now emit/validate the `/party/` main-route (fixed after a
- * 404-retry loop surfaced in manual testing); this script builds its room
- * URLs through buildRoomUrl so client and matrix can never drift apart.
+ * IMPORTANT path finding (task 041): partyserver's router keeps the legacy
+ * `/party/<shareId>` main-route (index.ts hand-routes idFromName —
+ * routePartykitRequest's two-segment `/party/:server/:name` shape is NOT
+ * used). The relay accepts `/party/` (server.ts deriveShareId), and
+ * collab-core's buildRoomUrl + CollabClient emit/validate the `/party/`
+ * route; this script builds its room URLs through buildRoomUrl so client and
+ * matrix can never drift apart.
  *
  * Matrix (041 spec):
  *   C1 two-client join    — both hello with a valid org sig → both welcomed,
@@ -43,7 +43,7 @@
  *                           CHUNK_INVALID errors, conn + room survive.
  */
 import { spawn } from "node:child_process"
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import net from "node:net"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -67,7 +67,7 @@ const KEYS_PATH = path.join(REPO_ROOT, ".dev-keys.json")
 
 const DEV_PORT = 1999
 const RELAY = `http://127.0.0.1:${DEV_PORT}`
-const ROOM_PATH_PREFIX = `/party/` // partykit 0.0.115 main-route (see header)
+const ROOM_PATH_PREFIX = `/party/` // main-route (see header)
 
 interface DevKeys {
   seed: string
@@ -148,17 +148,25 @@ class DevProcess {
   private child: ReturnType<typeof spawn> | null = null
   private out = ""
 
-  /** Spawn `partykit dev` with --var overrides and wait until it serves WS. */
+  /**
+   * Spawn `wrangler dev` for a specific ORG_PUBKEYS phase and wait until it
+   * serves WS. The env rides `packages/collab-relay/.dev.vars` (wrangler
+   * auto-loads it per restart) — the legacy `--var` form mangles JSON values
+   * (wrangler treated `ORG_PUBKEYS=[{…` as the variable NAME, so only the
+   * .dev.vars [old] entry survived, breaking the rotation phases).
+   */
   static async start(orgPubkeysJson: string, onLog: (line: string) => void): Promise<DevProcess> {
     const dev = new DevProcess()
+    const devVarsPath = path.join(RELAY_DIR, ".dev.vars")
+    const keys = JSON.parse(readFileSync(KEYS_PATH, "utf8")) as { seed: string; org: string }
+    writeFileSync(devVarsPath, `ORG_PUBKEYS=${orgPubkeysJson}\nORG_SECRETS=${JSON.stringify({ [keys.org]: keys.seed })}\n`)
     const args = [
       "--filter",
       "./packages/collab-relay",
       "exec",
-      "partykit",
+      "wrangler",
       "dev",
-      "--var",
-      `ORG_PUBKEYS=${orgPubkeysJson}`,
+      "--port", "1999",
     ]
     const child = spawn("pnpm", args, {
       cwd: REPO_ROOT,
@@ -565,7 +573,7 @@ async function caseReconnect(org: string, orgKey: CryptoKey): Promise<void> {
 }
 
 // C4 — key rotation: grace ([old,new]) then removal ([new] only)
-async function caseKeyRotation(org: string, oldKey: CryptoKey, newKey: CryptoKey, newPk: string): Promise<void> {
+async function caseKeyRotation(org: string, oldPk: string, oldKey: CryptoKey, newKey: CryptoKey, newPk: string): Promise<void> {
   const shareId = `it-c4-${Date.now().toString(36)}`
   const graceEnv = JSON.stringify([{ org, pubkeys: [oldPk, newPk] }])
   const removedEnv = JSON.stringify([{ org, pubkeys: [newPk] }])
@@ -582,7 +590,7 @@ async function caseKeyRotation(org: string, oldKey: CryptoKey, newKey: CryptoKey
       throw new Error("old-signer should be admitted during the grace window (057 §4)")
     }
     if ((await newSigner.waitFor((f) => f.t === "welcome")) === undefined) {
-      throw new Error("new-signer should be admitted during the grace window")
+      throw new Error("new-signer should be admitted during the grace window — received: " + JSON.stringify(newSigner.received.slice(0, 4)) + " / closes: " + JSON.stringify(newSigner.closes))
     }
     oldSigner.close()
     newSigner.close()
@@ -663,7 +671,19 @@ async function caseGuards(org: string, orgKey: CryptoKey): Promise<void> {
     c.rawSend(JSON.stringify(sceneFrame([{ seq: i }], 100 + i)))
   }
   const sentMs = Date.now() - t0
-  const rateErr = await c.waitFor((f) => f.t === "error" && f.p.code === "CHUNK_INVALID", DEFAULT_WAIT_MS)
+  const deadline = Date.now() + DEFAULT_WAIT_MS * 2
+  let rateErr: WireFrame | undefined
+  let firstErrAt: number | null = null
+  while (Date.now() < deadline && rateErr === undefined) {
+    const hit = c.received.find((f) => f.t === "error" && f.p.code === "CHUNK_INVALID")
+    if (hit !== undefined) {
+      rateErr = hit
+      firstErrAt = Date.now() - t0
+    } else {
+      await new Promise((r) => setTimeout(r, 50))
+    }
+  }
+
   if (rateErr === undefined) {
     throw new Error(`expected ≥1 rate-guard CHUNK_INVALID after a 250-frame burst (sent in ${sentMs}ms)`)
   }
@@ -693,12 +713,13 @@ async function main(): Promise<void> {
 
   const busy = await portBusy(DEV_PORT)
   let dev: DevProcess | null = null
+  let baseEnv: string | null = null
   if (busy) {
     console.log(`relay-integration: port ${DEV_PORT} already serves a dev relay — two-terminal flow (060 §2).`)
     console.log(`relay-integration: the rotation case (C4) needs env control and will be SKIPPED (restart \`pnpm relay:dev\` with --var ORG_PUBKEYS to run it).`)
   } else {
-    console.log(`relay-integration: spawning \`partykit dev\` (self-spawn flow — 060 §2)…`)
-    const baseEnv = JSON.stringify([{ org, pubkeys: [oldPk] }])
+    console.log(`relay-integration: spawning \`wrangler dev\` (self-spawn flow — 060 §2)…`)
+    baseEnv = JSON.stringify([{ org, pubkeys: [oldPk] }])
     dev = await DevProcess.start(baseEnv, (l) => console.log(`  [dev] ${l}`))
   }
 
@@ -725,9 +746,17 @@ async function main(): Promise<void> {
     await runCase("C2 seed race (first-seed-wins + snapshot reload)", () => caseSeedRace(org, oldKey))
     await runCase("C3 reconnect (drop → broadcast → resync)", () => caseReconnect(org, oldKey))
     if (!busy) {
-      await runCase("C4 key rotation (grace then removal)", () => caseKeyRotation(org, oldKey, newPair.key, newPair.pk))
+      // C4 needs the port for its own env-controlled restarts: free it first,
+      // then bring the relay back up for C5 (old-key signer must be admitted).
+      console.log(`relay-integration: stopping the (self-spawned) dev relay to free :${DEV_PORT} for C4`)
+      dev?.stop()
+      dev = null
+      await new Promise((r) => setTimeout(r, 1_500))
+      await runCase("C4 key rotation (grace then removal)", () => caseKeyRotation(org, oldPk, oldKey, newPair.key, newPair.pk))
+      console.log(`relay-integration: restarting the dev relay for C5 (ORG_PUBKEYS=[old])`)
+      dev = await DevProcess.start(baseEnv as string, (l) => console.log(`  [dev] ${l}`))
     } else {
-      console.log(`  – C4 key rotation — SKIPPED (foreign dev server; needs --var env control)`)
+      console.log(`  – C4 key rotation — SKIPPED (foreign dev server; needs --var env control)`),
       results.push({ name: "C4 key rotation", ok: true, detail: "SKIPPED (foreign dev server)" })
     }
     await runCase("C5 guards (MESSAGE_TOO_LARGE / CHUNK_INVALID / rate flood)", () => caseGuards(org, oldKey))

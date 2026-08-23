@@ -4,7 +4,7 @@
 
 Realtime collaboration in Excali Local 1.8.0: **hostless, end-to-end-encrypted rooms
 over a relay you deploy yourself**. No Excali Local backend exists — the extension
-project operates no servers, and the relay is a small PartyKit reference implementation
+project operates no servers, and the relay is a small partyserver reference implementation
 that forwards ciphertext between your team's browsers.
 
 Decision record: [ADR 0003 — BYO relay realtime collab](adr/0003-byo-relay-realtime-collab.md).
@@ -13,7 +13,7 @@ Decision record: [ADR 0003 — BYO relay realtime collab](adr/0003-byo-relay-rea
 
 ## Overview
 
-- **One relay per extension.** Each team deploys the relay once (PartyKit, ~150 lines).
+- **One relay per extension.** Each team deploys the relay once (a small partyserver project, ~150 lines).
   The extension connects to **exactly one relay at a time — permanently**; a server
   invite replaces the stored config, there is no multi-relay list.
 - **Hostless rooms.** A collaboration session is an ephemeral overlay on top of
@@ -30,18 +30,34 @@ Decision record: [ADR 0003 — BYO relay realtime collab](adr/0003-byo-relay-rea
 
 ## Deploy a relay
 
+The relay is a [partyserver](https://github.com/cloudflare/partykit/tree/main/packages/partyserver)
+project (Cloudflare Workers + Durable Objects). Deploy to **your own Cloudflare
+account** with wrangler — no PartyKit cloud, no extra login — or run locally with
+`wrangler dev` (see [Local dev loop](#local-dev-loop)).
+
+> **Not on Cloudflare?** Durable Objects runtimes are self-hostable:
+> [celld](https://github.com/denoland/celld) embeds V8 and executes wrangler
+> bundles (Workers + Durable Objects) on your own machines — each DO backed by
+> SQLite replicated to a bucket you own (S3/GCS/Azure), no control plane. A
+> viable non-Cloudflare path for this relay with zero WS-server rewrite; not
+> battle-tested in this repo.
+
 ### 1. Prerequisites
 
 ```bash
 pnpm install          # workspace install (the relay package is a workspace member)
-npx partykit login    # PartyKit account
+npx wrangler login    # Cloudflare account (or export CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN)
 ```
 
 ### 2. Generate keys and the server invite
 
-The relay package ships an `org-keygen` tool: it derives the org's Ed25519 keypair
-once and prints (a) the `pk` line for the env var below, and (b) a paste-ready
-**server invite** for your relay URL and org label.
+```bash
+pnpm relay:keygen --org acme --relay https://excali-local-collab-relay.<account>.workers.dev
+```
+
+prints (a) the `ORG_PUBKEYS` entry for the env below, and (b) a paste-ready
+**server invite** for your org label and relay URL. Keep the output secret —
+`sk`/`ck` are client-config-only (below).
 
 ```text
 server invite = excali-collab:v1:srv:<b64url(JSON { relay, org, sk, ck })>
@@ -61,7 +77,7 @@ public verification keys only.
 32-byte Ed25519 public key (b64url, 43 chars):
 
 ```jsonc
-// partykit.json vars, or `partykit secret set ORG_PUBKEYS '…'`
+// wrangler.jsonc "vars", or `npx wrangler secret put ORG_PUBKEYS '…'`
 // [{"org":"acme","pubkeys":["x57…","yQ2…"]}]
 [
   { "org": "acme", "pubkeys": ["<pk b64url>"] }
@@ -70,7 +86,12 @@ public verification keys only.
 
 - The **array per org is rotation grace**: keep old + new keys through the re-issue
   window, then drop the old one and redeploy (see [Key rotation](#key-rotation)).
-- One relay hosts multiple orgs — one entry per org.
+- One relay hosts multiple orgs — one entry per org. **Multi-org is the planned
+  design; the v1 implementation is effectively single-org** — the dev loop
+  registers one org (`local`) and each client holds exactly one server config
+  (one org label). The array schema is forward-compatible: adding an org later
+  is a config change, not a breaking one. Multi-org registration is about
+  *admission keys*, not room tenancy — see [Security model](#security-model).
 - Empty/malformed `ORG_PUBKEYS` ⇒ **all admissions fail** (fail closed).
 - Legacy: pre-1.8 relays used `ORG_SECRETS` (org → secret object). A v2 relay
   disables the legacy path whenever `ORG_PUBKEYS` is present.
@@ -78,13 +99,14 @@ public verification keys only.
 ### 4. Deploy
 
 ```bash
-npx partykit deploy   # → https://<name>.partykit.dev
+npx wrangler deploy   # → https://excali-local-collab-relay.<account>.workers.dev
 ```
 
-Custom domain via the PartyKit dashboard or a `domain` field in `partykit.json`.
+Uploads to **your** Cloudflare account (the worker name comes from
+`packages/collab-relay/wrangler.jsonc`). Custom domain: Cloudflare dashboard or a
+`routing` rule in `wrangler.jsonc`.
 
 ### 5. Configure the extension
-
 Open **Options → Collaboration** and paste the server invite. The trust confirmation
 shows **`<relay URL> · <org label>`** before anything is stored — that pair is what
 you are deciding to trust. Accepting replaces the stored server config (single-relay
@@ -157,7 +179,7 @@ Mid-session rotation surfaces the same families: the connection goes red
 ## Local dev loop
 
 ```bash
-pnpm relay:dev        # one command: seed → .env → invite print → partykit dev
+pnpm relay:dev        # one command: seed → .dev.vars → invite print → wrangler dev
 pnpm relay:dev:https  # optional TLS-parity mode (mkcert)
 ```
 
@@ -166,12 +188,12 @@ pnpm relay:dev:https  # optional TLS-parity mode (mkcert)
 1. **Idempotent seed** — generates `.dev-keys.json` (org Ed25519 seed + content key)
    at the repo root once; re-running reuses it (re-seeding must NOT rotate keys —
    your dev invite keeps working across days).
-2. Writes `.env` (gitignored): `ORG_PUBKEYS` (v2) + legacy `ORG_SECRETS` for
-   compatibility. PartyKit's dev server auto-loads it.
+2. Writes `packages/collab-relay/.dev.vars` (gitignored): `ORG_PUBKEYS` (v2) +
+   legacy `ORG_SECRETS`. Wrangler dev auto-loads it.
 3. Prints a **paste-ready server invite for `http://127.0.0.1:1999`** — the loopback
    carve-out: `http:/ws:` is accepted only for the IP literals `127.0.0.1` / `[::1]`;
    remote traffic stays TLS-only.
-4. Runs `partykit dev` against `packages/collab-relay`.
+4. Runs `wrangler dev` against `packages/collab-relay` (port 1999).
 
 Fresh clone → working collab:
 
@@ -187,16 +209,16 @@ pnpm page:dev                     # terminals 2 & 3 — two editor windows
   per install, so two windows of the same profile share one member key — fine for
   broadcast/roster, but the honest member-signature verification test needs two
   profiles (or Chrome + Firefox).
-- **Wipe-state emulation.** `partykit dev` persists room state by default
-  (`packages/collab-relay/.partykit/state` — gitignored), the opposite of production
-  eviction. `rm -rf packages/collab-relay/.partykit/` simulates room death and
+- **Wipe-state emulation.** `wrangler dev` persists room state by default
+  (`packages/collab-relay/.wrangler/state` — gitignored), the opposite of production
+  eviction. `rm -rf packages/collab-relay/.wrangler/state` simulates room death and
   exercises the dead-room seed prompt path.
 - **`--https` (mkcert):** `pnpm relay:dev:https` generates local-CA certs
-  (`.dev-cert.pem` / `.dev-key.pem`) and runs partykit's native `--https` mode — a
-  real `https://localhost:1999` for one-off TLS-parity checks (reconnect/TLS-failure
-  UX, strict-https parser path).
+  (`.dev-cert.pem` / `.dev-key.pem`) and runs wrangler's `--local-protocol https`
+  mode — a real `https://localhost:1999` for one-off TLS-parity checks
+  (reconnect/TLS-failure UX, strict-https parser path).
 
-**What local dev does NOT emulate** (per PartyKit docs): the dev server never
+**What local dev does NOT emulate** (per workerd docs): the dev server never
 hibernates, and eviction timing is not observable. Do one deployed-relay smoke for
 the hibernation path: idle ≥10s with members connected, reconnect, and confirm the
 snapshot survives.
@@ -287,6 +309,12 @@ snapshot survives.
   the member's public key (minted once per install). The relay verifies against every
   `pk` registered for the org — so it can *verify* admission but **cannot mint
   invites or impersonate members** (it never holds `sk`).
+- **Org is an admission + encryption label, not a room tenant.** Any member
+  admitted to the relay can connect to any room whose shareId they hold — the
+  org bound to the hello gates only what they can *decrypt* (team rooms: this
+  org's `ck`; private rooms: the room's own key). Rooms are never bound to an
+  org; room-level isolation between orgs is future work — v1 is effectively
+  single-org (see the env schema section above).
 - **Per-message E2E.** Content key = `HKDF-SHA256(baseSecret, salt=shareId)` where
   `baseSecret` is `ck` (team) or `roomSecret` (private); each message is AES-GCM-256
   with a fresh 96-bit nonce; AAD binds type + room (or file id); a monotonic `seq`

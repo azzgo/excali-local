@@ -9,7 +9,8 @@
 import { describe, expect, it, vi } from "vitest"
 import { bytesToB64url } from "collab-core"
 import type { HelloPayload } from "collab-core"
-import type { Connection, ConnectionContext, Room } from "partykit/server"
+import type { Connection, ConnectionContext } from "partyserver"
+import type { RoomLike } from "./server"
 import {
   ADMISSION_REJECT_REASON,
   admitHello,
@@ -288,8 +289,8 @@ function fakeConn(id: string, uri: string): FakeConn {
   return { id, uri, send: vi.fn(), close: vi.fn() }
 }
 
-function fakeRoom(env: RelayEnv): Room {
-  return { env } as unknown as Room
+function fakeRoom(env: RelayEnv): RoomLike {
+  return { env } as unknown as RoomLike
 }
 
 const FAKE_CTX = {} as unknown as ConnectionContext
@@ -416,7 +417,7 @@ describe("createRelayServer connection flow", () => {
   })
 
   it("a room-probe first message → the onProbe hook answers and the connection closes (ADR 0004)", async () => {
-    const onProbe = vi.fn(async (conn: Connection, _room: Room) => {
+    const onProbe = vi.fn(async (conn: Connection, _room: RoomLike) => {
       conn.send(JSON.stringify({ v: 1, t: "room-probe", p: { roomName: "Q3 planning", snapshotAvailable: true, peerCount: 2 } }))
     })
     const server = createRelayServer({ onProbe })

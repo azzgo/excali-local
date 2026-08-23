@@ -38,6 +38,7 @@ export {
   aadFile,
   bytesToB64url,
   b64urlToBytes,
+  deriveEd25519Pubkey,
   contentCanon,
   decryptContent,
   deriveContentKey,
