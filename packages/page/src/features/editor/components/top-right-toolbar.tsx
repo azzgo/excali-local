@@ -108,16 +108,13 @@ const TopRightToolbar = ({
   );
 
   return (
-    <div className="flex gap-x-2 items-center">
+    <div className="flex gap-x-1 items-center">
       {editorType === "local" && (
         <>
           <AgentActivationControl
             excalidrawAPI={excalidrawAPI}
             editorType="local"
           />
-          {/* No divider line — region separation is whitespace alone: a wider
-              gap (2× the icon-button gap) between AgentControl and the icons. */}
-          <div className="w-4 shrink-0" aria-hidden="true" />
         </>
       )}
       {!isGalleryOpen && (
