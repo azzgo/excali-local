@@ -378,6 +378,13 @@ export function initI18n() {
           // 075: show/hide the Excalidraw right-side UserList (was full/quiet)
           "CollabShowUserList": "Show user list",
           "CollabShowUserListHint": "Show the collaborator list in the top-right; uncheck to hide it.",
+          // --- local-editor toolbar collab entry (handoff) ---
+          "Collab": "Collab",
+          "More": "More",
+          "CollabCreateFromCanvas": "Create room from this canvas",
+          "CollabOpenPage": "Open collaboration page",
+          "CollabDefaultRoomName": "Untitled room",
+          "CollabCreateFromCanvasFailed": "Couldn't create the room — try again",
         },
       },
       "zh-CN": {
@@ -753,6 +760,13 @@ export function initI18n() {
           // 075: show/hide the Excalidraw right-side UserList (was full/quiet)
           "CollabShowUserList": "显示用户列表",
           "CollabShowUserListHint": "在右上角显示协作者列表；取消勾选以隐藏。",
+          // --- 本地编辑器工具栏协作入口（handoff）---
+          "Collab": "协作",
+          "More": "更多",
+          "CollabCreateFromCanvas": "以当前画布创建房间",
+          "CollabOpenPage": "打开协作页面",
+          "CollabDefaultRoomName": "未命名房间",
+          "CollabCreateFromCanvasFailed": "无法创建房间 — 请重试",
         },
       },
     },

@@ -1,16 +1,32 @@
 import { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import {
+  IconChevronDown,
   IconCircleNumber1,
+  IconExternalLink,
   IconLayoutGrid,
   IconPresentation,
   IconPresentationOff,
+  IconUsersGroup,
 } from "@tabler/icons-react";
+import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { saveSession, type CollabScene } from "collab-core";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Separator } from "@/components/ui/separator";
 import { useAtomValue } from "jotai";
 import { galleryIsOpenAtom } from "../../gallery/store/gallery-atoms";
 import { useSlide } from "../hooks/use-slide";
+import { mintRoom } from "@/features/collab/create-room";
+import { useServerConfig } from "@/features/collab/hooks/use-server-config";
+import { roomRoute } from "@/features/collab/routes";
 import AgentActivationControl from "./agent-activation-control";
 
 interface TopRightToolbarProps {
@@ -18,6 +34,11 @@ interface TopRightToolbarProps {
   isMobile: boolean;
   editorType: "local" | "quick";
 }
+
+/** Navigate to the collab editor (same-directory index.html — works in the
+ *  extension at /editor/index.html and in the vite dev server at /index.html). */
+const collabEditorUrl = (hash: string = "") =>
+  `index.html?type=collab${hash}`;
 
 const TopRightToolbar = ({
   excalidrawAPI,
@@ -28,13 +49,12 @@ const TopRightToolbar = ({
     useSlide(excalidrawAPI);
   const [t] = useTranslation();
   const isGalleryOpen = useAtomValue(galleryIsOpenAtom);
+  const { config } = useServerConfig();
+  const [creatingRoom, setCreatingRoom] = useState(false);
 
-  const handlePresentationIconClick = (
-    event: React.MouseEvent<HTMLButtonElement>,
-  ) => {
+  const handlePresentationIconClick = () => {
     handleTogglePresentation();
     excalidrawAPI?.toggleSidebar({ name: "marker", force: false });
-    event.currentTarget?.blur();
   };
 
   const handleMarkerIconClick = () => {
@@ -45,8 +65,64 @@ const TopRightToolbar = ({
     excalidrawAPI?.toggleSidebar({ name: "gallery", force: true });
   };
 
+  /** Collab ▾ — one-click handoff: mint a team room, stage THIS canvas as the
+   *  seed (ADR 0005 staged-seed: base null → dead room lets it seed, an
+   *  alive-with-snapshot room overwrites it), then jump straight into the
+   *  room URL. No intermediate screens. */
+  const handleCreateRoomFromCanvas = useCallback(async () => {
+    if (creatingRoom) return;
+    setCreatingRoom(true);
+    try {
+      const scene: CollabScene = {
+        elements: [...(excalidrawAPI?.getSceneElements() ?? [])],
+        appState: excalidrawAPI?.getAppState() ?? {},
+      };
+      const { invite } = await mintRoom({
+        name: t("CollabDefaultRoomName"),
+        labelKind: "auto",
+        tier: "team",
+        config,
+      });
+      await saveSession(invite.shareId, { edited: scene, base: null });
+      window.location.href = collabEditorUrl(roomRoute(invite.shareId));
+    } catch (error) {
+      console.error("[collab] create room from canvas failed:", error);
+      toast.error(t("CollabCreateFromCanvasFailed"));
+    } finally {
+      setCreatingRoom(false);
+    }
+  }, [creatingRoom, excalidrawAPI, t, config]);
+
+  const handleOpenCollabPage = useCallback(() => {
+    window.location.href = collabEditorUrl();
+  }, []);
+
+  const presentationItem = (
+    <DropdownMenuItem
+      data-testid="more-menu-presentation"
+      disabled={slides.length === 0}
+      onSelect={handlePresentationIconClick}
+    >
+      {presentationMode ? <IconPresentationOff /> : <IconPresentation />}
+      {presentationMode ? t("Exit Presentation") : t("Enter Presentation")}
+    </DropdownMenuItem>
+  );
+
   return (
     <div className="flex gap-x-2 items-center">
+      {editorType === "local" && (
+        <>
+          <AgentActivationControl
+            excalidrawAPI={excalidrawAPI}
+            editorType="local"
+          />
+          <Separator
+            orientation="vertical"
+            className="h-9"
+            data-testid="toolbar-separator"
+          />
+        </>
+      )}
       {!isGalleryOpen && (
         <Hint label={t("Gallery")} align="end" sideOffset={8}>
           <Button
@@ -58,7 +134,65 @@ const TopRightToolbar = ({
           </Button>
         </Hint>
       )}
-      {!isMobile && (
+      {editorType === "local" && (
+        <>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                data-testid="collab-menu-trigger"
+                className="gap-1"
+              >
+                {t("Collab")}
+                <IconChevronDown className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                data-testid="collab-menu-create"
+                disabled={creatingRoom}
+                onSelect={() => void handleCreateRoomFromCanvas()}
+              >
+                <IconUsersGroup className="size-4" />
+                {t("CollabCreateFromCanvas")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="collab-menu-open"
+                onSelect={handleOpenCollabPage}
+              >
+                <IconExternalLink className="size-4" />
+                {t("CollabOpenPage")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                data-testid="more-menu-trigger"
+                className="gap-1"
+              >
+                {t("More")}
+                <IconChevronDown className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {!isMobile && (
+                <DropdownMenuItem
+                  data-testid="more-menu-marker"
+                  disabled={presentationMode}
+                  onSelect={handleMarkerIconClick}
+                >
+                  <IconCircleNumber1 className="size-4" />
+                  {t("Marker")}
+                </DropdownMenuItem>
+              )}
+              {presentationItem}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </>
+      )}
+      {editorType !== "local" && !isMobile && (
         <Hint label={t("Marker")} align="end" sideOffset={8}>
           <Button
             disabled={presentationMode}
@@ -68,29 +202,6 @@ const TopRightToolbar = ({
             <IconCircleNumber1 className="size-4" />
           </Button>
         </Hint>
-      )}
-      {editorType === "local" && (
-        <Hint
-          label={
-            presentationMode ? t("Exit Presentation") : t("Enter Presentation")
-          }
-          align="end"
-          sideOffset={8}
-        >
-          <Button
-            disabled={slides.length === 0}
-            variant="ghost"
-            onClick={handlePresentationIconClick}
-          >
-            {presentationMode ? <IconPresentationOff /> : <IconPresentation />}
-          </Button>
-        </Hint>
-      )}
-      {editorType === "local" && (
-        <AgentActivationControl
-          excalidrawAPI={excalidrawAPI}
-          editorType="local"
-        />
       )}
     </div>
   );

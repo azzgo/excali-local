@@ -1,10 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-  bytesToB64url,
-  encodeRoomInvite,
-  resolveIdentity,
-  saveRoomMeta,
   saveSession,
   type CollabScene,
   type RoomInvite,
@@ -12,8 +8,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ROUTES, roomRoute } from "./routes";
+import { mintRoom } from "./create-room";
 import { useServerConfig } from "./hooks/use-server-config";
-import { fingerprint } from "./invite";
 import ShareStep from "./share-step";
 import { EMPTY_SEED_SCENE, SeedGalleryPicker, SeedPrompt } from "./seed-prompt";
 import { cn } from "@/lib/utils";
@@ -52,30 +48,16 @@ export default function CreateScreen({ lang }: CreateScreenProps) {
   const handleCreate = async () => {
     const trimmed = name.trim();
     if (trimmed === "") return;
-    const invite: RoomInvite = {
-      shareId: bytesToB64url(crypto.getRandomValues(new Uint8Array(16))),
-      tier,
-    };
-    if (tier === "private") {
-      invite.roomSecret = bytesToB64url(crypto.getRandomValues(new Uint8Array(32)));
-    }
-    // 048: fp = staleness signal of the server the invite was minted against.
-    // No server configured → fp omitted → the entry never grays.
-    if (config !== null) invite.fp = fingerprint(config.relay);
-    const code = encodeRoomInvite(invite);
-    await saveRoomMeta({
-      id: invite.shareId,
-      label: trimmed,
+    // 053/049/048/050: mint shareId (+ roomSecret for private) against the
+    // configured relay's fp, encode the invite, save the room meta — via the
+    // shared helper also used by the editor one-click handoff.
+    const { invite, code } = await mintRoom({
+      name: trimmed,
       // ADR 0004: a create-time name is a REAL name — pushable when the room
       // is alive-with-no-name or re-seeded after death.
       labelKind: "named",
       tier,
-      fp: invite.fp,
-      pinned: false,
-      lastJoined: Date.now(),
-      invite: code,
-      // 060: copy the profile default as the per-room display name on create.
-      myName: (await resolveIdentity())?.name,
+      config,
     });
     setRoom({ name: trimmed, invite, code });
     setStep("share");
