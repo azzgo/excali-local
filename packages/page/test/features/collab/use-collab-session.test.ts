@@ -25,6 +25,7 @@ import { getDrawingFullData, getDrawings, getRoom } from "@/features/editor/util
 import { useCollabSession } from "@/features/collab/use-collab-session";
 import type { CollabIdentity, CollabRoomMeta } from "@/features/collab/use-collab-session";
 import type { ServerConfig } from "@/features/collab/storage";
+import { mintTestIdentity } from "./helpers";
 
 
 vi.mock("@excalidraw/excalidraw", () => ({
@@ -102,12 +103,7 @@ const ROOM: CollabRoomMeta = {
   invite: { shareId: SHARE_ID, tier: "team" },
 };
 
-const IDENTITY: CollabIdentity = {
-  profileId: "profile-1",
-  name: "Ada",
-  seed: KEY43,
-  pub: "pub-1",
-};
+const IDENTITY: CollabIdentity = await mintTestIdentity();
 
 const lastSocket = () => StubSocket.instances[StubSocket.instances.length - 1];
 

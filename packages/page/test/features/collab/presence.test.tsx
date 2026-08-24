@@ -30,6 +30,7 @@ import type {
 } from "@/features/collab/use-collab-session";
 import type { LabelMode } from "@/features/collab/labels";
 import type { ServerConfig } from "@/features/collab/storage";
+import { mintTestIdentity } from "./helpers";
 
 vi.mock("@excalidraw/excalidraw", () => ({
   CaptureUpdateAction: {
@@ -268,12 +269,7 @@ const ROOM: CollabRoomMeta = {
   tier: "team",
   invite: { shareId: SHARE_ID, tier: "team" },
 };
-const IDENTITY: CollabIdentity = {
-  profileId: "profile-1",
-  name: "Ada",
-  seed: KEY43,
-  pub: "pub-1",
-};
+const IDENTITY: CollabIdentity = await mintTestIdentity();
 const PEER: Member = {
   profileId: "profile-2",
   name: "Min",

@@ -33,6 +33,7 @@ import {
   encryptFile,
   fileIdFor,
   seedToPkcs8,
+  FILE_RETRY_DELAY_MS,
 } from "collab-core";
 import { loadDrawingToScene } from "@/features/editor/utils/excalidraw-api.helper";
 import { getDrawingFullData, getDrawings } from "@/features/editor/utils/indexdb";
@@ -278,6 +279,7 @@ beforeEach(async () => {
 afterEach(() => {
   StubSocket.reset();
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 /* ------------------------------------------------------------------ */
@@ -324,18 +326,23 @@ describe("collab file sync — local upload", () => {
     const { result, unmount, ws } = await dialAndWelcome(api);
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
 
-    // legacy id (patched-tgz sha1-hex style) — NOT the sha256 content id
-    const legacyId = "deadbeef";
-    const files = { [legacyId]: { id: legacyId, mimeType: "image/png", dataURL: PNG_DATA_URL, created: 1 } };
-    await act(async () => {
-      result.current.onLocalChange([imageElement(legacyId)] as never, {} as never, files as never);
-    });
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(sentOfType(ws, "file-put")).toHaveLength(0);
-    expect(warn).toHaveBeenCalled();
-    warn.mockRestore();
+    try {
+      // legacy id (patched-tgz sha1-hex style) — NOT the sha256 content id
+      const legacyId = "deadbeef";
+      const files = { [legacyId]: { id: legacyId, mimeType: "image/png", dataURL: PNG_DATA_URL, created: 1 } };
+      await act(async () => {
+        result.current.onLocalChange([imageElement(legacyId)] as never, {} as never, files as never);
+      });
+      // uploadNewLocalFiles hashes the blob (async sha256) before deciding
+      // to skip — WAIT for the warn instead of a fixed microtask flush (the
+      // digest can legitimately outlive one flushed microtask)
+      await waitFor(() =>
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining("skipping upload")),
+      );
+      expect(sentOfType(ws, "file-put")).toHaveLength(0);
+    } finally {
+      warn.mockRestore(); // never leak the spy into later tests
+    }
     unmount();
   });
 
@@ -428,25 +435,27 @@ describe("collab file sync — on-demand hydration", () => {
     });
     expect(result.current.missingFileIds.has(fileId)).toBe(true);
 
-    // the single automatic retry after FILE_RETRY_DELAY_MS
+    // Fake time fires the retry timer, but the retried file-get is signed
+    // with REAL WebCrypto before it reaches the socket — fake time alone
+    // cannot drain that promise. Switch back to real timers and WAIT for
+    // the second get to land (051 §4).
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(2000);
+      await vi.advanceTimersByTimeAsync(FILE_RETRY_DELAY_MS);
     });
-    const gets = sentOfType(ws, "file-get");
-    expect(gets).toHaveLength(2);
+    vi.useRealTimers();
+    await waitFor(() => expect(sentOfType(ws, "file-get")).toHaveLength(2));
 
     // retry succeeds → onFileReady → addFiles re-renders the placeholder
     await act(async () => {
       ws.message(fileHeaderMessage(fileId, "image/png"));
       ws.message(fileDataMessage(PNG_DATA_URL));
     });
-    await act(async () => {
-      await Promise.resolve();
-    });
-    expect(api.addFiles).toHaveBeenCalledWith([
-      { id: fileId, mimeType: "image/png", dataURL: PNG_DATA_URL, created: expect.any(Number) },
-    ]);
-    expect(result.current.missingFileIds.has(fileId)).toBe(false);
+    await waitFor(() =>
+      expect(api.addFiles).toHaveBeenCalledWith([
+        { id: fileId, mimeType: "image/png", dataURL: PNG_DATA_URL, created: expect.any(Number) },
+      ]),
+    );
+    await waitFor(() => expect(result.current.missingFileIds.has(fileId)).toBe(false));
     unmount();
   });
 
