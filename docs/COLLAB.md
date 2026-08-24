@@ -41,12 +41,17 @@ account** with wrangler — no PartyKit cloud, no extra login — or run locally
 > SQLite replicated to a bucket you own (S3/GCS/Azure), no control plane. A
 > viable non-Cloudflare path for this relay with zero WS-server rewrite.
 >
-> **Status (tested 2026-08): blocked for this relay.** celld v0.3.0's embedded
-> V8 rejects `crypto.subtle.importKey("raw", …, { name: "Ed25519" })`
-> ("unsupported key import"), so the relay's org-signature admission fails
-> every hello — every connection is rejected. The rest of the stack (deploy via
-> `celld deploy`, DO cells, hibernatable WebSockets, vars) works; revisit when
-> celld upstream supports Ed25519.
+> **Status: PARKED — awaiting celld WebCrypto Ed25519.** The 2026-08 pilot
+> shipped the relay to celld v0.3.0 (deploy/vars/DO cells/hibernatable
+> WebSockets all work) but its embedded V8 rejects
+> `crypto.subtle.importKey("raw", …, { name: "Ed25519" })` ("unsupported key
+> import") — every org-signed hello is rejected. celld remains the preferred
+> self-hosting target (native wrangler config + partyserver + hibernation; only
+> crypto is missing). The one complete alternative today is running the
+> **workerd** runtime yourself (self-hosted Workers) — it passes the
+> `cloudflare:workers` and Ed25519 gates natively, but needs a capnp config
+> translation, runs single-node, and wants a reverse proxy for TLS. Revisit
+> celld when Ed25519 lands upstream.
 
 All wrangler commands below run from **`packages/collab-relay/`** (where
 `wrangler.jsonc` lives); `pnpm relay:keygen` is a **repo-root** script:

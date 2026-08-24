@@ -29,11 +29,14 @@ Cloudflare 账号**——不需要 PartyKit 云、无需额外登录；或用 `w
 > 复制到你自有的 bucket（S3/GCS/Azure），无控制面。这是本中继可行的非
 > Cloudflare 路径，无需重写 WS 服务器。
 >
-> **实证状态（2026-08 测过）：对本中继当前被阻塞。** celld v0.3.0 内嵌 V8 拒绝
-> `crypto.subtle.importKey("raw", …, { name: "Ed25519" })`（"unsupported key
-> import"），导致中继的 org 签名准入对每个 hello 都验签失败——所有连接被拒。
-> 其余链路（`celld deploy`、DO cells、hibernatable WebSocket、vars）均正常；
-> 待 celld upstream 支持 Ed25519 后重新评估。
+> **状态：暂停 —— 等待 celld 支持 WebCrypto Ed25519。** 2026-08 试点已把中继
+> 部署到 celld v0.3.0（deploy/vars/DO cells/hibernatable WebSocket 全部正常），
+> 但其内嵌 V8 拒绝 `crypto.subtle.importKey("raw", …, { name: "Ed25519" })`
+> （"unsupported key import"）——每个 org 签名 hello 都被拒绝。celld 仍是首选
+> 自托管目标（原生读 wrangler 配置 + partyserver + 休眠；只缺加密）。目前唯一
+> 完整替代是自行运行 **workerd** 运行时（自托管 Workers）——#4 `cloudflare:workers`
+> 和 #12 Ed25519 都原生通过，但需要 capnp 配置翻译、单节点、TLS 靠反向代理。
+> 待 celld upstream 落地 Ed25519 后重新评估。
 
 下面所有 wrangler 命令都在 **`packages/collab-relay/`** 目录执行（`wrangler.jsonc`
 在那里）；`pnpm relay:keygen` 是**仓库根目录**脚本：

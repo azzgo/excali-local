@@ -124,6 +124,25 @@ trusts the membership; bandwidth abuse is not part of the v1 threat model.
 **What the code does**: documented behavior — the relay is not intended for
 public/multi-tenant operation.
 
+### Non-Cloudflare relay self-hosting deferred (pending celld WebCrypto)
+
+**What**: the relay's non-Cloudflare self-hosting path is parked. The preferred
+target — [celld](https://github.com/denoland/celld), which natively reads the
+wrangler config and runs partyserver DOs with hibernatable WebSockets — lacks
+WebCrypto Ed25519 key import in its embedded V8, so the relay's org-signature
+admission rejects every connection.
+
+**Why**: evaluated in the 2026-08 pilot: the whole stack (deploy via
+`celld deploy`, SQLite cells, vars, WS upgrades) works except
+`crypto.subtle.importKey("raw", …, {name:"Ed25519"})`. The relay's admission
+and per-frame verification are Ed25519-based by design (ADR 0003).
+
+**What the code does**: the relay targets Cloudflare today (`wrangler deploy`);
+COLLAB.md marks self-hosting as parked pending celld's crypto support. Should
+it become a release requirement earlier, the fallback is running **workerd**
+itself (complete runtime; capnp config translation, single-node, TLS via
+reverse proxy) or a pure-JS Ed25519 verify shim in `collab-core` as a stopgap.
+
 ### Effective single-org: rooms are org-unbound (v1)
 
 **What**: multi-org is the planned design, but v1 ships effectively single-org:

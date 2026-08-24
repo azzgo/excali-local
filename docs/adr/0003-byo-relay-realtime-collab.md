@@ -167,12 +167,13 @@ Cloudflare's acquisition of PartyKit:
   `packages/collab-relay/.dev.vars`, spawns `wrangler dev` on 127.0.0.1:1999.
 - **Keygen** (`pnpm relay:keygen --org … --relay …`): the production org keypair +
   server-invite generator (the doc'd `org-keygen` tool, now real).
-- **Non-Cloudflare self-hosting** is not provided by workerd itself, but DO runtimes
+- **Non-Cloudflare self-hosting — parked, awaiting celld WebCrypto.** DO runtimes
   like [celld](https://github.com/denoland/celld) execute wrangler bundles (Workers +
-  DO, SQLite cells) on your own machines — a viable path without a WS-server rewrite.
-  **Blocker as of the 2026-08 pilot:** celld v0.3.0's embedded V8 rejects Ed25519 raw
-  key import, so the relay's org-signature admission rejects every hello — revisit
-  when celld upstream supports Ed25519 (details in COLLAB.md).
+  DO, SQLite cells) natively — the preferred target — but the 2026-08 pilot found
+  celld v0.3.0's embedded V8 rejects Ed25519 raw key import, so org-signature
+  admission rejects every hello. Complete fallback today: run **workerd** itself
+  (self-hosted Workers runtime; capnp config translation, single-node, TLS via
+  reverse proxy). Revisit celld when Ed25519 lands upstream (details in COLLAB.md).
 - **Production gotchas found in the first real deployment** (both fixed in code,
   recorded for future maintainers): (a) passing the entry upgrade `Request`
   straight into the DO RPC loses the `Upgrade` header on production (the DO

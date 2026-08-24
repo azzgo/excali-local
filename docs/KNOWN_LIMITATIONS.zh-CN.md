@@ -100,6 +100,22 @@ Chrome 把扩展源当作启用了 `document.domain` 的源，而 WebMCP 实现�
 
 **代码做了什么**：记录在案的行为——中继不适用于公开/多租户运营。
 
+### 非 Cloudflare 的自托管中继延后（等待 celld WebCrypto）
+
+**现象**：中继的非 Cloudflare 自托管路径暂停。首选目标
+——[celld](https://github.com/denoland/celld)（原生读 wrangler 配置、跑 partyserver DO、
+支持 hibernatable WebSocket）——其内嵌 V8 缺少 WebCrypto Ed25519 密钥导入，
+导致中继的 org 签名准入拒绝所有连接。
+
+**原因**：2026-08 试点实测：整条链路（`celld deploy`、SQLite cells、vars、WS 升级）
+都正常，唯独 `crypto.subtle.importKey("raw", …, {name:"Ed25519"})` 失败。中继的
+准入与逐帧验签按设计就是 Ed25519 系的（ADR 0003）。
+
+**代码做了什么**：中继当前以 Cloudflare 为目标（`wrangler deploy`）；COLLAB.md 已把
+自托管标记为暂停、等待 celld 的加密支持。若自托管提前成为发布要求，兜底方案是自行运行
+**workerd**（完整运行时；需 capnp 配置翻译、单节点、TLS 走反向代理），或给
+`collab-core` 加纯 JS Ed25519 验签补丁作为应急。
+
 ### v1 实际为单 org：房间不绑定组织
 
 **现象**：多 org 是计划中的设计，但 v1 实际只有单 org——开发循环只注册一个组织
