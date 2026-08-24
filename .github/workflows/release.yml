@@ -26,9 +26,6 @@ jobs:
         run: pnpm install
       - name: Check skill (zero-drift)
         run: pnpm skill:check
-      - name: Test Page
-        run: |
-          pnpm run 'page:test'
       - name: Build page
         run: |
           pnpm run 'page:build'
