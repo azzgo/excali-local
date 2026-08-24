@@ -27,7 +27,13 @@ Cloudflare 账号**——不需要 PartyKit 云、无需额外登录；或用 `w
 > [celld](https://github.com/denoland/celld) 内嵌 V8、直接执行 wrangler 打包产物
 > （Workers + Durable Objects）跑在你自己的机器上——每个 DO 由 SQLite 支撑、
 > 复制到你自有的 bucket（S3/GCS/Azure），无控制面。这是本中继可行的非
-> Cloudflare 路径，无需重写 WS 服务器；本仓库未做实战验证。
+> Cloudflare 路径，无需重写 WS 服务器。
+>
+> **实证状态（2026-08 测过）：对本中继当前被阻塞。** celld v0.3.0 内嵌 V8 拒绝
+> `crypto.subtle.importKey("raw", …, { name: "Ed25519" })`（"unsupported key
+> import"），导致中继的 org 签名准入对每个 hello 都验签失败——所有连接被拒。
+> 其余链路（`celld deploy`、DO cells、hibernatable WebSocket、vars）均正常；
+> 待 celld upstream 支持 Ed25519 后重新评估。
 
 下面所有 wrangler 命令都在 **`packages/collab-relay/`** 目录执行（`wrangler.jsonc`
 在那里）；`pnpm relay:keygen` 是**仓库根目录**脚本：

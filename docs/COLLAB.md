@@ -39,8 +39,14 @@ account** with wrangler — no PartyKit cloud, no extra login — or run locally
 > [celld](https://github.com/denoland/celld) embeds V8 and executes wrangler
 > bundles (Workers + Durable Objects) on your own machines — each DO backed by
 > SQLite replicated to a bucket you own (S3/GCS/Azure), no control plane. A
-> viable non-Cloudflare path for this relay with zero WS-server rewrite; not
-> battle-tested in this repo.
+> viable non-Cloudflare path for this relay with zero WS-server rewrite.
+>
+> **Status (tested 2026-08): blocked for this relay.** celld v0.3.0's embedded
+> V8 rejects `crypto.subtle.importKey("raw", …, { name: "Ed25519" })`
+> ("unsupported key import"), so the relay's org-signature admission fails
+> every hello — every connection is rejected. The rest of the stack (deploy via
+> `celld deploy`, DO cells, hibernatable WebSockets, vars) works; revisit when
+> celld upstream supports Ed25519.
 
 All wrangler commands below run from **`packages/collab-relay/`** (where
 `wrangler.jsonc` lives); `pnpm relay:keygen` is a **repo-root** script:
