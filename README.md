@@ -28,7 +28,7 @@ Excali Local is a browser extension that brings **Excalidraw fully offline**: sc
 
 - **Screenshot annotation** — capture a full page or select an area, then annotate it in Excalidraw.
 - **Offline editor** — the complete Excalidraw experience, no internet connection required.
-- **Gallery & collections** — save, organize, search, and manage drawings locally; export or import everything as a ZIP archive.
+- **Gallery & collections** — save, organize, search, and manage drawings locally; export or import your drawings & collections as a ZIP archive.
 - **Presentation mode** — turn any drawing into a slide-based presentation.
 - **Custom fonts** — upload `.ttf`, `.woff`, or `.woff2` fonts, or use your system fonts, on an editor built from a fully-offline fork of Excalidraw 0.18.
 - **Direct `.excalidraw` file opening** — open files from any website or local folder in the editor.
@@ -50,7 +50,7 @@ Demo: [YouTube](https://youtu.be/_aHWUz9Og-I) | [Bilibili](https://www.bilibili.
 |:-:|:-:|
 | <img src="./.assets/capture-tab.png" width="480px" /> | <img src="./.assets/select-area.png" width="480px" /> |
 
-2. **Edit & organize locally** — every drawing lives in your browser (IndexedDB). Group drawings into collections, search them, and export or import everything as a ZIP archive.
+2. **Edit & organize locally** — every drawing lives in your browser (IndexedDB). Group drawings into collections, search them, and export or import your drawings & collections as a ZIP archive.
 
 | Empty gallery sidebar | Gallery with a drawing |
 |:-:|:-:|
