@@ -29,16 +29,44 @@ Cloudflare 账号**——不需要 PartyKit 云、无需额外登录；或用 `w
 > 复制到你自有的 bucket（S3/GCS/Azure），无控制面。这是本中继可行的非
 > Cloudflare 路径，无需重写 WS 服务器；本仓库未做实战验证。
 
+下面所有 wrangler 命令都在 **`packages/collab-relay/`** 目录执行（`wrangler.jsonc`
+在那里）；`pnpm relay:keygen` 是**仓库根目录**脚本：
+
+```bash
+cd packages/collab-relay          # ← 所有 wrangler 命令在这里
+cd <仓库根> && pnpm relay:keygen …   # ← keygen 在这里
+```
+
 ### 1. 前置条件
 
 ```bash
+cd packages/collab-relay
 pnpm install          # 工作区安装（中继包是工作区成员）
 npx wrangler login    # Cloudflare 账号（或 export CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN）
 ```
 
-### 2. 生成密钥与服务器邀请
+### 2. 先部署，拿到你的中继 URL
+
+服务器邀请内嵌中继 URL，所以**先部署再 keygen**：
 
 ```bash
+cd packages/collab-relay
+npx wrangler deploy   # → 打印 https://excali-local-collab-relay.<账号>.workers.dev
+```
+
+worker 名称来自 `packages/collab-relay/wrangler.jsonc`。自定义域名：Cloudflare 控制台或 `wrangler.jsonc` 的 `routing` 规则——如果用了自定义域名，重新部署并用那个 URL 生成邀请。
+
+> **`*.workers.dev` 在中国大陆被阻断**（DNS 污染 + SNI/TLS 丢包——GreatFire 实测 147/149
+> 个子域被封）。症状：TCP 能连、TLS 永不完成，扩展报 "WebSocket is closed before the
+> connection is established"。如果你的用户要在中国大陆访问中继，**必须绑定自定义域名**
+>（域名 DNS 托管到 Cloudflare → Workers → Settings → Domains & Routes → Custom Domains →
+> 添加），并用该 URL 重新生成邀请。普通 Cloudflare 任播 + 自定义域名在大陆一般可用，
+> `*.workers.dev` 不行。
+
+### 3. 生成密钥与服务器邀请（仓库根目录）
+
+```bash
+cd <仓库根>
 pnpm relay:keygen --org acme --relay https://excali-local-collab-relay.<账号>.workers.dev
 ```
 
@@ -56,16 +84,29 @@ server invite = excali-collab:v1:srv:<b64url(JSON { relay, org, sk, ck })>
 
 `sk` 和 `ck` **仅存在于客户端配置**：它们随服务器邀请分发、存放在扩展的本地配置里，**绝不发送给中继**。中继环境里只有公开验证密钥。
 
-### 3. 设置环境变量
+### 4. 设置环境变量（中继目录）
 
 `ORG_PUBKEYS` —— JSON 数组 `{ org, pubkeys[] }`，其中每个 pubkey 是组织的 32 字节 Ed25519 公钥（b64url，43 字符）：
 
 ```jsonc
-// wrangler.jsonc "vars"，或 `npx wrangler secret put ORG_PUBKEYS '…'`
 // [{"org":"acme","pubkeys":["x57…","yQ2…"]}]
 [
   { "org": "acme", "pubkeys": ["<pk b64url>"] }
 ]
+```
+
+二选一让它生效（都在 `packages/collab-relay` 目录执行）：
+
+```bash
+# (a) 写进 wrangler.jsonc 的 vars —— 最简单；ORG_PUBKEYS 是公开验证材料，
+#     提交进配置没有安全问题：
+#     "vars": { "ORG_PUBKEYS": "[...]" }
+#
+# (b) wrangler secret put —— 值走 stdin（不用和 shell 引号搏斗）：
+echo '[{"org":"acme","pubkeys":["x57…"]}]' | npx wrangler secret put ORG_PUBKEYS
+
+# 然后重新部署让环境变量生效：
+npx wrangler deploy
 ```
 
 - **每个组织的数组即轮换宽限期**：在重新签发窗口期内同时保留旧、新密钥，之后删掉旧的并重新部署（见[密钥轮换](#密钥轮换)）。
@@ -75,14 +116,6 @@ server invite = excali-collab:v1:srv:<b64url(JSON { relay, org, sk, ck })>
   多 org 注册针对的是*准入密钥*，不是房间租户——见[安全模型](#安全模型)。
 - `ORG_PUBKEYS` 为空/格式错误 ⇒ **所有准入全部失败**（故障时默认关闭）。
 - 旧版：1.8 之前的中继使用 `ORG_SECRETS`（org → secret 对象）。v2 中继只要存在 `ORG_PUBKEYS` 就完全禁用旧路径。
-
-### 4. 部署
-
-```bash
-npx wrangler deploy   # → https://excali-local-collab-relay.<账号>.workers.dev
-```
-
-上传到**你自己的** Cloudflare 账号（worker 名称来自 `packages/collab-relay/wrangler.jsonc`）。自定义域名：Cloudflare 控制台或 `wrangler.jsonc` 的 `routing` 规则。
 
 ### 5. 配置扩展
 

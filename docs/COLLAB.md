@@ -42,16 +42,48 @@ account** with wrangler — no PartyKit cloud, no extra login — or run locally
 > viable non-Cloudflare path for this relay with zero WS-server rewrite; not
 > battle-tested in this repo.
 
+All wrangler commands below run from **`packages/collab-relay/`** (where
+`wrangler.jsonc` lives); `pnpm relay:keygen` is a **repo-root** script:
+
+```bash
+cd packages/collab-relay          # ← all wrangler commands here
+cd <repo root> && pnpm relay:keygen …   # ← keygen here
+```
+
 ### 1. Prerequisites
 
 ```bash
+cd packages/collab-relay
 pnpm install          # workspace install (the relay package is a workspace member)
 npx wrangler login    # Cloudflare account (or export CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN)
 ```
 
-### 2. Generate keys and the server invite
+### 2. Deploy — first, to learn your relay URL
+
+The server invite embeds the relay URL, so **deploy before keygen**:
 
 ```bash
+cd packages/collab-relay
+npx wrangler deploy   # → prints https://excali-local-collab-relay.<account>.workers.dev
+```
+
+The worker name comes from `packages/collab-relay/wrangler.jsonc`. Custom
+domain: Cloudflare dashboard or a `routing` rule in `wrangler.jsonc` — if you
+use one, deploy again and use that URL in the invite.
+
+> **`.workers.dev` is blocked in mainland China** (DNS poisoning + SNI/TLS
+> dropping — GreatFire measures 147/149 subdomains blocked). Symptom: TCP
+> connects but TLS never completes, and the extension reports "WebSocket is
+> closed before the connection is established". If your users need to reach
+> the relay from mainland China, **bind a custom domain** (domain DNS at
+> Cloudflare → Workers → Settings → Domains & Routes → Custom Domains → Add)
+> and re-generate the invite with that URL. Plain Cloudflare anycast with a
+> custom domain generally works from the mainland; `.workers.dev` does not.
+
+### 3. Generate keys and the server invite (repo root)
+
+```bash
+cd <repo root>
 pnpm relay:keygen --org acme --relay https://excali-local-collab-relay.<account>.workers.dev
 ```
 
@@ -71,17 +103,30 @@ server invite = excali-collab:v1:srv:<b64url(JSON { relay, org, sk, ck })>
 extension's local config, and are **never sent to the relay**. The relay env holds
 public verification keys only.
 
-### 3. Set the env schema
+### 4. Set the env schema (relay dir)
 
 `ORG_PUBKEYS` — JSON array of `{ org, pubkeys[] }`, where each pubkey is the org's
 32-byte Ed25519 public key (b64url, 43 chars):
 
 ```jsonc
-// wrangler.jsonc "vars", or `npx wrangler secret put ORG_PUBKEYS '…'`
 // [{"org":"acme","pubkeys":["x57…","yQ2…"]}]
 [
   { "org": "acme", "pubkeys": ["<pk b64url>"] }
 ]
+```
+
+Make it live one of two ways (both run from `packages/collab-relay`):
+
+```bash
+# (a) vars in wrangler.jsonc — simplest; ORG_PUBKEYS is PUBLIC verification
+#     material, so committing it in the config is fine:
+#     "vars": { "ORG_PUBKEYS": "[...]" }
+#
+# (b) wrangler secret put — value via stdin (no shell-quoting fights):
+echo '[{"org":"acme","pubkeys":["x57…"]}]' | npx wrangler secret put ORG_PUBKEYS
+
+# then redeploy so the env applies:
+npx wrangler deploy
 ```
 
 - The **array per org is rotation grace**: keep old + new keys through the re-issue
@@ -95,16 +140,6 @@ public verification keys only.
 - Empty/malformed `ORG_PUBKEYS` ⇒ **all admissions fail** (fail closed).
 - Legacy: pre-1.8 relays used `ORG_SECRETS` (org → secret object). A v2 relay
   disables the legacy path whenever `ORG_PUBKEYS` is present.
-
-### 4. Deploy
-
-```bash
-npx wrangler deploy   # → https://excali-local-collab-relay.<account>.workers.dev
-```
-
-Uploads to **your** Cloudflare account (the worker name comes from
-`packages/collab-relay/wrangler.jsonc`). Custom domain: Cloudflare dashboard or a
-`routing` rule in `wrangler.jsonc`.
 
 ### 5. Configure the extension
 Open **Options → Collaboration** and paste the server invite. The trust confirmation

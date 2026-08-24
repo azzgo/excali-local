@@ -11,10 +11,20 @@
  * for reachability + clipboard needs.
  */
 import { validateRelayUrl } from "../invites";
+import { buildRoomUrl } from "../client";
 import { isLoopbackRelay } from "../storage";
 
 /** 054 Q9: prototype shows "checking… ⏱ timeout 8s". */
 export const DIAL_TIMEOUT_MS = 8000;
+
+/**
+ * Probe shareId for the reachability dial — a real /party/<id> route (the
+ * relay only answers on room paths; the bare root 404s, so dialing the bare
+ * relay URL always failed the trust check). The connection never sends a
+ * hello, so the relay's 2s hello-grace timer closes it with zero roster or
+ * storage side effects.
+ */
+const DIAL_PROBE_SHARE_ID = "excali-dial-probe";
 
 export type DialResult = "ok" | "unreachable" | "skipped";
 
@@ -59,14 +69,14 @@ function legacyCopy(text: string): boolean {
     return false;
   }
 }
-
 /**
  * Live reachability dial before trust/adoption (054 Q9 — the trust-confirm does
  * this before storing; admins generate invites before deploying, hence the
  * Save-anyway escape hatch). Loopback relays (`127.0.0.1` / `[::1]`) skip the
  * probe entirely (060 §1) — `"skipped"` renders as the neutral local-relay
- * badge. Remote relays are probed with a WebSocket handshake; success = the
- * server answered, failure/timeout = `"unreachable"`.
+ * badge. Remote relays are probed with a WebSocket handshake on a real room
+ * route (`/party/<dial-probe>`, 054 Q9 + 060 §1); success = the server
+ * answered, failure/timeout = `"unreachable"`.
  */
 export async function dialServer(
   relayUrl: string,
@@ -74,7 +84,7 @@ export async function dialServer(
 ): Promise<DialResult> {
   if (validateRelayUrl(relayUrl) !== null) return "unreachable";
   if (isLoopbackRelay(relayUrl)) return "skipped"; // 060: never probed, neutral badge
-  return (await probeWs(relayUrl, timeoutMs)) ? "ok" : "unreachable";
+  return (await probeWs(buildRoomUrl(relayUrl, DIAL_PROBE_SHARE_ID), timeoutMs)) ? "ok" : "unreachable";
 }
 
 function probeWs(url: string, timeoutMs: number): Promise<boolean> {

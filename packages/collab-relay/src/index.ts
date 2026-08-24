@@ -37,6 +37,21 @@ import type { MemberKey } from "./verify"
 
 const hostLog = createRelayLog("host")
 
+/**
+ * Workers runtime globals the router uses (tsconfig types keep node-only;
+ * @cloudflare/workers-types is not pulled in). WebSocketPair: {0: client, 1: server}.
+ */
+declare const WebSocketPair: new () => {
+  0: WebSocket & { accept(): void }
+  1: WebSocket & { accept(): void }
+}
+declare global {
+  interface ResponseInit {
+    webSocket?: WebSocket | null
+  }
+}
+export {}
+
 /** Relay env + the DO binding the router needs (structural type — no workers-types dependency). */
 export interface RelayEnvExt extends RelayEnv {
   RelayRoom: {
@@ -193,13 +208,34 @@ export class CollabRoomServer extends Server<RelayEnvExt> {
   }
 }
 
+const RELAY_ROOT_REASON = "excali-collab relay alive — dial a /party/<shareId> room";
+
 /** The relay entry — wrangler.jsonc `main` default-export. */
 export default {
   async fetch(request: Request, env: RelayEnvExt): Promise<Response> {
+    // Bare-root WS (reachability dial — incl. stale clients that probe the root
+    // instead of /party/<shareId>): answer the handshake so the server reads as
+    // reachable, then close immediately (no room → nothing else happens).
+    const pathname = new URL(request.url).pathname.replace(/\/+$/, "")
+    if (pathname === "" && request.headers.get("Upgrade")?.toLowerCase() === "websocket") {
+      const pair = new WebSocketPair()
+      pair[0].accept()
+      pair[0].close(1000, RELAY_ROOT_REASON)
+      return new Response(null, { status: 101, webSocket: pair[1] })
+    }
     const shareId = deriveShareId(request.url)
     if (shareId === null) return new Response("not found", { status: 404 })
+    // The wire contract is WS-only: refuse plain HTTP at the router.
+    if (request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
+      return new Response("not an upgrade", { status: 404 })
+    }
     const id = env.RelayRoom.idFromName(shareId)
-    return env.RelayRoom.get(id).fetch(request)
+    // CLONE the request before the DO RPC, exactly like partyserver's own
+    // routePartykitRequest does (`req = new Request(req)`). Handing the entry
+    // upgrade Request object straight to stub.fetch loses its `Upgrade` header
+    // on production (observed: the DO falls into onRequest → 404); a fresh
+    // Request copies the headers verbatim and re-arms the upgrade at the DO.
+    return env.RelayRoom.get(id).fetch(new Request(request.url, request))
   },
 } satisfies { fetch(request: Request, env: RelayEnvExt): Promise<Response> }
 

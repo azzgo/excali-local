@@ -170,3 +170,11 @@ Cloudflare's acquisition of PartyKit:
 - **Non-Cloudflare self-hosting** is not provided by workerd itself, but DO runtimes
   like [celld](https://github.com/denoland/celld) execute wrangler bundles (Workers +
   DO, SQLite cells) on your own machines — a viable path without a WS-server rewrite.
+- **Production gotchas found in the first real deployment** (both fixed in code,
+  recorded for future maintainers): (a) passing the entry upgrade `Request`
+  straight into the DO RPC loses the `Upgrade` header on production (the DO
+  falls into `onRequest` → 404) — the router clones it (`new Request(url, req)`,
+  exactly like `routePartykitRequest`); (b) clients dial the relay on
+  `/party/<shareId>`, so the bare root now answers the WS handshake (101, then
+  close) to keep reachability dials truthful instead of 404ing; the client dial
+  itself probes a fixed `/party/excali-dial-probe` path, never the bare root.
