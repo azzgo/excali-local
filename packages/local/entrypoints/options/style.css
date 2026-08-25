@@ -10,6 +10,7 @@
  * default — same as the rest of the Options page).
  * ------------------------------------------------------------------ */
 :root {
+  color-scheme: light;
   --background: 0 0% 100%;
   --foreground: 222.2 84% 4.9%;
   --card: 0 0% 100%;
@@ -29,6 +30,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    color-scheme: dark;
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
     --card: 222.2 84% 4.9%;
@@ -68,6 +70,15 @@
 @layer base {
   * {
     @apply border-border;
+  }
+
+  /* Body paints the Options backdrop (same gray pair the App wrapper uses)
+   * and, crucially, seeds the foreground color: the shared collab-config
+   * section renders plain-text headings and inputs that rely on inherited
+   * `color` (Tailwind preflight makes form controls inherit it). Without
+   * this, dark mode renders default-black text on the dark card. */
+  body {
+    @apply bg-gray-100 text-gray-900 dark:bg-gray-900 dark:text-gray-100;
   }
 }
 
