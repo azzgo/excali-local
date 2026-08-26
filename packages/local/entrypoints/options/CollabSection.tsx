@@ -10,7 +10,9 @@
  *   - injects a chrome.i18n `ConfigT` translator adapter (the shared component
  *     calls t(key) / t(key, {x}) and never interpolates itself),
  *   - routes the shared component's onToast to sonner, so CollabCopied /
- *     CollabCopyFailed / destructive-save toasts surface exactly as before.
+ *     CollabCopyFailed / destructive-save toasts surface exactly as before,
+ *   - injects the post-pairing entry: onOpenCollab opens the collab editor
+ *     (editor/index.html?type=collab, background.ts URL style) in a new tab.
  *
  * There is NO "Manage in Options" back link here (this IS Options), so `onBack`
  * is omitted.
@@ -46,6 +48,9 @@ const CollabSection = () => (
   <CollabConfigSection
     embedded
     t={i18nT}
+    onOpenCollab={() => {
+      browser.tabs.create({ url: "editor/index.html?type=collab" });
+    }}
     onToast={({ title, variant }) => {
       if (title === undefined) return;
       if (variant === "destructive") {

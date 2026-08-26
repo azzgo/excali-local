@@ -377,6 +377,9 @@
   "CollabBack": {
     "message": "返回"
   },
+  "CollabOpenPage": {
+    "message": "打开协作页面"
+  },
   "CollabOrg": {
     "message": "组织"
   },

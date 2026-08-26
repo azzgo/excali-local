@@ -12,7 +12,9 @@
  *   (on-demand, 056 Q5), switch-server inline red card (054 Q8), "Forget this
  *   server" confirm modal (056 Q7 — rooms stay grayed, nothing deleted),
  *   rotation red status line + paste-fresh-invite CTA (056 Q8 / 054 stale.admit
- *   copy), member-invite re-emit with one amber caution line (054 Q1/Q4).
+ *   copy), member-invite re-emit with one amber caution line (054 Q1/Q4),
+ *   optional post-pairing "Open collaboration page" pill in the summary
+ *   header (onOpenCollab — Options injects it; the webapp form omits it).
  *
  * DEPENDENCY-FREE: no @/ alias, no shadcn, no @tabler/icons, no sonner, no
  * i18next — only collab-core + react. Translation is injected via the `t` prop;
@@ -67,6 +69,13 @@ export interface CollabConfigSectionProps {
   onToast?: (msg: ConfigToast) => void;
   /** Optional back-to-landing link (webapp only). */
   onBack?: () => void;
+  /**
+   * Optional post-pairing entry: renders a compact "Open collaboration page"
+   * pill in the summary-card header (next to Check again). Options injects
+   * browser.tabs.create("editor/index.html?type=collab"); the webapp #config
+   * form omits it — that screen already lives inside the collab surface.
+   */
+  onOpenCollab?: () => void;
   /**
    * Embedded (Options section) mode: drops the full-page shell (min-h-svh
    * centering / muted backdrop / own <h1> — the host supplies its own
@@ -128,6 +137,7 @@ export default function CollabConfigSection({
   t,
   onToast,
   onBack,
+  onOpenCollab,
   embedded = false,
 }: CollabConfigSectionProps) {
   const [config, setConfig] = useState<ServerConfig | null>(null);
@@ -783,7 +793,20 @@ export default function CollabConfigSection({
           </div>
 
           {/* 056 Q5: reachability is on-demand — Check again, no background poll */}
-          <div className="mt-1 text-right">
+          <div className="mt-1 flex items-center justify-end gap-2">
+            {/* Post-pairing entry (optional, Options-only): a compact pill —
+                one notch above a bare 11px text link, still quiet next to the
+                manage/forget row below. The webapp #config form omits it. */}
+            {onOpenCollab !== undefined && (
+              <button
+                type="button"
+                data-testid="collab-config-open-collab"
+                onClick={onOpenCollab}
+                className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-full border border-input bg-background px-2.5 text-[11px] font-medium text-primary shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                {t("CollabOpenPage")} ↗
+              </button>
+            )}
             <button
               type="button"
               data-testid="collab-config-check-again"

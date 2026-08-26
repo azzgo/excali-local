@@ -377,6 +377,9 @@
   "CollabBack": {
     "message": "Back"
   },
+  "CollabOpenPage": {
+    "message": "Open collaboration page"
+  },
   "CollabOrg": {
     "message": "Organization"
   },
