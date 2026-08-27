@@ -260,7 +260,7 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
 
       {/* Session-level notification stack — floats over the top-right of the
        * canvas so alerts never push the canvas down. */}
-      <div ref={canvasAreaRef} className="relative flex-1 overflow-hidden">
+      <div className="relative flex-1 overflow-hidden">
         <div className="pointer-events-none absolute inset-0 z-50">
           <div data-testid="collab-notification-stack" className="pointer-events-auto absolute right-4 top-4 flex w-80 max-w-[calc(100%-2rem)] flex-col gap-2">
             <ConfigPropagationBanner live={session.live} />
@@ -273,34 +273,39 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
           </div>
         </div>
 
-        <Excalidraw
-          autoFocus
-          langCode={lang}
-          aiEnabled={false}
-          theme={theme}
-          onThemeChange={handleThemeChange}
-          showDeprecatedFonts={false}
-          onExcalidrawAPI={onExcalidrawAPI}
-          onPointerUpdate={session.onLocalPointer}
-          onChange={(elements, appState, files) =>
-            session.onLocalChange(elements, appState, files)
-          }
-          generateIdForFile={generateIdForFile}
-          onScrollChange={(scrollX, scrollY, zoom) =>
-            session.onLocalViewportChange(scrollX, scrollY, zoom)
-          }
-        >
-          {/* Gallery sidebar (room-mode): mounts inside the Excalidraw Sidebar slot.
-           * If the Excalidraw Sidebar island is unavailable (dock-panel fallback
-           * taken), GallerySidebar still renders inside Excalidraw's children — it
-           * owns its own <Sidebar> island, so it always lands in the dock panel
-           * regardless of where in the DOM it is placed. */}
-          <GallerySidebar
-            excalidrawAPI={excalidrawAPI}
-            onLoadDrawing={onLoadDrawing}
-            chosenDrawingId={chosenDrawingId ?? undefined}
-          />
-        </Excalidraw>
+        {/* 083: the follow-break gesture listeners attach at the CANVAS
+         * container level ONLY — a pointerdown on the notification stack /
+         * seed prompt must never break follow (see use-follow-break-toast). */}
+        <div ref={canvasAreaRef} data-testid="collab-canvas-area" className="h-full min-h-0">
+          <Excalidraw
+            autoFocus
+            langCode={lang}
+            aiEnabled={false}
+            theme={theme}
+            onThemeChange={handleThemeChange}
+            showDeprecatedFonts={false}
+            onExcalidrawAPI={onExcalidrawAPI}
+            onPointerUpdate={session.onLocalPointer}
+            onChange={(elements, appState, files) =>
+              session.onLocalChange(elements, appState, files)
+            }
+            generateIdForFile={generateIdForFile}
+            onScrollChange={(scrollX, scrollY, zoom) =>
+              session.onLocalViewportChange(scrollX, scrollY, zoom)
+            }
+          >
+            {/* Gallery sidebar (room-mode): mounts inside the Excalidraw Sidebar slot.
+             * If the Excalidraw Sidebar island is unavailable (dock-panel fallback
+             * taken), GallerySidebar still renders inside Excalidraw's children — it
+             * owns its own <Sidebar> island, so it always lands in the dock panel
+             * regardless of where in the DOM it is placed. */}
+            <GallerySidebar
+              excalidrawAPI={excalidrawAPI}
+              onLoadDrawing={onLoadDrawing}
+              chosenDrawingId={chosenDrawingId ?? undefined}
+            />
+          </Excalidraw>
+        </div>
 
         {/* seed prompt — empty room, no cache (053/061 rule C). Minimal
             inline version; TODO(043-replace): swap in 043's SeedPrompt

@@ -17,6 +17,10 @@ import RoomScreen from "@/features/collab/room-screen";
 import { clearSession } from "collab-core";
 import { COLLAB_SERVER_CONFIG } from "@/features/collab/storage";
 
+// Module-level sonner mock — hoisted by vi.mock (follow-break toasts).
+const toastMock = vi.hoisted(() => vi.fn());
+vi.mock("sonner", () => ({ toast: toastMock }));
+
 vi.mock("@excalidraw/excalidraw", () => ({
   CaptureUpdateAction: {
     NEVER: "NEVER",
@@ -222,5 +226,102 @@ describe("RoomScreen — session + seed prompt", () => {
       ).toBeDefined(),
     );
     expect(screen.queryByTestId("collab-seed-prompt")).toBeNull();
+  });
+});
+
+describe("RoomScreen — follow-break gesture listeners scope (083)", () => {
+  beforeEach(() => {
+    toastMock.mockClear();
+  });
+
+  /** Welcome with a PRESENTING peer (conn-2) so a follow target exists. */
+  const welcomeWithPresenter = (): string =>
+    JSON.stringify({
+      v: 1,
+      t: "welcome",
+      p: {
+        profileId: "any",
+        connId: "conn-1",
+        room: SHARE_ID,
+        privacy: "team",
+        snapshotAvailable: true,
+        peers: [
+          {
+            profileId: "peer-1",
+            name: "Min",
+            color: { background: "#fff", stroke: "#000" },
+            connId: "conn-2",
+            presenting: true,
+          },
+        ],
+      },
+    });
+
+  const renderSession = async () => {
+    setStoredConfig();
+    render(<RoomScreen lang="en" shareId={SHARE_ID} wsFactory={() => new StubSocket("ws://x")} />);
+    await screen.findByTestId("collab-session-chrome");
+    await waitFor(() => expect(lastSocket()).toBeDefined());
+    const ws = lastSocket();
+    await act(async () => {
+      ws.open();
+    });
+    await act(async () => {
+      ws.message(welcomeWithPresenter());
+    });
+    return ws;
+  };
+
+  /** Open the presence feed and start following the presenting peer. */
+  const startFollowing = async () => {
+    // the PresenceFeed mounts inside the dropdown — open it first
+    // (radix opens on pointerdown; a plain click alone is not enough)
+    fireEvent.pointerDown(screen.getByTestId("collab-feed-trigger"));
+    fireEvent.click(screen.getByTestId("collab-feed-trigger"));
+    await waitFor(() => expect(screen.getByTestId("collab-feed-row-peer-1")).toBeTruthy());
+    // hover reveals the row actions, then click the follow eye
+    fireEvent.mouseEnter(screen.getByTestId("collab-feed-row-peer-1"));
+    fireEvent.click(screen.getByTestId("collab-row-follow-peer-1"));
+    await waitFor(() =>
+      expect(screen.getByTestId("collab-row-follow-peer-1").dataset.followActive).toBe("true"),
+    );
+  };
+
+  test("the canvas-area listener host wraps ONLY the Excalidraw mount (083: canvas-container level)", async () => {
+    await renderSession();
+    await screen.findByTestId("mock-excalidraw");
+
+    const canvasHost = screen.getByTestId("collab-canvas-area");
+    // the host wraps the canvas, NOT the notification stack (both live in the
+    // same outer area — the ref must be on the narrower Excalidraw wrapper)
+    expect(canvasHost.contains(screen.getByTestId("mock-excalidraw"))).toBe(true);
+    expect(canvasHost.contains(screen.getByTestId("collab-notification-stack"))).toBe(false);
+  });
+
+  /** Re-open the feed dropdown (outside pointerdowns dismiss it) and hover the row. */
+  const openFeed = async () => {
+    fireEvent.pointerDown(screen.getByTestId("collab-feed-trigger"));
+    fireEvent.click(screen.getByTestId("collab-feed-trigger"));
+    await waitFor(() => expect(screen.getByTestId("collab-feed-row-peer-1")).toBeTruthy());
+    fireEvent.mouseEnter(screen.getByTestId("collab-feed-row-peer-1"));
+    await waitFor(() => expect(screen.getByTestId("collab-row-follow-peer-1")).toBeTruthy());
+  };
+
+  test("pointerdown on the notification stack does NOT break follow; canvas pointerdown does (083)", async () => {
+    await renderSession();
+    await startFollowing();
+
+    // a gesture on the notification stack / overlay area must leave follow intact
+    fireEvent.pointerDown(screen.getByTestId("collab-notification-stack"));
+    // the outside pointerdown dismisses the feed dropdown — re-open to inspect
+    await openFeed();
+    expect(screen.getByTestId("collab-row-follow-peer-1").dataset.followActive).toBe("true");
+    expect(toastMock).not.toHaveBeenCalled();
+
+    // a gesture on the canvas wrapper breaks follow at onset (ADR 0008)
+    fireEvent.pointerDown(screen.getByTestId("collab-canvas-area"));
+    await openFeed();
+    expect(screen.getByTestId("collab-row-follow-peer-1").dataset.followActive).toBeUndefined();
+    expect(toastMock).toHaveBeenCalledTimes(1);
   });
 });
