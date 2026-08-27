@@ -174,16 +174,21 @@ durable record (ADR 0003).
 **What the code does**: the room list stores invite payloads locally; re-entering
 a dead room prompts the first member to reseed from their gallery.
 
-### Presentation mode × collaboration deferred
+### Presentation mode × collaboration (ADR 0008 — shipped)
 
-**What**: presentation mode does not interact with collab rooms in 1.8.0
-(follow-a-collaborator / whole-room presentation is out of scope).
+**What**: the 2026-08 deferral is partially lifted — **presentation follow is shipped as of 1.9**.
 
-**Why**: human decision 2026-08-16 — revisit only after the collab model matures
-in real use.
+**What ships**: a self-declared multi-presenter model (any member may present), one-way raw viewport streaming to followers, per-follower follow-entry on a roster click, and gesture-break at local pan/zoom onset with a toast ("Stopped following {name}"). One-shot cursor jump: clicking a presenter's avatar hops to their live viewport; for non-presenting members the hop uses their last known pointer position.
 
-**What the code does**: the two modes are separate editor forms; nothing
-prevents presenting a drawing you saved from a collab session.
+**What is still not done**:
+
+- **Continuous non-presentation viewport follow** — following another member's viewport outside of presentation mode is not implemented; the only reach-other-member affordance is the one-shot cursor jump described above.
+
+- **Laser sync** (see [Laser pointer sync not in v1](#laser-pointer-sync-not-in-v1)) — the wire contract already carries the `tool` field, but the laser pointer is not broadcast to collaborators.
+
+- **Audience visibility** — presenters cannot see who follows them or how many.
+
+**What the code does**: `Member.presenting` (an ephemeral relay-side flag, not persisted) is set on `present {active:true}` and deleted on `present {active:false}`; `welcome.peers` propagates it to late joiners so they see the presenting icon immediately. `PresentPayload` = `{active:true}` | `{x,y,z}` | `{active:false}`. `ContentType` gains `"present"` — same privacy tier as `pointer` (where someone is looking). Viewport frames use the ~100ms trailing-edge throttle precedent from `sendScene`. Old relays silently drop the unknown type; old clients ignore it — no protocol version bump needed.
 
 ### Laser pointer sync not in v1
 

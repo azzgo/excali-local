@@ -385,11 +385,89 @@ snapshot survives.
 
 Known platform/design limitations: [Known Limitations](KNOWN_LIMITATIONS.md).
 
+## Presentation follow
+
+Rooms can run a lightweight multi-presenter follow mode (ADR 0008). It is not a presentation tool — no frames, no ordering, no slides. It is an adhesive layer on top of collab: one-way raw viewport streaming from a presenting member to their followers.
+
+### Presenting
+
+Any member may start presenting from the people/presence menu (the Collaborators feed). Doing so sends a `present {active:true}` message, followed by a throttled stream of `present {x,y,z}` viewport frames (~100ms trailing-edge throttle, same as `sendScene`). Stopping sends `present {active:false}`. The presenter's `Member.presenting` flag is ephemeral relay-state (no storage); `welcome.peers` carries it to late joiners so the presenting icon is visible immediately.
+
+### Following
+
+Click the follow icon (eye) on a presenting member's presence row to follow their view. Their live viewport is applied to your canvas continuously. Follow is a purely local client-side feature — no wire message is sent; the follower receives the presenter's raw `{x,y,z}` frames and applies them as viewport updates.
+
+### Gesture-break and the follow-break toast
+
+Follow breaks automatically on:
+
+- **Involuntary break** — local pan/zoom gesture onset: `pointerdown` drag, `wheel`, or pinch (`use-follow-break-toast.ts` wires the native events; `classifyFollowEvent` returns `shouldBreak: true, toastKey: "CollabFollowBroke"` for all involuntary events). The toast reads "Stopped following {name}".
+
+- **Presenter-leave** — the followed member stops presenting or disconnects: the `Member.presenting` flag disappears from the roster, triggering the same break path.
+
+- **Own-present-start** — you enter presentation mode yourself while following: `startPresenting()` clears `followTargetId` synchronously, which fires the same effect.
+
+Manual unfollow (clicking the active follow icon to stop following) breaks silently — `classifyFollowEvent` returns `toastKey: ""`.
+
+### Cursor jump
+
+The jump button (compass icon) on every presence row performs a **one-shot hop** to the target's viewport. Priority:
+
+1. **Follow target's viewport wins** — if the row's profileId matches your current `followTargetId` and that member is presenting, use their live presentation viewport.
+
+2. **Row's own last-known pointer position** — for non-presenting members (or when not following them), hop to their last broadcast `{x,y,z}` from the pointer stream.
+
+3. **Button disabled** — when neither is known, the jump button is grayed out (no viewport to hop to).
+
+### Protocol versioning
+
+The `present` message type and `ContentType "present"` join the existing wire contract without a protocol version bump. Old relays silently drop the unknown type (covered by relay tests); old clients ignore the new type entirely. Against a legacy relay the feature is simply absent — no degradation path needed.
+
+### Still not in v1
+
+- **Continuous non-presentation viewport follow** — the only way to reach another member's canvas outside of presentation mode is the one-shot cursor jump.
+
+- **Laser sync** — see [Known Limitations](KNOWN_LIMITATIONS.md).
+
+- **Audience visibility** — presenters cannot see who follows them or how many.
+
+---
+
+## Room gallery sidebar
+
+The local editor's gallery (list, collections, search, thumbnails) is mounted inside RoomScreen — giving every room member the same rich browsing experience as the local editor.
+
+### In-room load is an ordinary edit
+
+Choosing a drawing and confirming replaces the room's scene. The load travels as an **ordinary edit** through the existing `broadcastScene` pipeline:
+
+1. Gallery card click opens a text-only confirmation modal ("Load drawing to room? / This replaces the room's current content, visible to all members."). No thumbnail preview, no "don't ask again" suppression in v1.
+
+2. Confirm → `normalizeSceneImageRefs` rewrites every image ref to its content hash (`dataURLToBytes` + `fileIdFor` from `collab-core`) before broadcasting.
+
+3. `broadcastScene` clears the echo guard so the resulting `onChange` is NOT swallowed; `onLocalChange` handles the normal `seq` bump + `sendScene` + debounced persist path.
+
+Receivers need zero special casing — they process an ordinary full-scene `scene` message.
+
+The same normalization applies to **gallery seed-from-gallery paths**: when a dead room is seeded from a gallery drawing (instead of blank), `normalizeSceneImageRefs` is applied before the seed broadcast.
+
+### Saving is sidebar-only
+
+The session chrome's dedicated "Save to my gallery" button is **removed**. The room has **no implicit durable copy** — nothing is saved unless a member explicitly saves via the gallery sidebar.
+
+Flow: open a gallery drawing → the sidebar marks it as the room's chosen drawing; any subsequent sidebar Save overwrites that same record. Never chose one → Save creates a new gallery entry. Legacy `room-*` synthetic records (the old implicit binding) degrade to ordinary drawings.
+
+### Leave modal: Leave / Stay
+
+The leave modal now has two actions: **Leave** (discard and exit) and **Stay** (close the modal and continue editing). The body copy warns that unsaved changes will be lost and points at the sidebar for saving first. The removed "Save & leave" path would resurrect the implicit save channel — the sidebar-only saving rule is the cleaner design.
+
+---
 ## See also
 
 - [ADR 0003 — BYO relay realtime collab](adr/0003-byo-relay-realtime-collab.md) — the
   decision record: model, considered options, consequences.
 - [Known Limitations](KNOWN_LIMITATIONS.md) — 20MB file cap, one relay per extension,
-  no per-member revocation, presentation × collab deferred, and more.
+  no per-member revocation, continuous viewport follow deferred, laser sync not in v1,
+  audience visibility not in v1, and more.
 - [Architecture](ARCHITECTURE.md) — repository layout and the editor boot model.
 - [README](../README.md) — install and feature overview.
