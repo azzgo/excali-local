@@ -117,6 +117,7 @@ describe("AAD (050 §5 / §8)", () => {
     expect(new TextDecoder().decode(aad("file-data", "room-1"))).toBe(
       "excali-collab/v1|file-data|room-1",
     )
+    expect(new TextDecoder().decode(aad("present", "room-1"))).toBe("excali-collab/v1|present|room-1")
   })
 
   it("file AAD is file-scoped", () => {
@@ -132,6 +133,9 @@ describe("contentCanon (058 §2.1 exact template)", () => {
     expect(contentCanon("pointer", "room-x", "c1", "iv1")).toBe(
       'excali-collab/v1:sign:{"t":"pointer","room":"room-x","c":"c1","iv":"iv1"}',
     )
+    expect(contentCanon("present", "room-x", "c2", "iv2")).toBe(
+      'excali-collab/v1:sign:{"t":"present","room":"room-x","c":"c2","iv":"iv2"}',
+    )
   })
 
   it("file bodies additionally bind fileId (after room, before c)", () => {
@@ -143,6 +147,7 @@ describe("contentCanon (058 §2.1 exact template)", () => {
   it("file-data without fileId is malformed; fileId on non-file-data is malformed", () => {
     expect(() => contentCanon("file-data", "room-x", "c0", "iv0")).toThrow(FrameFormatError)
     expect(() => contentCanon("scene", "room-x", "c0", "iv0", "f-1")).toThrow(FrameFormatError)
+    expect(() => contentCanon("present", "room-x", "c0", "iv0", "f-1")).toThrow(FrameFormatError)
   })
 })
 
@@ -330,13 +335,15 @@ describe("encryptContent / decryptContent", () => {
     }
   })
 
-  it("round-trips every content type (seed/scene/pointer/file-data)", async () => {
+  it("round-trips every content type (seed/scene/pointer/present/file-data)", async () => {
     const key = await deriveContentKey({ baseSecret: randomSecret(), shareId: "room-1" })
     const signer = await makeSigner("u-1")
     const cases: Array<{ t: ContentType; plaintext: unknown; fileId?: string }> = [
       { t: "seed", plaintext: { scene: [{ id: "a" }], seq: 1 } },
       { t: "scene", plaintext: { elements: [{ id: "b" }], seq: 2 } },
       { t: "pointer", plaintext: { x: 1.5, y: -2, tool: "laser" } },
+      { t: "present", plaintext: { active: true } },
+      { t: "present", plaintext: { x: 100, y: 200, z: 1.5 } },
       { t: "file-data", plaintext: { bytes: "opaque-blob", size: 42 }, fileId: "f-1" },
     ]
     for (const { t, plaintext, fileId } of cases) {
@@ -820,8 +827,8 @@ describe("hello admission signature (057 §3)", () => {
   it("helloCanon is the verbatim 057 §3 canonical string (fixed order, org hoisted, sig excluded)", () => {
     expect(helloCanon(makeHello())).toBe(
       "excali-collab/v1:hello:{\"v\":1,\"t\":\"hello\",\"p\":{\"profileId\":\"prof-0001\",\"name\":\"Ada\"," +
-      "\"color\":{\"background\":\"hsl(10, 100%, 83%)\",\"stroke\":\"hsl(10, 100%, 50%)\"},\"privacy\":\"team\"," +
-      "\"room\":\"share-123\",\"org\":\"acme\",\"key\":\"pubkey-b64\"}}",
+        "\"color\":{\"background\":\"hsl(10, 100%, 83%)\",\"stroke\":\"hsl(10, 100%, 50%)\"},\"privacy\":\"team\"," +
+        "\"room\":\"share-123\",\"org\":\"acme\",\"key\":\"pubkey-b64\"}}",
     )
     const canon = helloCanon(makeHello())
     // the signature is NOT part of the canon — a filled sig changes nothing
@@ -906,5 +913,94 @@ describe("file-get authorization (fileGetCanon / signFileGet / verifyFileGet)", 
     const pk = bytesToB64url(other.publicKey as Uint8Array)
     const frame = await signFileGet(signer, "room-x", "f-1")
     await expect(verifyFileGet("room-x", "f-1", frame.sig, pk)).resolves.toBe(false)
+  })
+})
+
+// ─── present message type ──────────────────────────────────────────────────────
+
+describe("present content type", () => {
+  it("signs and verifies across both tiers (private roomSecret + team ck)", async () => {
+    for (const baseSecret of [randomSecret(), randomSecret()]) {
+      const key = await deriveContentKey({ baseSecret, shareId: "room-1" })
+      const signer = await makeSigner("u-1")
+      for (const plaintext of [{ active: true }, { x: 100, y: 200, z: 1.5 }, { active: false }]) {
+        const frame = await encryptContent({
+          key,
+          t: "present",
+          room: "room-1",
+          shareId: "room-1",
+          plaintext,
+          signer,
+        })
+        const decrypted = await decryptContent({
+          key,
+          t: "present",
+          room: "room-1",
+          shareId: "room-1",
+          frame,
+        })
+        expect(decrypted).toEqual(plaintext)
+        await expect(verifyFrameSig(asFrame("present", "room-1", frame))).resolves.toBe(true)
+      }
+    }
+  })
+
+  it("present does NOT require fileId (only file-data does)", async () => {
+    const key = await deriveContentKey({ baseSecret: randomSecret(), shareId: "room-1" })
+    const signer = await makeSigner("u-1")
+    // must NOT throw — present does not need fileId
+    const frame = await encryptContent({
+      key,
+      t: "present",
+      room: "room-1",
+      shareId: "room-1",
+      plaintext: { active: true },
+      signer,
+    })
+    await expect(
+      decryptContent({ key, t: "present", room: "room-1", shareId: "room-1", frame }),
+    ).resolves.toEqual({ active: true })
+    // fileId on present is still rejected (only file-data allows it)
+    await expect(
+      encryptContent({
+        key,
+        t: "present",
+        room: "room-1",
+        shareId: "room-1",
+        plaintext: { active: true },
+        signer,
+        fileId: "f-1",
+      }),
+    ).rejects.toBeInstanceOf(FrameFormatError)
+  })
+
+  it("contentCanon for present follows the generic message path (no fileId)", () => {
+    expect(contentCanon("present", "room-x", "c0", "iv0")).toBe(
+      'excali-collab/v1:sign:{"t":"present","room":"room-x","c":"c0","iv":"iv0"}',
+    )
+    // no fileId parameter — must NOT throw
+    expect(() => contentCanon("present", "room-x", "c0", "iv0")).not.toThrow()
+  })
+
+  it("AAD for present is room-scoped (not file-scoped)", () => {
+    expect(new TextDecoder().decode(aad("present", "room-1"))).toBe(
+      "excali-collab/v1|present|room-1",
+    )
+  })
+
+  it("present frame verifies correctly across sessions (stored-unit property)", async () => {
+    const key = await deriveContentKey({ baseSecret: randomSecret(), shareId: "room-1" })
+    const signer = await makeSigner("u-1")
+    const frame = await encryptContent({
+      key,
+      t: "present",
+      room: "room-1",
+      shareId: "room-1",
+      plaintext: { x: 50, y: 75, z: 2.0 },
+      signer,
+    })
+    clearContentKeyCache()
+    // verify needs zero session state
+    await expect(verifyFrameSig(asFrame("present", "room-1", frame))).resolves.toBe(true)
   })
 })

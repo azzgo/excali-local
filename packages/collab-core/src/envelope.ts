@@ -46,8 +46,8 @@ function hkdfSalt(shareId: string): Uint8Array<ArrayBuffer> {
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
-/** Closed enum of encrypted+signed content message types (058 §1.2/§2.5). */
-export type ContentType = "seed" | "scene" | "pointer" | "file-data"
+/** Closed enum of encrypted+signed content message types (058 §1.2/§2.5, task 077). */
+export type ContentType = "seed" | "scene" | "pointer" | "present" | "file-data"
 
 /** 050 §3 EncryptedPayload — UNCHANGED by 058: p stays {c, iv}. */
 export interface EncryptedPayload {

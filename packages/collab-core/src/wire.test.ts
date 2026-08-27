@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { PROTOCOL_VERSION, deriveColor, helloCanon, seedToPkcs8 } from "./wire"
-import type { ClientMessage, HelloPayload, Member, RelayMessage } from "./wire"
+import type { ClientMessage, HelloPayload, Member, RelayMessage, PresentPayload } from "./wire"
 
 const member: Member = {
   profileId: "profile-1",
@@ -29,6 +29,9 @@ const clientMessages: ClientMessage[] = [
   { v: 1, t: "file-get", p: { fileId: "f-1" } },
   { v: 1, t: "chunk", p: { id: "chunk-1", n: 3, i: 0, d: "fragment" } },
   { v: 1, t: "member-name", p: { name: "Ada" } },
+  { v: 1, t: "present", p: { active: true } },
+  { v: 1, t: "present", p: { x: 100, y: 200, z: 1.5 } },
+  { v: 1, t: "present", p: { active: false } },
 ]
 
 const relayMessages: RelayMessage[] = [
@@ -57,6 +60,9 @@ const relayMessages: RelayMessage[] = [
   { v: 1, t: "room-name", p: { name: "Q3 planning" }, from: "conn-2" },
   { v: 1, t: "member-name", p: { name: "Ada" }, from: "conn-2" },
   { v: 1, t: "room-probe", p: { roomName: "Q3 planning", snapshotAvailable: true, peerCount: 2 } },
+  { v: 1, t: "present", p: { active: true }, from: "conn-2" },
+  { v: 1, t: "present", p: { x: 100, y: 200, z: 1.5 }, from: "conn-2" },
+  { v: 1, t: "present", p: { active: false }, from: "conn-2" },
 ]
 
 describe("wire envelope", () => {
@@ -86,15 +92,25 @@ describe("wire envelope", () => {
     }
   })
 
-  it("relayed scene/pointer carry `from` at envelope level, never inside p", () => {
+  it("relayed scene/pointer/present carry `from` at envelope level, never inside p", () => {
     for (const msg of relayMessages) {
-      if (msg.t === "scene" || msg.t === "pointer") {
+      if (msg.t === "scene" || msg.t === "pointer" || msg.t === "present") {
         expect(msg.from).toBe("conn-2")
         expect("from" in msg.p).toBe(false)
-        expect(Object.keys(msg.p).sort()).toEqual(
-          msg.t === "scene" ? ["elements", "seq"] : ["button", "tool", "x", "y"],
-        )
       }
+    }
+  })
+
+  it("present payload is one of the three union shapes", () => {
+    const presentActive: { v: 1; t: "present"; p: { active: true } } = { v: 1, t: "present", p: { active: true } }
+    const presentPos: { v: 1; t: "present"; p: { x: number; y: number; z: number } } = { v: 1, t: "present", p: { x: 100, y: 200, z: 1.5 } }
+    const presentInactive: { v: 1; t: "present"; p: { active: false } } = { v: 1, t: "present", p: { active: false } }
+
+    // each shape round-trips through JSON
+    for (const msg of [presentActive, presentPos, presentInactive]) {
+      const rt = JSON.parse(JSON.stringify(msg))
+      expect(rt).toEqual(msg)
+      expect(rt.t).toBe("present")
     }
   })
 

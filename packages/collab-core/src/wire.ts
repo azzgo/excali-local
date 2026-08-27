@@ -64,6 +64,12 @@ export interface WelcomePayload {
   peers: Member[]
 }
 
+/** Present payload union (077): activate, scroll-position, or deactivate. */
+export type PresentPayload =
+  | { active: true }
+  | { x: number; y: number; z: number }
+  | { active: false }
+
 export type ClientMessage =
   | { v: 1; t: "hello"; p: HelloPayload }
   | { v: 1; t: "seed"; p: { scene: unknown[]; seq: number } }
@@ -80,6 +86,7 @@ export type ClientMessage =
   | { v: 1; t: "member-name"; p: { name: string } }
   | { v: 1; t: "ping"; p: {} } // in-session liveness probe (client→relay)
   | { v: 1; t: "room-probe"; p: {} }
+  | { v: 1; t: "present"; p: PresentPayload }
 export type RelayMessage =
   | { v: 1; t: "welcome"; p: WelcomePayload }
   | { v: 1; t: "peer"; p: { kind: "join" | "leave"; member?: Member } }
@@ -96,6 +103,7 @@ export type RelayMessage =
   | { v: 1; t: "chunk"; p: { id: string; n: number; i: number; d: string } }
   | { v: 1; t: "room-name"; p: { name: string }; from: string }
   | { v: 1; t: "member-name"; p: { name: string }; from: string }
+  | { v: 1; t: "present"; p: PresentPayload; from: string }
   | { v: 1; t: "pong"; p: {} } // in-session liveness answer (relay→client)
   | { v: 1; t: "room-probe"; p: RoomProbePayload }
 
