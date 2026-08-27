@@ -84,6 +84,7 @@ export type {
   CollabWs,
   IncomingPointer,
   IncomingScene,
+  IncomingPresent,
   PointerPayload,
   RoomProbeOptions,
   WsFactory,

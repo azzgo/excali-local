@@ -186,6 +186,12 @@ export interface IncomingPointer extends PointerPayload {
   from: string
 }
 
+/** Incoming present payload (077): activate, scroll-position, or deactivate. */
+export type IncomingPresent =
+  | { active: true; from: string }
+  | { active: false; from: string }
+  | { x: number; y: number; z: number; from: string }
+
 /**
  * Client-side error codes (NOT on the wire — the wire ErrorCode union is
  * closed). E2E_AUTH_FAILED = the definitive stale-key signal (058 §5): GCM
@@ -280,6 +286,8 @@ export interface CollabClientOptions extends CollabBackoffOptions {
   onScene?: (scene: IncomingScene) => void
   /** remote cursor/laser update */
   onPointer?: (pointer: IncomingPointer) => void
+  /** remote present state change (077) */
+  onPresent?: (present: IncomingPresent) => void
   /** wire error frame, or the client-side E2E_AUTH_FAILED stale-key signal */
   onError?: (error: CollabError) => void
   /** fires on every socket close; fatal=true → no reconnect will follow
@@ -315,6 +323,8 @@ export class CollabClient {
   private dialTimer: ReturnType<typeof setTimeout> | null = null
   private sceneTimer: ReturnType<typeof setTimeout> | null = null
   private pendingScene: { elements: unknown[]; seq: number } | null = null
+  private presentTimer: ReturnType<typeof setTimeout> | null = null
+  private pendingPresent: { x: number; y: number; z: number } | null = null
   /** the latest local full scene — rebroadcast after a reconnect welcome
    * (061 §2 offline-edits-sync; the hook may still merge first via merge.ts
    * and send a newer scene — full-scene LWW is self-healing) */
@@ -477,6 +487,33 @@ export class CollabClient {
       t: "pointer",
       p: button === undefined ? { x, y, tool } : { x, y, tool, button },
     })
+  }
+
+  /**
+   * Activate or deactivate presentation mode (077): {active:true}|{active:false}.
+   * Immediate, no throttle — this is a discrete user action. Dropped silently
+   * while disconnected.
+   */
+  sendPresentActive(active: boolean): void {
+    this.sendEnvelope({ v: PROTOCOL_VERSION, t: 'present', p: { active } })
+  }
+
+  /**
+   * Send the current presentation viewport (077): {x,y,z} scroll/zoom values.
+   * Trailing-edge throttle (~100ms): rapid calls coalesce — the LAST values win
+   * and are sent once when the window elapses. Dropped silently while
+   * disconnected (the reconnect snapshot covers the gap).
+   */
+  sendPresentViewport({ x, y, z }: { x: number; y: number; z: number }): void {
+    this.pendingPresent = { x, y, z }
+    if (this.presentTimer !== null) return
+    const throttle = this.opts.sceneThrottleMs ?? SCENE_THROTTLE_MS
+    this.presentTimer = setTimeout(() => {
+      this.presentTimer = null
+      const pending = this.pendingPresent
+      this.pendingPresent = null
+      if (pending) this.sendEnvelope({ v: PROTOCOL_VERSION, t: 'present', p: pending })
+    }, throttle)
   }
 
   /**
@@ -684,6 +721,10 @@ export class CollabClient {
       clearTimeout(this.sceneTimer)
       this.sceneTimer = null
     }
+    if (this.presentTimer !== null) {
+      clearTimeout(this.presentTimer)
+      this.presentTimer = null
+    }
   }
 
   private clearDialTimer(): void {
@@ -774,6 +815,9 @@ export class CollabClient {
       case "pointer":
         void this.handleContentFrame(env as WireEnvelope<"pointer">)
         return
+      case "present":
+        void this.handleContentFrame(env as WireEnvelope<"present">)
+        return
       case "error":
         collabDebugLog("error", env.p as { code?: unknown; reason?: unknown })
         this.handleError(env.p as { code?: unknown; reason?: unknown; fatal?: unknown })
@@ -802,11 +846,11 @@ export class CollabClient {
   }
 
   private async handleContentFrame(
-    env: WireEnvelope<"scene" | "seed" | "pointer">,
+    env: WireEnvelope<"scene" | "seed" | "pointer" | "present">,
   ): Promise<void> {
     const from = (env as WireEnvelope & { from?: string }).from
-    if (env.t === "pointer" && typeof from !== "string") {
-      return // live pointers are always relay-stamped (wire.ts) — missing from = relay bug
+    if ((env.t === "pointer" || env.t === "present") && typeof from !== "string") {
+      return // live pointers/present are always relay-stamped (wire.ts) — missing from = relay bug
     }
     const payload = await this.contentPayload(env)
     if (payload === null) return // dropped (decrypt failure / malformed / undecryptable)
@@ -822,17 +866,37 @@ export class CollabClient {
       this.opts.onScene?.({ t: "seed", scene: p.scene, seq: p.seq, ...(from ? { from } : {}) })
       return
     }
-    const p = payload as { x?: unknown; y?: unknown; tool?: unknown; button?: unknown }
-    if (typeof p.x !== "number" || typeof p.y !== "number" || (p.tool !== "pointer" && p.tool !== "laser")) {
+    if (env.t === "pointer") {
+      const p = payload as { x?: unknown; y?: unknown; tool?: unknown; button?: unknown }
+      if (typeof p.x !== "number" || typeof p.y !== "number" || (p.tool !== "pointer" && p.tool !== "laser")) return
+      const pointer: IncomingPointer = { x: p.x, y: p.y, tool: p.tool, from: from as string }
+      if (p.button === "up" || p.button === "down") pointer.button = p.button
+      this.opts.onPointer?.(pointer)
       return
     }
-    const pointer: IncomingPointer = { x: p.x, y: p.y, tool: p.tool, from: from as string }
-    if (p.button === "up" || p.button === "down") pointer.button = p.button
-    this.opts.onPointer?.(pointer)
+    // env.t === 'present' (077)
+    const pp = payload as Record<string, unknown>
+    if (pp.active === true || pp.active === false) {
+      this.opts.onPresent?.({ active: pp.active as boolean, from: from as string })
+      return
+    }
+    // viewport {x,y,z}: all must be finite numbers
+    if (
+      typeof pp.x === "number" &&
+      typeof pp.y === "number" &&
+      typeof pp.z === "number" &&
+      Number.isFinite(pp.x) &&
+      Number.isFinite(pp.y) &&
+      Number.isFinite(pp.z)
+    ) {
+      this.opts.onPresent?.({ x: pp.x, y: pp.y, z: pp.z, from: from as string })
+      return
+    }
+    // malformed — drop silently
   }
 
   /**
-   * Content frames (seed/scene/pointer) carry the plaintext payload directly
+   * Content frames (seed/scene/pointer/present) carry the plaintext payload directly
    * in unencrypted rooms; in encrypted rooms (050/058) p is a SignedFrame
    * {c, iv, sig, signer} and is decrypted with the content key derived from
    * baseSecret (057 §1 symmetry rule — one code path for both tiers).
@@ -845,7 +909,7 @@ export class CollabClient {
    *    self-healing, zero new wire error codes)
    */
   private async contentPayload(
-    env: WireEnvelope<"scene" | "seed" | "pointer">,
+    env: WireEnvelope<"scene" | "seed" | "pointer" | "present">,
   ): Promise<unknown | null> {
     if (!isEncryptedPayload(env.p)) return env.p // plaintext room (or mixed-mode frame)
     if (this.opts.baseSecret === undefined) return null // cannot decrypt — drop

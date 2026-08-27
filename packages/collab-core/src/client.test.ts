@@ -1091,3 +1091,217 @@ describe("probeRoom (ADR 0004)", () => {
     await expect(promise2).resolves.toBeNull()
   })
 })
+
+// ─── present message (077) ───────────────────────────────────────────────
+
+describe("present message (077)", () => {
+  const PRESENT_THROTTLE_MS = 100
+
+  describe("send path", () => {
+    it("sendPresentActive({active:true}) emits a present envelope immediately", () => {
+      const { client, socket } = makeClient()
+      client.connect()
+      socket().open()
+      client.sendPresentActive(true)
+      expect(JSON.parse(socket().sent[1])).toEqual({ v: 1, t: "present", p: { active: true } })
+      client.sendPresentActive(false)
+      expect(JSON.parse(socket().sent[2])).toEqual({ v: 1, t: "present", p: { active: false } })
+    })
+
+    it("sendPresentViewport coalesces rapid calls: latest wins after throttle window", () => {
+      const { client, socket } = makeClient({ sceneThrottleMs: PRESENT_THROTTLE_MS })
+      client.connect()
+      socket().open()
+      client.sendPresentViewport({ x: 1, y: 2, z: 1.5 })
+      client.sendPresentViewport({ x: 10, y: 20, z: 2.0 })
+      client.sendPresentViewport({ x: 100, y: 200, z: 3.0 })
+      expect(socket().sent).toHaveLength(1) // hello only — throttle has not elapsed
+      vi.advanceTimersByTime(PRESENT_THROTTLE_MS - 1)
+      expect(socket().sent).toHaveLength(1)
+      vi.advanceTimersByTime(1)
+      expect(socket().sent).toHaveLength(2)
+      const sent = JSON.parse(socket().sent[1])
+      expect(sent).toEqual({ v: 1, t: "present", p: { x: 100, y: 200, z: 3.0 } })
+    })
+
+    it("sendPresentViewport throttle resets after each flush: second window sends again", () => {
+      const { client, socket } = makeClient({ sceneThrottleMs: PRESENT_THROTTLE_MS })
+      client.connect()
+      socket().open()
+      client.sendPresentViewport({ x: 1, y: 2, z: 1 })
+      vi.advanceTimersByTime(PRESENT_THROTTLE_MS)
+      client.sendPresentViewport({ x: 9, y: 9, z: 9 })
+      vi.advanceTimersByTime(PRESENT_THROTTLE_MS)
+      expect(socket().sent).toHaveLength(3) // hello + viewport(1) + viewport(9)
+      expect(JSON.parse(socket().sent[2]).p).toEqual({ x: 9, y: 9, z: 9 })
+    })
+
+    it("drops sendPresentActive and sendPresentViewport while disconnected", () => {
+      const { client, socket } = makeClient()
+      client.connect()
+      const ws = socket()
+      // socket never opens
+      client.sendPresentActive(true)
+      client.sendPresentViewport({ x: 0, y: 0, z: 1 })
+      vi.advanceTimersByTime(200)
+      expect(ws.sent).toEqual([])
+      client.close()
+    })
+
+    it("cancelPendingPresent clears throttle on close (mirrors pending scene)", () => {
+      const { client, socket } = makeClient()
+      client.connect()
+      socket().open()
+      client.sendPresentViewport({ x: 1, y: 2, z: 3 })
+      client.close()
+      vi.advanceTimersByTime(200)
+      expect(socket().sent).toHaveLength(1) // hello only — pending present was cancelled
+    })
+  })
+
+  describe("receive path", () => {
+    it("dispatches active:true to onPresent; drops from-less frames (relay bug)", async () => {
+      const onPresent = vi.fn()
+      const { client, socket } = makeClient({ onPresent })
+      client.connect()
+      socket().open()
+      socket().message(JSON.stringify({ v: 1, t: "present", p: { active: true }, from: "conn-1" }))
+      await Promise.resolve()
+      expect(onPresent).toHaveBeenCalledTimes(1)
+      expect(onPresent).toHaveBeenCalledWith({ active: true, from: "conn-1" })
+      // missing from
+      socket().message(JSON.stringify({ v: 1, t: "present", p: { active: true } }))
+      await Promise.resolve()
+      expect(onPresent).toHaveBeenCalledTimes(1)
+    })
+
+    it("dispatches active:false to onPresent", async () => {
+      const onPresent = vi.fn()
+      const { client, socket } = makeClient({ onPresent })
+      client.connect()
+      socket().open()
+      socket().message(JSON.stringify({ v: 1, t: "present", p: { active: false }, from: "conn-2" }))
+      await Promise.resolve()
+      expect(onPresent).toHaveBeenCalledTimes(1)
+      expect(onPresent).toHaveBeenCalledWith({ active: false, from: "conn-2" })
+    })
+
+    it("dispatches viewport {x,y,z} all-finite to onPresent", async () => {
+      const onPresent = vi.fn()
+      const { client, socket } = makeClient({ onPresent })
+      client.connect()
+      socket().open()
+      socket().message(JSON.stringify({ v: 1, t: "present", p: { x: 320, y: 480, z: 1.5 }, from: "conn-3" }))
+      await Promise.resolve()
+      expect(onPresent).toHaveBeenCalledTimes(1)
+      expect(onPresent).toHaveBeenCalledWith({ x: 320, y: 480, z: 1.5, from: "conn-3" })
+    })
+
+    it("drops malformed present payloads silently", async () => {
+      const onPresent = vi.fn()
+      const { client, socket } = makeClient({ onPresent })
+      client.connect()
+      socket().open()
+      // neither active boolean nor finite x/y/z
+      socket().message(JSON.stringify({ v: 1, t: "present", p: { x: "a", y: 2, z: 3 }, from: "conn-1" }))
+      socket().message(JSON.stringify({ v: 1, t: "present", p: { x: 1, y: 2 }, from: "conn-1" })) // missing z
+      socket().message(JSON.stringify({ v: 1, t: "present", p: { active: 1 }, from: "conn-1" })) // active is number
+      socket().message(JSON.stringify({ v: 1, t: "present", p: { x: Infinity, y: 0, z: 1 }, from: "conn-1" })) // Infinity
+      socket().message(JSON.stringify({ v: 1, t: "present", p: { x: NaN, y: 0, z: 1 }, from: "conn-1" })) // NaN
+      await Promise.resolve()
+      expect(onPresent).not.toHaveBeenCalled()
+    })
+
+    it("encrypted present frame round-trips through the decrypt path", async () => {
+      vi.useRealTimers()
+      const onPresent = vi.fn()
+      const secret = bytesToB64url(new Uint8Array(32).fill(7))
+      const { client, socket } = makeClient({ privacy: "private", baseSecret: secret, onPresent })
+      client.connect()
+      socket().open()
+      const key = await deriveContentKey({ baseSecret: secret, shareId: "room-1" })
+      const signerKp = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])
+      const signer = {
+        profileId: "profile-other",
+        privateKey: signerKp.privateKey,
+        publicKey: new Uint8Array(await crypto.subtle.exportKey("raw", signerKp.publicKey)),
+      }
+      const frame = await encryptContent({
+        key,
+        t: "present",
+        room: "room-1",
+        shareId: "room-1",
+        plaintext: { active: true },
+        signer,
+      })
+      socket().message(JSON.stringify({ v: 1, t: "present", p: frame, from: "conn-other" }))
+      await vi.waitFor(() => expect(onPresent).toHaveBeenCalledTimes(1))
+      expect(onPresent).toHaveBeenCalledWith({ active: true, from: "conn-other" })
+      client.close()
+    })
+
+    it("drops encrypted present silently when no base secret is configured (team room)", async () => {
+      vi.useRealTimers()
+      const onPresent = vi.fn()
+      const secret = bytesToB64url(new Uint8Array(32).fill(7))
+      const { client, socket } = makeClient({ privacy: "team", onPresent })
+      client.connect()
+      socket().open()
+      const key = await deriveContentKey({ baseSecret: secret, shareId: "room-1" })
+      const signerKp = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])
+      const signer = {
+        profileId: "profile-other",
+        privateKey: signerKp.privateKey,
+        publicKey: new Uint8Array(await crypto.subtle.exportKey("raw", signerKp.publicKey)),
+      }
+      const frame = await encryptContent({
+        key,
+        t: "present",
+        room: "room-1",
+        shareId: "room-1",
+        plaintext: { active: true },
+        signer,
+      })
+      socket().message(JSON.stringify({ v: 1, t: "present", p: frame, from: "conn-x" }))
+      await flushMicrotasks()
+      expect(onPresent).not.toHaveBeenCalled()
+      client.close()
+    })
+  })
+
+  describe("truth table: throttle coalescing", () => {
+    it("N rapid sendPresentViewport → 1 send after N*throttle window", () => {
+      const { client, socket } = makeClient({ sceneThrottleMs: 100 })
+      client.connect()
+      socket().open()
+      const N = 10
+      for (let i = 0; i < N; i++) client.sendPresentViewport({ x: i * 10, y: i * 20, z: 1 + i * 0.1 })
+      vi.advanceTimersByTime(99)
+      expect(socket().sent).toHaveLength(1)
+      vi.advanceTimersByTime(1)
+      expect(socket().sent).toHaveLength(2)
+      const last = JSON.parse(socket().sent[1])
+      expect(last.p).toEqual({ x: 90, y: 180, z: 1.9 })
+    })
+
+    it("interleaved active + viewport sends: active immediate, viewport coalesced", () => {
+      const { client, socket } = makeClient({ sceneThrottleMs: 100 })
+      client.connect()
+      socket().open()
+      client.sendPresentActive(true)
+      client.sendPresentViewport({ x: 1, y: 1, z: 1 })
+      client.sendPresentViewport({ x: 2, y: 2, z: 2 })
+      client.sendPresentActive(false)
+      vi.advanceTimersByTime(99)
+      // active true and active false are immediate
+      expect(JSON.parse(socket().sent[1])).toEqual({ v: 1, t: "present", p: { active: true } })
+      expect(JSON.parse(socket().sent[2])).toEqual({ v: 1, t: "present", p: { active: false } })
+      // viewport coalesced
+      expect(socket().sent).toHaveLength(3)
+      vi.advanceTimersByTime(1)
+      expect(socket().sent).toHaveLength(4)
+      expect(JSON.parse(socket().sent[3])).toEqual({ v: 1, t: "present", p: { x: 2, y: 2, z: 2 } })
+    })
+  })
+})
+
