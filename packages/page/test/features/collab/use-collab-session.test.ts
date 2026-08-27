@@ -1769,6 +1769,96 @@ describe("use-collab-session — presenting state + follow (task 080)", () => {
 /* follow-break predicate (task 080) ---------------------------------- */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/* continuous follow: verbatim viewport application (task 081) -------- */
+/* ------------------------------------------------------------------ */
+
+describe("use-collab-session — continuous follow applies frames verbatim (081)", () => {
+  const peer: Member = {
+    profileId: "profile-2",
+    name: "Min",
+    color: { background: "hsl(220, 100%, 83%)", stroke: "hsl(220, 100%, 83%)" },
+    connId: "conn-2",
+  };
+
+  const presentMsg = (from: string, payload: object): string =>
+    JSON.stringify({ v: 1, t: "present", p: payload, from });
+
+  test("while following, incoming {x,y,z} frames pin my viewport verbatim", async () => {
+    const api = makeApi();
+    const presentingPeer: Member = { ...peer, presenting: true };
+    const { result, unmount, ws } = await dialAndWelcome(api, { peers: [presentingPeer] });
+
+    // Start following Min.
+    act(() => {
+      result.current.setFollowTarget("profile-2");
+    });
+    expect(result.current.followTargetId).toBe("profile-2");
+
+    // Min broadcasts a raw viewport frame — my viewport must follow it,
+    // zero adaptation (Ticket 063 ①: raw scrollX/scrollY/zoom.value).
+    await act(async () => {
+      ws.message(presentMsg("conn-2", { x: 100, y: 250, z: 1.25 }));
+    });
+
+    const calls = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls;
+    const vpCall = calls.at(-1)?.[0];
+    expect(vpCall).toEqual(
+      expect.objectContaining({
+        appState: expect.objectContaining({ scrollX: 100, scrollY: 250, zoom: { value: 1.25 } }),
+      }),
+    );
+    unmount();
+  });
+
+  test("frames from a non-followed presenter never touch my viewport", async () => {
+    const api = makeApi();
+    const presentingPeer: Member = { ...peer, presenting: true };
+    (api.updateScene as ReturnType<typeof vi.fn>).mockClear();
+    const { result, unmount, ws } = await dialAndWelcome(api, { peers: [presentingPeer] });
+
+    // NOT following anyone — the frame must be roster-only.
+    await act(async () => {
+      ws.message(presentMsg("conn-2", { x: 999, y: 999, z: 2.5 }));
+    });
+
+    const vpCalls = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls.filter((c) => {
+      const appState = c[0]?.appState as { scrollX?: number };
+      return appState?.scrollX !== undefined;
+    });
+    expect(vpCalls).toHaveLength(0);
+    unmount();
+  });
+
+  test("follow stops pinning after setFollowTarget(null)", async () => {
+    const api = makeApi();
+    const presentingPeer: Member = { ...peer, presenting: true };
+    const { result, unmount, ws } = await dialAndWelcome(api, { peers: [presentingPeer] });
+
+    act(() => {
+      result.current.setFollowTarget("profile-2");
+    });
+    await act(async () => {
+      ws.message(presentMsg("conn-2", { x: 10, y: 20, z: 1 }));
+    });
+    (api.updateScene as ReturnType<typeof vi.fn>).mockClear();
+
+    // Manual unfollow → later frames do not pin.
+    act(() => {
+      result.current.setFollowTarget(null);
+    });
+    await act(async () => {
+      ws.message(presentMsg("conn-2", { x: 50, y: 60, z: 2 }));
+    });
+    const vpCalls = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls.filter((c) => {
+      const appState = c[0]?.appState as { scrollX?: number };
+      return appState?.scrollX !== undefined;
+    });
+    expect(vpCalls).toHaveLength(0);
+    unmount();
+  });
+});
+
 describe("follow-break predicate", () => {
   // Dynamic import resolves at module load time — same as top-level import
   // but avoids the "import inside describe" linter warning.

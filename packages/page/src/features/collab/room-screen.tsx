@@ -21,7 +21,7 @@
  * minimal inline version — TODO(043-replace): 043's SeedPrompt + gallery
  * picker replace it once that task lands.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { RoomEntry } from "collab-core";
 import { fileIdFor, parseInvite } from "collab-core";
@@ -192,8 +192,11 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
   // omits `username` from the collaborators map in quiet mode.
   const { mode: labelMode } = useLabelMode();
   const session = useCollabSession({ shareId, server, room, excalidrawAPI, wsFactory, labelMode });
-  // 083: fire a toast when the follow relationship breaks involuntarily
-  useFollowBreakToast(session);
+  // 083: fire a toast when the follow relationship breaks involuntarily;
+  // capture-phase gesture listeners on the canvas area break follow at the
+  // onset of any local pan/zoom (ADR 0008) — see use-follow-break-toast.
+  const canvasAreaRef = useRef<HTMLDivElement | null>(null);
+  useFollowBreakToast(session, canvasAreaRef);
 
   // 052: content-addressed ids for newly inserted images (fileId =
   // base64url(sha256(bytes)), 051 §3) so the element's fileId matches the
@@ -257,7 +260,7 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
 
       {/* Session-level notification stack — floats over the top-right of the
        * canvas so alerts never push the canvas down. */}
-      <div className="relative flex-1 overflow-hidden">
+      <div ref={canvasAreaRef} className="relative flex-1 overflow-hidden">
         <div className="pointer-events-none absolute inset-0 z-50">
           <div data-testid="collab-notification-stack" className="pointer-events-auto absolute right-4 top-4 flex w-80 max-w-[calc(100%-2rem)] flex-col gap-2">
             <ConfigPropagationBanner live={session.live} />

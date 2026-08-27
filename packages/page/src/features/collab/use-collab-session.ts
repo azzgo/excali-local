@@ -80,6 +80,7 @@ import { debounce, omit } from "radash";
 import { toast } from "sonner";
 import i18n from "i18next";
 import { normalizeSceneImageRefs } from "@/features/gallery/utils/normalize-image-refs";
+import { applyViewport, getFollowGuardToken } from "./follow-engine";
 
 /* ------------------------------------------------------------------ */
 /* types                                                                */
@@ -406,6 +407,10 @@ export function useCollabSession({
   const applyingRemoteRef = useRef(false);
   const lastRemoteSceneRef = useRef<string | null>(null);
   const knownSceneJsonRef = useRef<string | null>(null);
+  /** 081: viewport-sourced echo marker — set around applyViewport during
+   *  continuous follow so onLocalChange can skip viewport-only echoes.
+   *  Belt-and-braces on top of the JSON-equality triad (same elements). */
+  const followSuppressRef = useRef<symbol | null>(null);
   /** own-pointer broadcast throttle (055 — latest wins, one per ~frame) */
   const pointerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPointerRef = useRef<{
@@ -929,6 +934,29 @@ export function useCollabSession({
           } else {
             // Viewport frame: update lastKnownViewport.
             next[idx] = { ...next[idx], lastKnownViewport: { x: present.x, y: present.y, z: present.z } };
+            // 081: continuous follow — while this member is our follow target,
+            // pin our viewport to their RAW {x,y,z} verbatim (Ticket 063 ① —
+            // zero adaptation math). The echo guard token marks the resulting
+            // onChange as viewport-sourced so onLocalChange can skip it (the
+            // JSON-equality triad also suppresses it — same elements).
+            if (
+              followTargetIdRef.current !== null &&
+              followTargetIdRef.current === current[idx].profileId
+            ) {
+              const apiInst = apiRef.current;
+              if (apiInst !== null) {
+                followSuppressRef.current = getFollowGuardToken();
+                try {
+                  applyViewport(apiInst, {
+                    scrollX: present.x,
+                    scrollY: present.y,
+                    zoom: { value: present.z as never },
+                  });
+                } finally {
+                  followSuppressRef.current = null;
+                }
+              }
+            }
           }
           peersRef.current = next;
           setPeers(next);
@@ -1390,6 +1418,9 @@ export function useCollabSession({
       files: BinaryFiles,
     ) => {
       // Echo-guard triad: timing, remote-content, then established-content.
+      // 081: viewport-sourced echo (continuous follow applyViewport) skips
+      // the broadcast path entirely — no viewport feedback loop.
+      if (followSuppressRef.current === getFollowGuardToken()) return;
       if (applyingRemoteRef.current) return;
       const json = JSON.stringify(elements);
       if (json === lastRemoteSceneRef.current) return;

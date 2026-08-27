@@ -7,7 +7,7 @@
  * 3. No toast fires on manual unfollow (followTargetId → null via user click).
  * 4. Toast uses the CollabFollowBroke key with the correct name interpolation.
  */
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import type { CollabSessionHandle, RosterMember } from "@/features/collab/use-collab-session";
 import { useFollowBreakToast } from "@/features/collab/use-follow-break-toast";
@@ -173,4 +173,100 @@ describe("useFollowBreakToast — follow-break toast wiring (083)", () => {
     expect(toastMock).toHaveBeenCalledTimes(1);
     expect(toastMock).toHaveBeenCalledWith("CollabFollowBroke:Min");
   });
+/* ------------------------------------------------------------------ */
+/* gesture-onset breaks (ADR 0008 — task 081/083 closing work) -------- */
+/* ------------------------------------------------------------------ */
+
+function GestureHarness({ session, targetRef }: { session: CollabSessionHandle; targetRef: React.RefObject<HTMLDivElement | null> }) {
+  useFollowBreakToast(session, targetRef);
+  return <div ref={targetRef} data-testid="canvas-area" />;
+}
+
+describe("useFollowBreakToast — gesture-onset breaks (081)", () => {
+  beforeEach(() => { toastMock.mockClear(); });
+
+  const followingSession = () =>
+    makeSession({
+      followTargetId: "a3f9c2d1",
+      setFollowTarget: vi.fn((v) => { void v; }) as never,
+      peers: PEERS,
+    });
+
+  test("pointerdown on the canvas area breaks follow with a toast", () => {
+    const session = followingSession();
+    const ref = { current: null } as React.RefObject<HTMLDivElement | null>;
+    const { container } = render(<GestureHarness session={session} targetRef={ref} />);
+    ref.current = container.querySelector('[data-testid="canvas-area"]') as HTMLDivElement;
+
+    fireEvent.pointerDown(ref.current);
+
+    expect(session.setFollowTarget).toHaveBeenCalledWith(null);
+    expect(toastMock).toHaveBeenCalledTimes(1);
+    expect(toastMock).toHaveBeenCalledWith("CollabFollowBroke:Min");
+  });
+
+  test("wheel on the canvas area breaks follow with a toast", () => {
+    const session = followingSession();
+    const ref = { current: null } as React.RefObject<HTMLDivElement | null>;
+    const { container } = render(<GestureHarness session={session} targetRef={ref} />);
+    ref.current = container.querySelector('[data-testid="canvas-area"]') as HTMLDivElement;
+
+    fireEvent.wheel(ref.current);
+
+    expect(session.setFollowTarget).toHaveBeenCalledWith(null);
+    expect(toastMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("two-finger touch (pinch) on the canvas area breaks follow with a toast", () => {
+    const session = followingSession();
+    const ref = { current: null } as React.RefObject<HTMLDivElement | null>;
+    const { container } = render(<GestureHarness session={session} targetRef={ref} />);
+    ref.current = container.querySelector('[data-testid="canvas-area"]') as HTMLDivElement;
+
+    fireEvent.touchStart(ref.current, { touches: [new Touch({ identifier: 1, target: ref.current }), new Touch({ identifier: 2, target: ref.current })] });
+
+    expect(session.setFollowTarget).toHaveBeenCalledWith(null);
+    expect(toastMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("single-finger touch does NOT break follow", () => {
+    const session = followingSession();
+    const ref = { current: null } as React.RefObject<HTMLDivElement | null>;
+    const { container } = render(<GestureHarness session={session} targetRef={ref} />);
+    ref.current = container.querySelector('[data-testid="canvas-area"]') as HTMLDivElement;
+
+    fireEvent.touchStart(ref.current, { touches: [new Touch({ identifier: 1, target: ref.current })] });
+
+    expect(session.setFollowTarget).not.toHaveBeenCalled();
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  test("no listeners attached when not following — pointerdown is inert", () => {
+    const session = makeSession({ followTargetId: null, setFollowTarget: vi.fn() as never, peers: PEERS });
+    const ref = { current: null } as React.RefObject<HTMLDivElement | null>;
+    const { container } = render(<GestureHarness session={session} targetRef={ref} />);
+    ref.current = container.querySelector('[data-testid="canvas-area"]') as HTMLDivElement;
+
+    fireEvent.pointerDown(ref.current);
+
+    expect(session.setFollowTarget).not.toHaveBeenCalled();
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  test("manual unfollow via icon stays silent while canvas listeners are attached", () => {
+    // The follow-icon lives in the chrome (OUTSIDE the canvas area), so a
+    // pointerdown there never reaches the canvas listeners; the transition
+    // effect classifies it as manual (peer still presenting) → silent.
+    const session = followingSession(); // followTargetId still set
+    const ref = { current: null } as React.RefObject<HTMLDivElement | null>;
+    const { container, rerender } = render(<GestureHarness session={session} targetRef={ref} />);
+    ref.current = container.querySelector('[data-testid="canvas-area"]') as HTMLDivElement;
+
+    // Icon click outside canvas → state transition only (manual → silent).
+    rerender(<GestureHarness session={makeSession({ followTargetId: null, peers: PEERS, setFollowTarget: vi.fn() as never })} targetRef={ref} />);
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+});
+
+
 });
