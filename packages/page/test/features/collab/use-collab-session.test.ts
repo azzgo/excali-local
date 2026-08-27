@@ -757,7 +757,7 @@ describe("use-collab-session — seed + saveToGallery", () => {
     // The legacy fileId must be rewritten to a 43-char base64url content hash.
     expect(typeof img!.fileId).toBe("string");
     expect(img!.fileId).not.toBe(LEGACY_FID);
-    expect(img!.fileId.length).toBe(43);
+    expect(img!.fileId!.length).toBe(43);
     // Content-addressed hashes never contain spaces or the legacy prefix.
     expect(img!.fileId).not.toMatch(/legacy|\s/);
     unmount();

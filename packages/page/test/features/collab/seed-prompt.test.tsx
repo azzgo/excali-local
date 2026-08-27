@@ -159,7 +159,7 @@ describe("SeedGalleryPicker (053 galleryPicker)", () => {
     await waitFor(() => expect(onPick).toHaveBeenCalledTimes(1));
 
     const scene = onPick.mock.calls[0][0];
-    const imgInScene = scene.elements.find((e) => e.type === "image");
+    const imgInScene = scene.elements.find((e: { type: string }) => e.type === "image");
     expect(imgInScene).toBeDefined();
     // The legacy fileId must be replaced with a 43-char base64url content hash.
     expect(typeof imgInScene!.fileId).toBe("string");

@@ -53,7 +53,7 @@ export interface NormalizeResult {
  * @returns Result with rewritten elements, rekeyed files map, and warnings.
  */
 export async function normalizeSceneImageRefs(
-  elements: unknown[],
+  elements: readonly unknown[],
   files: Record<string, SceneFile>
 ): Promise<NormalizeResult> {
   const warns: string[] = [];
