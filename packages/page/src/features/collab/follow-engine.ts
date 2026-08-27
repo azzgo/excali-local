@@ -62,7 +62,7 @@ export function getFollowGuardToken(): symbol {
  * Task 083 will add this key to locales.ts with EN + zh-CN copy.
  * Shape: "Stopped following {name}" / "已停止跟随 {name}".
  */
-export const FOLLOW_BREAK_TOAST_KEY = "collab.follow.break";
+export const FOLLOW_BREAK_TOAST_KEY = "CollabFollowBroke";
 
 /* ------------------------------------------------------------------ */
 /* applyViewport — the ONE viewport writer                              */

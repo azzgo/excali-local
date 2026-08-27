@@ -381,6 +381,8 @@ export function initI18n() {
           // 082: self Present toggle (start / stop)
           "CollabStartPresenting": "Start presenting",
           "CollabStopPresenting": "Stop presenting",
+          // 083: follow-break toast
+          "CollabFollowBroke": "Stopped following {name}",
 
           // --- local-editor toolbar collab entry (handoff) ---
           "Collab": "Collab",
@@ -771,6 +773,8 @@ export function initI18n() {
           // 082: self Present toggle (start / stop)
           "CollabStartPresenting": "开始演示",
           "CollabStopPresenting": "停止演示",
+          // 083: follow-break toast
+          "CollabFollowBroke": "已停止跟随 {name}",
 
           // --- 本地编辑器工具栏协作入口（handoff）---
           "Collab": "协作",
