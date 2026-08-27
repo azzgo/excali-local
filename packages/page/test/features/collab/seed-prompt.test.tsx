@@ -171,6 +171,57 @@ describe("SeedGalleryPicker (053 galleryPicker)", () => {
     expect(Object.keys(scene.files ?? {})[0]).toBe(imgInScene!.fileId);
   });
 
+  test("partial normalization (warns present) still pairs elements with normFiles — no stranded placeholders", async () => {
+    // One healthy image + one with an unparseable dataURL → normalization
+    // warns. The picker must STILL use the normalized files map (healthy entry
+    // rekeyed to its content hash, failed entry kept under its legacy key) so
+    // every element's fileId resolves and the seed never strands a peer
+    // (ADR 0009 — story 075 AC: peers fetch successfully).
+    const GOOD_FID = "legacy-good-id";
+    const BAD_FID = "legacy-bad-id";
+    const BAD_DATA_URL = "data:image/png;base64,!!!";
+    const TINY_PNG_DATA_URL =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+    const elements = JSON.stringify([
+      { id: "img-1", type: "image", version: 1, versionNonce: 1, fileId: GOOD_FID, data: { dataURL: TINY_PNG_DATA_URL } },
+      { id: "img-2", type: "image", version: 1, versionNonce: 1, fileId: BAD_FID, data: { dataURL: BAD_DATA_URL } },
+    ]);
+    const files = JSON.stringify({
+      [GOOD_FID]: { mimeType: "image/png", dataURL: TINY_PNG_DATA_URL },
+      [BAD_FID]: { mimeType: "image/png", dataURL: BAD_DATA_URL },
+    });
+    await saveDrawing({
+      id: "draw-partial",
+      name: "Partially normalized",
+      elements,
+      appState: "{}",
+      files,
+      thumbnail: "",
+      collectionIds: [],
+      createdAt: 100,
+      updatedAt: 200,
+    });
+
+    const onPick = vi.fn();
+    render(<SeedGalleryPicker onPick={onPick} onBack={() => {}} />);
+    await screen.findByTestId("collab-seed-pick-draw-partial");
+
+    fireEvent.click(screen.getByTestId("collab-seed-pick-draw-partial"));
+    await waitFor(() => expect(onPick).toHaveBeenCalledTimes(1));
+
+    const scene = onPick.mock.calls[0][0];
+    const sceneFiles = scene.files ?? {};
+    const imgEls = scene.elements.filter((e: { type: string }) => e.type === "image");
+    expect(imgEls.length).toBe(2);
+    // the healthy element is rewritten to its content hash AND the map carries it
+    expect(sceneFiles[imgEls[0].fileId]).toBeDefined();
+    // the failed element stays under its legacy key AND the map carries it
+    expect(imgEls[1].fileId).toBe(BAD_FID);
+    expect(sceneFiles[BAD_FID]).toBeDefined();
+    // no stranding: every element fileId ∈ files keys — the seed never references
+    // a fileId the peers cannot resolve
+    for (const e of imgEls) expect(sceneFiles[e.fileId]).toBeDefined();
+  });
 });
 
 describe("planRoomEntry — 061 §3 re-activation rule (amends 053 rule A)", () => {

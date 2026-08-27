@@ -217,4 +217,33 @@ describe("normalizeSceneImageRefs", () => {
     expect(result.elements).toHaveLength(1);
     expect(result.warns).toHaveLength(0);
   });
+
+  it("partial normalization keeps failed entries under their legacy keys — every element fileId resolves in the result files map", async () => {
+    // One healthy image + one with an unparseable dataURL (atob throws).
+    const GOOD = LEGACY_FILE_ID;
+    const BAD = "legacy-bad-id";
+    const badEl = makeImageElement({ id: "img-2", fileId: BAD, dataURL: "data:image/png;base64,!!!" });
+    const files = makeFilesMap(GOOD);
+    files[BAD] = {
+      mimeType: "image/png",
+      dataURL: "data:image/png;base64,!!!",
+      created: 1,
+      lastRetrieved: 1,
+    };
+
+    const result = await normalizeSceneImageRefs([makeImageElement({ id: "img-1" }), badEl], files);
+
+    // the good element is rewritten to its content hash AND the good file is
+    // rekeyed to that hash; the bad entry stays under its legacy key
+    const hash = await fileIdFor(dataURLToBytes(TINY_PNG_DATA_URL));
+    expect(result.warns.length).toBeGreaterThan(0);
+    expect(result.elements[0].fileId).toBe(hash);
+    expect(result.elements[1].fileId).toBe(BAD);
+    expect(result.files[hash]).toBeDefined();
+    expect(result.files[BAD]).toBeDefined();
+    // no stranding: every image element's fileId is a key in the returned map
+    for (const el of result.elements.filter((e) => e.type === "image")) {
+      expect(result.files[el.fileId]).toBeDefined();
+    }
+  });
 });

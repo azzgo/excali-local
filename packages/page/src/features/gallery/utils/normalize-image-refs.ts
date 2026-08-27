@@ -58,11 +58,9 @@ export async function normalizeSceneImageRefs(
 ): Promise<NormalizeResult> {
   const warns: string[] = [];
 
-  // Build the rekeyed files map + a content-hash → canonicalFileId lookup table.
-  // All fileIds in newFiles are content hashes; the map lets us skip re-work
-  // when the same blob appears under multiple legacy keys.
+  // Build the rekeyed files map — every key is a content hash; the same blob
+  // under multiple legacy keys collapses onto one canonical entry.
   const newFiles: Record<string, SceneFile> = {};
-  const hashToCanonical = new Map<string, string>(); // contentHash → canonicalFileId
 
   // First pass: derive the canonical content-hash fileId for every file entry.
   for (const [oldFileId, file] of Object.entries(files)) {
@@ -79,11 +77,8 @@ export async function normalizeSceneImageRefs(
       continue;
     }
 
-    const canonicalId = await fileIdFor(bytes);
-    hashToCanonical.set(canonicalId, canonicalId);
-    newFiles[canonicalId] = { ...file };
+    newFiles[await fileIdFor(bytes)] = { ...file };
   }
-
   // Second pass: rewrite image-element fileIds.
   const rewritten: ImageElement[] = [];
 
@@ -115,8 +110,7 @@ export async function normalizeSceneImageRefs(
       continue;
     }
 
-    const canonicalId = hashToCanonical.get(await fileIdFor(bytes)) ?? await fileIdFor(bytes);
-
+    const canonicalId = await fileIdFor(bytes);
     // Idempotency guard: if the element already points to the canonical hash
     // (already normalized), leave it untouched.
     if (el.fileId === canonicalId) {

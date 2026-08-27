@@ -208,10 +208,14 @@ export function SeedGalleryPicker({ onPick, onBack }: SeedGalleryPickerProps) {
       const files = full.files ? JSON.parse(full.files) : {};
       // ADR 0009 §2: normalize gallery fileIds to content-addressed hashes
       // so the subsequent seed never strands peers with unresolvable legacy refs.
-      const { elements: normEls, files: normFiles, warns } = await normalizeSceneImageRefs(elements, files);
-      // Preserve original files when normalization produced warnings (e.g. unparseable
-      // dataURL). The scene then carries legacy refs as-is — warns are the signal.
-      const useNormFiles = warns.length === 0 && Object.keys(normFiles).length > 0;
+      const { elements: normEls, files: normFiles } = await normalizeSceneImageRefs(elements, files);
+      // normalizeSceneImageRefs ALWAYS pairs the rewritten elements with a files
+      // map: healthy entries are rekeyed to their content hashes and failed ones
+      // are kept under their legacy keys (never dropped), so every rewritten
+      // element's fileId is resolvable. The original `files` map must NOT be
+      // used even when warns exist — its keys are legacy ids that partially
+      // rewritten elements no longer reference (stranded placeholders).
+      const useNormFiles = Object.keys(normFiles).length > 0;
       const scene: CollabScene = {
         elements: normEls,
         appState: JSON.parse(full.appState),
