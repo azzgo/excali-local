@@ -119,13 +119,58 @@ describe("SeedGalleryPicker (053 galleryPicker)", () => {
     const scene = onPick.mock.calls[0][0];
     expect(scene.elements).toEqual([el("e1")]);
     expect(scene.appState).toEqual({ viewBackgroundColor: "#fff" });
-    expect(scene.files).toEqual({ f1: { mimeType: "image/png" } });
+    // Files normalized: rekeyed to content-addressed hash + mimeType preserved.
+    const fileKeys = Object.keys(scene.files ?? {});
+    expect(fileKeys).toHaveLength(1);
+    expect(fileKeys[0].length).toBe(43); // base64url SHA-256 hash
+    expect(scene.files[fileKeys[0]].mimeType).toBe("image/png");
   });
 
   test("empty gallery → no-canvases state", async () => {
     render(<SeedGalleryPicker onPick={() => {}} onBack={() => {}} />);
     await screen.findByText("CollabSeedNoDrawings");
   });
+
+  test("gallery picker normalizes image fileIds before onPick (content-addressed)", async () => {
+    // A gallery canvas may store legacy fileIds (pre-normalization saves).
+    // The picker must rewrite them to content-addressed hashes so the
+    // subsequent seed broadcast never strands peers with unresolvable refs.
+    const LEGACY_FID = "legacy-file-id-00000000";
+    const imgEl = { id: "img-1", type: "image", version: 1, versionNonce: 1, fileId: LEGACY_FID, data: { dataURL: "data:image/png;base64,iVBORw0KGgo=" } };
+    await saveDrawing({
+      id: "draw-img",
+      name: "Image canvas",
+      elements: JSON.stringify([imgEl]),
+      appState: "{}",
+      files: JSON.stringify({
+        [LEGACY_FID]: { mimeType: "image/png", dataURL: "data:image/png;base64,iVBORw0KGgo=" },
+      }),
+      thumbnail: "",
+      collectionIds: [],
+      createdAt: 100,
+      updatedAt: 200,
+    });
+
+    const onPick = vi.fn();
+    render(<SeedGalleryPicker onPick={onPick} onBack={() => {}} />);
+    await screen.findByTestId("collab-seed-pick-draw-img");
+
+    fireEvent.click(screen.getByTestId("collab-seed-pick-draw-img"));
+    await waitFor(() => expect(onPick).toHaveBeenCalledTimes(1));
+
+    const scene = onPick.mock.calls[0][0];
+    const imgInScene = scene.elements.find((e) => e.type === "image");
+    expect(imgInScene).toBeDefined();
+    // The legacy fileId must be replaced with a 43-char base64url content hash.
+    expect(typeof imgInScene!.fileId).toBe("string");
+    expect(imgInScene!.fileId).not.toBe(LEGACY_FID);
+    expect(imgInScene!.fileId.length).toBe(43);
+    expect(imgInScene!.fileId).not.toMatch(/legacy|\\s/);
+    // The files map must also be rekeyed to the content-addressed hash.
+    expect(Object.keys(scene.files ?? {})).toHaveLength(1);
+    expect(Object.keys(scene.files ?? {})[0]).toBe(imgInScene!.fileId);
+  });
+
 });
 
 describe("planRoomEntry — 061 §3 re-activation rule (amends 053 rule A)", () => {

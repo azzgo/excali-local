@@ -9,6 +9,7 @@ import {
 } from "collab-core";
 import { Button } from "@/components/ui/button";
 import { getDrawings, getDrawingFullData } from "@/features/editor/utils/indexdb";
+import { normalizeSceneImageRefs } from "@/features/gallery/utils/normalize-image-refs";
 
 /* ------------------------------------------------------------------ */
 /* 061 §3 re-activation conflict rule — the shared room-entry decision  */
@@ -203,10 +204,18 @@ export function SeedGalleryPicker({ onPick, onBack }: SeedGalleryPickerProps) {
     setPicking(true);
     try {
       const full = await getDrawingFullData(id);
+      const elements = JSON.parse(full.elements);
+      const files = full.files ? JSON.parse(full.files) : {};
+      // ADR 0009 §2: normalize gallery fileIds to content-addressed hashes
+      // so the subsequent seed never strands peers with unresolvable legacy refs.
+      const { elements: normEls, files: normFiles, warns } = await normalizeSceneImageRefs(elements, files);
+      // Preserve original files when normalization produced warnings (e.g. unparseable
+      // dataURL). The scene then carries legacy refs as-is — warns are the signal.
+      const useNormFiles = warns.length === 0 && Object.keys(normFiles).length > 0;
       const scene: CollabScene = {
-        elements: JSON.parse(full.elements),
+        elements: normEls,
         appState: JSON.parse(full.appState),
-        ...(full.files ? { files: JSON.parse(full.files) } : {}),
+        ...(useNormFiles ? { files: normFiles } : (full.files ? { files } : {})),
       };
       onPick(scene);
     } finally {

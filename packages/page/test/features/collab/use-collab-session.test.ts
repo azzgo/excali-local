@@ -726,6 +726,43 @@ describe("use-collab-session — seed + saveToGallery", () => {
     unmount();
   });
 
+  test("061 rule B: cached scene with image element normalizes fileIds on the wire", async () => {
+    // A gallery-saved drawing may carry a legacy (non-content-hashed) fileId.
+    // After normalization the seed frame must carry a content-addressed fileId
+    // so dead-room revival never strands peers with unresolvable refs.
+    const LEGACY_FID = "legacy-file-id-00000000";
+    const imgEl = { id: "img-1", type: "image", version: 1, versionNonce: 1, fileId: LEGACY_FID, data: { dataURL: "data:image/png;base64,iVBORw0KGgo=" } };
+    const files = {
+      [LEGACY_FID]: { mimeType: "image/png", dataURL: "data:image/png;base64,iVBORw0KGgo=" },
+    };
+    await saveSession(SHARE_ID, {
+      edited: { elements: [imgEl], appState: {} },
+      base: null,
+    });
+    const api = makeApi();
+    (api.getSceneElements as ReturnType<typeof vi.fn>).mockReturnValue([imgEl]);
+    (api.getFiles as ReturnType<typeof vi.fn>).mockReturnValue(files);
+
+    const { unmount, ws } = await dialAndWelcome(api, {
+      snapshotAvailable: false,
+    });
+    await waitFor(() =>
+      expect(ws.sent.some((s) => isEnvelope(s, "seed"))).toBe(true),
+    );
+    const seedFrame = ws.sent.find((s) => isEnvelope(s, "seed"))!;
+    const seedPayload = JSON.parse(seedFrame).p;
+    const seededEls: Array<{ id: string; type: string; fileId?: string }> = seedPayload.scene;
+    const img = seededEls.find((e) => e.type === "image");
+    expect(img).toBeDefined();
+    // The legacy fileId must be rewritten to a 43-char base64url content hash.
+    expect(typeof img!.fileId).toBe("string");
+    expect(img!.fileId).not.toBe(LEGACY_FID);
+    expect(img!.fileId.length).toBe(43);
+    // Content-addressed hashes never contain spaces or the legacy prefix.
+    expect(img!.fileId).not.toMatch(/legacy|\s/);
+    unmount();
+  });
+
   test("seed() broadcasts the current canvas (first seed wins, 049 §2)", async () => {
     const api = makeApi();
     const el = { id: "el-1", type: "rectangle", version: 1, versionNonce: 1 };

@@ -82,6 +82,7 @@ import { useBackgroundResume } from "./use-background-resume";
 import { debounce } from "radash";
 import { toast } from "sonner";
 import i18n from "i18next";
+import { normalizeSceneImageRefs } from "@/features/gallery/utils/normalize-image-refs";
 
 /* ------------------------------------------------------------------ */
 /* types                                                                */
@@ -1197,8 +1198,15 @@ export function useCollabSession({
     if (api === null || client === null) return Promise.resolve();
     const elements = api.getSceneElements();
     const appState = api.getAppState();
-    seqRef.current += 1;
-    client.sendSeed([...elements] as unknown[], seqRef.current);
+    const files = api.getFiles();
+    // ADR 0009 §2: normalize image fileIds to content-addressed hashes
+    // before the seed reaches the wire — dead-room revival must never strand
+    // peers with legacy or unresolvable refs.
+    void normalizeSceneImageRefs(elements, files).then(({ elements: normEls }) => {
+      if (clientRef.current === null) return;
+      seqRef.current += 1;
+      clientRef.current.sendSeed([...normEls] as unknown[], seqRef.current);
+    });
     // 052: the session cache stays refs-only — the gallery is the durable
     // blob record; the ephemeral room cache never stores dataURLs.
     const scene: CollabScene = { elements: [...elements] as unknown[], appState };
