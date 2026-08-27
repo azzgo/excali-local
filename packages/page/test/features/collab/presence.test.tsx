@@ -27,7 +27,7 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { deriveColor } from "collab-core";
 import type { Member } from "collab-core";
 import { LABEL_MODE_KEY, formatLabel, shortProfileId } from "@/features/collab/labels";
-import { PresenceFeed } from "@/features/collab/presence";
+import { PresenceFeed, pickJumpTarget } from "@/features/collab/presence";
 import { useCollabSession } from "@/features/collab/use-collab-session";
 import type {
   CollabIdentity,
@@ -370,7 +370,8 @@ async function renderHookHarness(api: ExcalidrawImperativeAPI, labelMode?: Label
     ws.message(welcomeMessage([PEER]));
   });
   await waitFor(() => expect(handle).not.toBeNull());
-  return { handle: handle as unknown as CollabSessionHandle, unmount, ws };
+  const latest = () => handle as unknown as CollabSessionHandle;
+  return { handle: latest(), latest, unmount, ws };
 }
 
 describe("presence — cursor wiring (collaborators map, 049 §5 / 055)", () => {
@@ -431,11 +432,36 @@ describe("presence — cursor wiring (collaborators map, 049 §5 / 055)", () => 
     unmount();
   });
 
-  test("quiet label mode omits username from the collaborators map; full re-adds it", async () => {
+  test("a remote pointer records the peer's last-known pointer on the roster (082 — jump target)", async () => {
     const api = makeApiReal();
-    const { unmount } = await renderHookHarness(api, "quiet");
-    const lastCall = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
-    expect(lastCall.collaborators.get("profile-2").username).toBeUndefined();
+    const { latest, unmount, ws } = await renderHookHarness(api);
+
+    await act(async () => {
+      ws.message(
+        JSON.stringify({
+          v: 1,
+          t: "pointer",
+          p: { x: 120, y: 340, tool: "pointer" },
+          from: "conn-2",
+        }),
+      );
+    });
+    const p2 = latest().peers.find((p) => p.profileId === "profile-2");
+    expect(p2?.lastKnownPointer).toEqual({ x: 120, y: 340 });
+    // later pointer frames update the ref twin, not React state (no re-render
+    // storm on the ~16ms pointer stream)
+    await act(async () => {
+      ws.message(
+        JSON.stringify({
+          v: 1,
+          t: "pointer",
+          p: { x: 999, y: 888, tool: "pointer" },
+          from: "conn-2",
+        }),
+      );
+    });
+    const p2Again = latest().peers.find((p) => p.profileId === "profile-2");
+    expect(p2Again?.lastKnownPointer).toEqual({ x: 120, y: 340 });
     unmount();
   });
 
@@ -469,20 +495,24 @@ describe("PresenceFeed — row actions (082: cursor jump + follow toggle)", () =
   const selfRow: RosterMember = {
     profileId: "self-1", name: "Ada", color: "hsl(0, 100%, 83%)", connId: "conn-self", self: true,
   };
-  const peerWithViewport: RosterMember = {
+  const presenterWithViewport: RosterMember = {
     profileId: "a3f9c2d1", name: "Min", color: "hsl(220, 100%, 83%)",
-    connId: "conn-a", self: false,
+    connId: "conn-a", self: false, presenting: true,
     lastKnownViewport: { x: 100, y: 200, z: 1 },
   };
-  const peerWithoutViewport: RosterMember = {
+  const peerWithPointer: RosterMember = {
     profileId: "9c1d2e3f", name: "王小明", color: "hsl(40, 100%, 83%)",
     connId: "conn-b", self: false,
+    lastKnownPointer: { x: 40, y: 60 },
+  };
+  const peerWithoutData: RosterMember = {
+    profileId: "8f8f8f8f", name: "Zoe", color: "hsl(10, 100%, 83%)",
+    connId: "conn-c", self: false,
   };
 
   test("hover reveals dual icons on non-self row", () => {
-    const presentingWithViewport: RosterMember = { ...peerWithViewport, presenting: true };
     const session = makeSession({
-      peers: [selfRow, presentingWithViewport, peerWithoutViewport],
+      peers: [selfRow, presenterWithViewport, peerWithPointer],
     });
     renderFeed(session, { excalidrawAPI: makeApi() });
 
@@ -497,23 +527,23 @@ describe("PresenceFeed — row actions (082: cursor jump + follow toggle)", () =
     expect(screen.getByTestId("collab-row-follow-a3f9c2d1")).toBeTruthy();
   });
 
-  test("jump icon is disabled/grayed when profile has no lastKnownViewport", () => {
+  test("jump icon is disabled/grayed when the row has neither viewport nor pointer", () => {
     const session = makeSession({
-      peers: [selfRow, peerWithViewport, peerWithoutViewport],
+      peers: [selfRow, presenterWithViewport, peerWithoutData],
     });
     renderFeed(session, { excalidrawAPI: makeApi() });
 
-    const row = screen.getByTestId("collab-feed-row-9c1d2e3f");
+    const row = screen.getByTestId("collab-feed-row-8f8f8f8f");
     fireEvent.mouseEnter(row);
-    const jumpBtn = screen.getByTestId("collab-row-jump-9c1d2e3f");
+    const jumpBtn = screen.getByTestId("collab-row-jump-8f8f8f8f");
     expect(jumpBtn).toBeTruthy();
     expect(jumpBtn.getAttribute("aria-disabled")).toBe("true");
   });
 
-  test("jump icon is enabled when profile has lastKnownViewport; clicking calls applyViewport once", () => {
+  test("jump enabled for a presenter with a live viewport; clicking applies it once", () => {
     const api = makeApi();
     const session = makeSession({
-      peers: [selfRow, peerWithViewport, peerWithoutViewport],
+      peers: [selfRow, presenterWithViewport, peerWithPointer],
     });
     renderFeed(session, { excalidrawAPI: api });
 
@@ -531,27 +561,50 @@ describe("PresenceFeed — row actions (082: cursor jump + follow toggle)", () =
     expect(call.appState.zoom.value).toBe(1);
   });
 
-  test("jump disabled when follow target has no viewport", () => {
-    const presentingNoViewport: RosterMember = {
-      ...peerWithoutViewport, presenting: true,
-    };
+  test("jump enabled for a NON-presenting member with a known pointer; the hop keeps the current zoom", () => {
+    const api = makeApi();
+    (api.getAppState as ReturnType<typeof vi.fn>).mockReturnValue({ zoom: { value: 2 } });
     const session = makeSession({
-      peers: [selfRow, presentingNoViewport],
-      followTargetId: "9c1d2e3f",
+      peers: [selfRow, peerWithPointer],
     });
-    renderFeed(session, { excalidrawAPI: makeApi() });
+    renderFeed(session, { excalidrawAPI: api });
 
     const row = screen.getByTestId("collab-feed-row-9c1d2e3f");
     fireEvent.mouseEnter(row);
     const jumpBtn = screen.getByTestId("collab-row-jump-9c1d2e3f");
+    expect(jumpBtn.getAttribute("aria-disabled")).not.toBe("true");
+
+    fireEvent.click(jumpBtn);
+    const call = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    // hop lands on the LAST KNOWN POINTER position (055 stream)
+    expect(call.appState.scrollX).toBe(40);
+    expect(call.appState.scrollY).toBe(60);
+    // the jumper's own zoom is kept (no z on pointer hops, ADR 0008)
+    expect(call.appState.zoom.value).toBe(2);
+  });
+
+  test("jump disabled when the row itself has no data — even when it is the follow target", () => {
+    const presentingNoData: RosterMember = {
+      ...peerWithoutData, presenting: true,
+    };
+    const session = makeSession({
+      peers: [selfRow, presentingNoData],
+      followTargetId: "8f8f8f8f",
+    });
+    renderFeed(session, { excalidrawAPI: makeApi() });
+
+    const row = screen.getByTestId("collab-feed-row-8f8f8f8f");
+    fireEvent.mouseEnter(row);
+    const jumpBtn = screen.getByTestId("collab-row-jump-8f8f8f8f");
     expect(jumpBtn.getAttribute("aria-disabled")).toBe("true");
   });
 
-  test("jump uses peer's own viewport when not following", () => {
+  test("jump uses the CLICKED row's own viewport — never the follow target's (follow B, click A → A)", () => {
     const api = makeApi();
     const session = makeSession({
-      peers: [selfRow, peerWithViewport],
-      followTargetId: null,
+      // following 9c1d2e3f (B), clicking a3f9c2d1 (A): A's presenter viewport must win
+      peers: [selfRow, presenterWithViewport, peerWithPointer],
+      followTargetId: "9c1d2e3f",
     });
     renderFeed(session, { excalidrawAPI: api });
 
@@ -560,13 +613,12 @@ describe("PresenceFeed — row actions (082: cursor jump + follow toggle)", () =
     const jumpBtn = screen.getByTestId("collab-row-jump-a3f9c2d1");
     fireEvent.click(jumpBtn);
     const call = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(call.appState.scrollX).toBe(100);
+    expect(call.appState.scrollX).toBe(100); // A's own viewport
   });
 
   test("follow icon shown only on presenting rows", () => {
-    const presentingPeer: RosterMember = { ...peerWithViewport, presenting: true };
     const session = makeSession({
-      peers: [selfRow, presentingPeer, peerWithoutViewport],
+      peers: [selfRow, presenterWithViewport, peerWithPointer],
     });
     renderFeed(session, { excalidrawAPI: makeApi() });
 
@@ -582,9 +634,8 @@ describe("PresenceFeed — row actions (082: cursor jump + follow toggle)", () =
   });
 
   test("clicking follow icon calls setFollowTarget(profileId)", () => {
-    const presentingPeer: RosterMember = { ...peerWithViewport, presenting: true };
     const session = makeSession({
-      peers: [selfRow, presentingPeer],
+      peers: [selfRow, presenterWithViewport],
       followTargetId: null,
     });
     renderFeed(session, { excalidrawAPI: makeApi() });
@@ -597,9 +648,8 @@ describe("PresenceFeed — row actions (082: cursor jump + follow toggle)", () =
   });
 
   test("following a presenter shows active-follow visual state", () => {
-    const presentingPeer: RosterMember = { ...peerWithViewport, presenting: true };
     const session = makeSession({
-      peers: [selfRow, presentingPeer],
+      peers: [selfRow, presenterWithViewport],
       followTargetId: "a3f9c2d1",
     });
     renderFeed(session, { excalidrawAPI: makeApi() });
@@ -611,9 +661,8 @@ describe("PresenceFeed — row actions (082: cursor jump + follow toggle)", () =
   });
 
   test("clicking active follow icon calls setFollowTarget(null) (silent unfollow)", () => {
-    const presentingPeer: RosterMember = { ...peerWithViewport, presenting: true };
     const session = makeSession({
-      peers: [selfRow, presentingPeer],
+      peers: [selfRow, presenterWithViewport],
       followTargetId: "a3f9c2d1",
     });
     renderFeed(session, { excalidrawAPI: makeApi() });
@@ -627,6 +676,44 @@ describe("PresenceFeed — row actions (082: cursor jump + follow toggle)", () =
   });
 });
 
+/* ------------------------------------------------------------------ */
+/* pickJumpTarget — ADR 0008 truth table (pure unit)                   */
+/* ------------------------------------------------------------------ */
+
+describe("pickJumpTarget (ADR 0008 cursor-jump rule)", () => {
+  const base: RosterMember = {
+    profileId: "p1", name: "Min", color: "hsl(220, 100%, 83%)", connId: "c1", self: false,
+  };
+
+  test("presenting member → live presenter viewport (zoom carried)", () => {
+    const row = {
+      ...base,
+      presenting: true,
+      lastKnownViewport: { x: 11, y: 22, z: 1.5 },
+      lastKnownPointer: { x: 1, y: 2 },
+    };
+    expect(pickJumpTarget(row)).toEqual({ x: 11, y: 22, z: 1.5 });
+  });
+
+  test("presenting member without a viewport yet → falls back to last known pointer", () => {
+    const row = { ...base, presenting: true, lastKnownPointer: { x: 7, y: 8 } };
+    expect(pickJumpTarget(row)).toEqual({ x: 7, y: 8 });
+  });
+
+  test("non-presenting member → last known pointer (no zoom)", () => {
+    const row = { ...base, lastKnownPointer: { x: 40, y: 60 } };
+    expect(pickJumpTarget(row)).toEqual({ x: 40, y: 60 });
+  });
+
+  test("a non-presenting member's stale presenter viewport is NOT a jump target (pointer stream only)", () => {
+    const row = { ...base, lastKnownViewport: { x: 11, y: 22, z: 1.5 } };
+    expect(pickJumpTarget(row)).toBeNull();
+  });
+
+  test("nothing known → null (button grayed)", () => {
+    expect(pickJumpTarget(base)).toBeNull();
+  });
+});
 describe("PresenceFeed — self Present toggle (082)", () => {
   const selfRow: RosterMember = {
     profileId: "self-1", name: "Ada", color: "hsl(0, 100%, 83%)",

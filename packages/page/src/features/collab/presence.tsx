@@ -16,10 +16,12 @@
  * shows the real per-room name with a "（自己）"/"(you)" marker (075).
  *
  * Task 082: non-self rows gain hover-revealed dual icons (cursor jump + follow
- * toggle). Jump is disabled/grayed when the profile has no lastKnownViewport;
- * enabled jump calls applyViewport once (one-shot hop). Follow icon is shown
- * only on presenting rows; clicking toggles follow (setFollowTarget). The self
- * row gains a Present toggle (startPresenting/stopPresenting).
+ * toggle). Jump targets the CLICKED row (ADR 0008): their live presenter
+ * viewport when presenting, else their last known pointer position (055);
+ * grayed/disabled when nothing is known. Enabled jump calls applyViewport
+ * once (one-shot hop — pointer hops keep the current zoom). Follow icon is
+ * shown only on presenting rows; clicking toggles follow (setFollowTarget).
+ * The self row gains a Present toggle (startPresenting/stopPresenting).
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -55,26 +57,28 @@ interface PresenceFeedProps {
 const FEED_FADE_MS = 250;
 
 /**
- * Pick the jump target for a row's jump button.
+ * One-shot cursor-jump target (ADR 0008): the clicked member's OWN data
+ * only — never the follow target's. Priority:
+ *   1. live presenter viewport when the row is presenting (present frames)
+ *   2. last known pointer position (the 055 pointer stream) otherwise
+ *   3. null — nothing known → the jump button renders disabled/grayed
  *
- * ADR 0008 cursor-jump rule: live presenter viewport wins when presenting.
- * Priority:
- *   1. Follow target's lastKnownViewport (if follow target is presenting)
- *   2. The row's own lastKnownViewport
- *   3. null (no viewport → button disabled)
+ * `z` is present only for viewport hops (the presenter's zoom, applied
+ * verbatim); pointer hops keep the jumper's current zoom.
  */
-function pickJumpTarget(
-  row: RosterMember,
-  followTargetId: string | null,
-  peers: RosterMember[],
-): { x: number; y: number; z: number } | null {
-  // Priority 1: follow target's viewport wins (ADR 0008 — presenter viewport rule)
-  if (followTargetId !== null && followTargetId !== row.profileId) {
-    const followPeer = peers.find((p) => p.profileId === followTargetId);
-    if (followPeer?.lastKnownViewport) return followPeer.lastKnownViewport;
+export type JumpTarget = { x: number; y: number; z?: number };
+
+export function pickJumpTarget(row: RosterMember): JumpTarget | null {
+  if (row.presenting === true && row.lastKnownViewport) {
+    return {
+      x: row.lastKnownViewport.x,
+      y: row.lastKnownViewport.y,
+      z: row.lastKnownViewport.z,
+    };
   }
-  // Priority 2: row's own viewport
-  if (row.lastKnownViewport) return row.lastKnownViewport;
+  if (row.lastKnownPointer) {
+    return { x: row.lastKnownPointer.x, y: row.lastKnownPointer.y };
+  }
   return null;
 }
 
@@ -129,12 +133,18 @@ export function PresenceFeed({ session, excalidrawAPI, onEditSelfName }: Presenc
     // The self roster dot/chip is the feedback — no toast for your own rename.
   };
 
-  // --- jump: one-shot hop to peer's viewport --------------------------------
+  // --- jump: one-shot hop to the clicked member's target ---------------------
   const handleJump = (row: RosterMember) => {
     if (!excalidrawAPI) return;
-    const vp = pickJumpTarget(row, session.followTargetId, session.peers);
-    if (!vp) return;
-    applyViewport(excalidrawAPI, { scrollX: vp.x, scrollY: vp.y, zoom: { value: vp.z } as import('@excalidraw/excalidraw/types').Zoom });
+    const target = pickJumpTarget(row);
+    if (!target) return;
+    // Pointer hops carry no zoom — keep the jumper's current zoom; viewport
+    // hops apply the presenter's zoom verbatim (ADR 0008, zero adaptation).
+    const zoom =
+      target.z !== undefined
+        ? ({ value: target.z } as import("@excalidraw/excalidraw/types").Zoom)
+        : (excalidrawAPI.getAppState().zoom ?? { value: 1 });
+    applyViewport(excalidrawAPI, { scrollX: target.x, scrollY: target.y, zoom });
   };
 
   // --- follow toggle ----------------------------------------------------------
@@ -252,7 +262,10 @@ function Row({ m, leaving, session, onEditSelfName, excalidrawAPI, onJump, onFol
   const [hovered, setHovered] = useState(false);
 
   const isSelf = m.self;
-  const jumpTarget = isSelf ? null : pickJumpTarget(m, session.followTargetId, session.peers);
+  // 082 (ADR 0008): jump target = the CLICKED row's own data only — live
+  // presenter viewport when presenting, else last known pointer. Grayed
+  // (disabled) when nothing is known about this row.
+  const jumpTarget = isSelf ? null : pickJumpTarget(m);
   const jumpDisabled = jumpTarget === null;
   const isFollowing = session.followTargetId === m.profileId;
   const showFollow = !isSelf && m.presenting === true;

@@ -109,8 +109,6 @@ export interface CollabRoomMeta {
   invite: RoomInvite;
 }
 
-/** One roster dot (055): color dots only in the chrome; hover pops the
- * name + short id; the self dot is outlined. */
 export interface RosterMember {
   profileId: string;
   name: string;
@@ -122,6 +120,9 @@ export interface RosterMember {
   presenting?: boolean;
   /** 080: last viewport {x,y,z} received from onPresent frames. */
   lastKnownViewport?: { x: number; y: number; z: number };
+  /** 082 (ADR 0008): last pointer position from the 055 pointer stream —
+   *  the one-shot cursor-jump hop target for non-presenting members. */
+  lastKnownPointer?: { x: number; y: number };
 }
 
 /** Per-recovery reset notice (061 §3): N local edits conflicted — the online
@@ -969,6 +970,22 @@ export function useCollabSession({
         onPointer: (pointer) => {
           const profileId = connIdToProfileRef.current.get(pointer.from);
           if (profileId === undefined) return;
+          // 082 (ADR 0008): per-profile last-known pointer — the one-shot jump
+          // hop target for non-presenting members. Ref twin on every frame;
+          // only the FIRST frame per profile flushes to state so the presence
+          // feed's jump button enables (later frames never re-render React).
+          const current = peersRef.current;
+          const pIdx = current.findIndex((m) => m.profileId === profileId);
+          if (pIdx !== -1) {
+            const firstPointer = current[pIdx].lastKnownPointer === undefined;
+            const nextRoster = [...current];
+            nextRoster[pIdx] = {
+              ...nextRoster[pIdx],
+              lastKnownPointer: { x: pointer.x, y: pointer.y },
+            };
+            peersRef.current = nextRoster;
+            if (firstPointer) setPeers(nextRoster);
+          }
           const map = new Map(collaboratorsRef.current);
           const prev = map.get(profileId as SocketId) ?? {};
           map.set(profileId as SocketId, {
