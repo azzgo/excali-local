@@ -384,6 +384,10 @@ export function initI18n() {
           "CollabCreateFromCanvas": "Create room from this canvas",
           "CollabOpenPage": "Open collaboration page",
           "CollabDefaultRoomName": "Untitled room",
+          // 085: room-mode gallery sidebar confirm modal (text-only)
+          "CollabGalleryLoadConfirmTitle": "Load drawing to room?",
+          "CollabGalleryLoadConfirmBody": "This replaces the room's current content, visible to all members.",
+          "CollabGalleryLoadConfirm": "Load Drawing",
           "CollabCreateFromCanvasFailed": "Couldn't create the room — try again",
         },
       },
@@ -766,6 +770,10 @@ export function initI18n() {
           "CollabCreateFromCanvas": "以当前画布创建房间",
           "CollabOpenPage": "打开协作页面",
           "CollabDefaultRoomName": "未命名房间",
+          // 085: room-mode gallery sidebar confirm modal (text-only)
+          "CollabGalleryLoadConfirmTitle": "加载画布到房间？",
+          "CollabGalleryLoadConfirmBody": "这将替换房间当前的内容，对所有成员可见。",
+          "CollabGalleryLoadConfirm": "加载画布",
           "CollabCreateFromCanvasFailed": "无法创建房间 — 请重试",
         },
       },

@@ -67,6 +67,13 @@ import { useGalleryImport, GalleryImportMode } from "../hooks/use-gallery-import
 
 interface GallerySidebarProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
+  /** Room-mode only: intercepts gallery-card-load clicks, replacing the default
+   * loadDrawingToScene path.  Absent → local-editor default (backward compat). */
+  onLoadDrawing?: (drawing: DrawingMetadata) => void;
+  /** Room-mode only: the in-memory gallery-drawing chosen for this room.
+   * When set, SaveDialog's save-target falls back to this id.  Absent →
+   * sidebar's own currentLoadedIdAtom (local-editor default, backward compat). */
+  chosenDrawingId?: string;
 }
 
 interface GalleryListProps {
@@ -146,7 +153,7 @@ const GalleryList = ({
   );
 };
 
-const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
+const GallerySidebar = ({ excalidrawAPI, onLoadDrawing, chosenDrawingId }: GallerySidebarProps) => {
   const [t] = useTranslation();
   const [docked, setDocked] = useState(false);
   const setIsOpen = useSetAtom(galleryIsOpenAtom);
@@ -409,9 +416,11 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
         updatedAt: now,
       };
 
-      if (currentLoadedId && !saveAsNew) {
-        await update(currentLoadedId, drawingData);
-        handleDrawingUpdate(currentLoadedId, {
+      // The save target: chosenDrawingId (room) takes precedence over currentLoadedId (local).
+      const saveTargetId = chosenDrawingId ?? currentLoadedId;
+      if (saveTargetId && !saveAsNew) {
+        await update(saveTargetId, drawingData);
+        handleDrawingUpdate(saveTargetId, {
           ...drawingData,
           thumbnail,
           updatedAt: now,
@@ -500,8 +509,14 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
 
   const handleLoad = useCallback(
     async (drawing: DrawingMetadata) => {
-      if (!excalidrawAPI) return;
+      // Room-mode: delegate to the intercept callback instead of the default path.
+      if (onLoadDrawing) {
+        onLoadDrawing(drawing);
+        return;
+      }
 
+      // Default local-editor path
+      if (!excalidrawAPI) return;
       try {
         const fullDrawing = await getFullData(drawing.id);
         const elements = JSON.parse(fullDrawing.elements);
@@ -516,7 +531,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
         toast.error(t("Failed to load drawing"));
       }
     },
-    [excalidrawAPI, getFullData, setCurrentLoadedId, t],
+    [excalidrawAPI, getFullData, setCurrentLoadedId, t, onLoadDrawing],
   );
 
   const handleNew = useCallback(() => {
@@ -770,7 +785,7 @@ const GallerySidebar = ({ excalidrawAPI }: GallerySidebarProps) => {
         isOpen={saveDialogOpen}
         onClose={() => setSaveDialogOpen(false)}
         onSave={handleSaveDialogConfirm}
-        currentLoadedDrawingId={currentLoadedId}
+        currentLoadedDrawingId={chosenDrawingId ?? currentLoadedId}
         defaultName={currentName}
         collections={collections}
       />

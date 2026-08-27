@@ -26,9 +26,13 @@ import { useTranslation } from "react-i18next";
 import type { RoomEntry } from "collab-core";
 import { fileIdFor, parseInvite } from "collab-core";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import { useEditorTheme } from "@/features/editor/hooks/use-editor-theme";
 import Excalidraw from "@/features/editor/lib/excalidraw";
-import { getRoom } from "@/features/editor/utils/indexdb";
+import { getRoom, getDrawingFullData } from "@/features/editor/utils/indexdb";
+import { loadDrawingToScene } from "@/features/editor/utils/excalidraw-api.helper";
+import { normalizeSceneImageRefs } from "@/features/gallery/utils/normalize-image-refs";
+import type { DrawingMetadata } from "@/features/editor/utils/indexdb";
 import { useServerConfig } from "./hooks/use-server-config";
 import { useLabelMode } from "./labels";
 import { ROUTES } from "./routes";
@@ -39,6 +43,7 @@ import type { CollabRoomMeta } from "./use-collab-session";
 import type { WsFactory } from "collab-core";
 import { useCollabSession } from "./use-collab-session";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import GallerySidebar from "@/features/gallery/components/gallery-sidebar";
 
 interface RoomScreenProps {
   lang: string;
@@ -199,6 +204,44 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
     setExcalidrawAPI(api);
   }, []);
 
+  // --- Gallery sidebar state (room-mode only) ---
+  // pendingLoadDrawing: drawing awaiting confirm (null = no modal open)
+  const [pendingLoadDrawing, setPendingLoadDrawing] = useState<DrawingMetadata | null>(null);
+  // chosenDrawingId: in-memory gallery-drawing chosen for this room (the save seam)
+  const [chosenDrawingId, setChosenDrawingId] = useState<string | null>(null);
+
+  /** Gallery card click → show confirm modal (room-mode). */
+  const onLoadDrawing = useCallback(async (drawing: DrawingMetadata) => {
+    setPendingLoadDrawing(drawing);
+  }, []);
+
+  /** Confirm modal CONFIRM: load drawing into scene + set chosen-drawing id. */
+  const handleConfirmLoad = useCallback(async () => {
+    if (!pendingLoadDrawing || !excalidrawAPI) {
+      setPendingLoadDrawing(null);
+      return;
+    }
+    try {
+      const fullDrawing = await getDrawingFullData(pendingLoadDrawing.id);
+      const elements = JSON.parse(fullDrawing.elements);
+      const appState = JSON.parse(fullDrawing.appState);
+      const files = JSON.parse(fullDrawing.files);
+      // ADR 0009 §2: normalize image fileIds before applying to scene
+      const { elements: normEls, files: normFiles } = await normalizeSceneImageRefs(elements, files);
+      loadDrawingToScene(excalidrawAPI, normEls, appState, normFiles);
+      setChosenDrawingId(pendingLoadDrawing.id);
+    } catch (err) {
+      console.error("[room] failed to load drawing:", err);
+    } finally {
+      setPendingLoadDrawing(null);
+    }
+  }, [pendingLoadDrawing, excalidrawAPI]);
+
+  /** Confirm modal CANCEL: inert — just close the modal (canvas unchanged). */
+  const handleCancelLoad = useCallback(() => {
+    setPendingLoadDrawing(null);
+  }, []);
+
   return (
     <div data-testid="collab-room" className="flex h-svh flex-col overflow-hidden bg-background">
       {/* the exclusive one-row session chrome above the canvas (053) */}
@@ -235,7 +278,18 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
           onScrollChange={(scrollX, scrollY, zoom) =>
             session.onLocalViewportChange(scrollX, scrollY, zoom)
           }
-        />
+        >
+          {/* Gallery sidebar (room-mode): mounts inside the Excalidraw Sidebar slot.
+           * If the Excalidraw Sidebar island is unavailable (dock-panel fallback
+           * taken), GallerySidebar still renders inside Excalidraw's children — it
+           * owns its own <Sidebar> island, so it always lands in the dock panel
+           * regardless of where in the DOM it is placed. */}
+          <GallerySidebar
+            excalidrawAPI={excalidrawAPI}
+            onLoadDrawing={onLoadDrawing}
+            chosenDrawingId={chosenDrawingId ?? undefined}
+          />
+        </Excalidraw>
 
         {/* seed prompt — empty room, no cache (053/061 rule C). Minimal
             inline version; TODO(043-replace): swap in 043's SeedPrompt
@@ -258,6 +312,27 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
             </div>
           </div>
         )}
+
+        {/* TEXT-ONLY confirm modal: "this replaces the room's current content,
+         * visible to all members." No thumbnail, no don't-ask-again (Ticket 063 ④).
+         * Cancel = inert locally; confirm = load into scene. */}
+        <Modal
+          open={pendingLoadDrawing !== null}
+          title={t("CollabGalleryLoadConfirmTitle")}
+          onDismiss={handleCancelLoad}
+        >
+          <p className="text-sm text-muted-foreground">
+            {t("CollabGalleryLoadConfirmBody")}
+          </p>
+          <div className="flex gap-2 justify-end mt-4">
+            <Button variant="ghost" onClick={handleCancelLoad}>
+              {t("Cancel")}
+            </Button>
+            <Button data-testid="confirm-modal-confirm" onClick={handleConfirmLoad}>
+              {t("CollabGalleryLoadConfirm")}
+            </Button>
+          </div>
+        </Modal>
       </div>
     </div>
   );
