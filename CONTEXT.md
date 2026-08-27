@@ -108,3 +108,28 @@ skipping both the seed prompt and the share step. Consumed exactly once; any
 leftover (stale or stranded off the room path) handoff is void. The minted room
 carries an auto-provenance default name, renamed in-room per the ADR 0004 rule.
 _Avoid_: export-to-collab, clipboard scene
+
+**Presenting member**:
+A member who has self-declared an active presentation of their own viewport in a room.
+Several members may present concurrently; the state confers no authority over anyone's
+canvas or view and dies with the declaring connection.
+_Avoid_: presenter slot, host, demo leader
+
+**Presentation follow**:
+A follower's private, local-only subscription to one presenting member's broadcast
+viewport, entered by clicking that member's roster affordance. Broken by any local
+pan/zoom gesture (at gesture onset), by the presenter leaving, or by entering one's own
+presentation; invisible to the presenter.
+_Avoid_: follow mode, screen share, spectator mode
+
+**Cursor jump**:
+The one-shot viewport hop to a member's last known position from clicking their avatar —
+last pointer position for a non-presenting member, live presentation viewport for a
+presenting member; the jumper's own zoom is kept unless the source supplies one.
+_Avoid_: teleport, goto member
+
+**In-room load**:
+The mid-session act of swapping a live room's entire scene for a gallery drawing
+chosen from the room's sidebar, always behind its own confirmation. Every member
+experiences it as an ordinary edit — there are no special merge or seeding semantics.
+_Avoid_: seed (that is pre-entry staging), import, handoff
