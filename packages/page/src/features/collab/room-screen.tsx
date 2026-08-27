@@ -41,6 +41,7 @@ import { ConnHealthBanners } from "./conn-health";
 import type { CollabRoomMeta } from "./use-collab-session";
 import type { WsFactory } from "collab-core";
 import { useCollabSession } from "./use-collab-session";
+import { useFollowBreakToast } from "./use-follow-break-toast";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import GallerySidebar from "@/features/gallery/components/gallery-sidebar";
 
@@ -191,6 +192,8 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
   // omits `username` from the collaborators map in quiet mode.
   const { mode: labelMode } = useLabelMode();
   const session = useCollabSession({ shareId, server, room, excalidrawAPI, wsFactory, labelMode });
+  // 083: fire a toast when the follow relationship breaks involuntarily
+  useFollowBreakToast(session);
 
   // 052: content-addressed ids for newly inserted images (fileId =
   // base64url(sha256(bytes)), 051 §3) so the element's fileId matches the
