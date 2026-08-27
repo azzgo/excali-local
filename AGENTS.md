@@ -76,7 +76,7 @@ Full list + build/release/CSP detail: [docs/BUILD_AND_RELEASE.md](docs/BUILD_AND
   `docs/KNOWN_LIMITATIONS.md`, and `skills/excali-local/README.md` each have a
   `*.zh-CN.md` mirror linked from the top of the file (pattern: pi-web). Update both
   halves of a pair together — prose differs, assets/links/code stay identical.
-  Developer docs (`ARCHITECTURE`, `BUILD_AND_RELEASE`, `CONVENTIONS`,
+  Developer docs (`ARCHITECTURE`, `BUILD_AND_RELEASE`, `CONVENTIONS`, `CONTEXT.md`,
   `AGENTS.md`) stay English-only.
 
 ## Deeper knowledge (read when relevant)

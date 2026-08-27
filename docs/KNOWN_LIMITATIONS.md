@@ -174,6 +174,17 @@ durable record (ADR 0003).
 **What the code does**: the room list stores invite payloads locally; re-entering
 a dead room prompts the first member to reseed from their gallery.
 
+### Presentation mode × collaboration deferred
+
+**What**: presentation mode does not interact with collab rooms in 1.8.0
+(follow-a-collaborator / whole-room presentation is out of scope).
+
+**Why**: human decision 2026-08-16 — revisit only after the collab model matures
+in real use.
+
+**What the code does**: the two modes are separate editor forms; nothing
+prevents presenting a drawing you saved from a collab session.
+
 ### Laser pointer sync not in v1
 
 **What**: the `tool: "laser"` pointer mode is not synced to collaborators.
