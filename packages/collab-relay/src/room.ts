@@ -374,6 +374,9 @@ export class RoomState {
       case "member-name":
         await this.handleMemberName(connId, (env.p as { name?: unknown }).name)
         return
+      case "present":
+        await this.handlePresent(connId, env.p)
+        return
       default:
         return // unknown type — drop (052 §3)
     }
@@ -478,6 +481,39 @@ export class RoomState {
     if (member.name === name) return // byte-identical rename — no-op
     member.name = name // mutate the roster member record in place
     this.hooks.broadcast(JSON.stringify({ v: 1, t: "member-name", p: { name }, from: connId }), connId)
+  }
+
+  /**
+   * 077 present relay: ephemeral roster state. Shallow-validates the payload
+   * (same union as the client guard — {active:true}|{x,y,z}|{active:false});
+   * invalid shapes are SILENTLY DROPPED (member-name precedent, no error receipt).
+   * Broadcasts {v:1,t:"present",p,from:connId} to the others (sender excluded).
+   * Mutates the roster Member in place with presenting?: boolean — set true on
+   * {active:true} or position payloads, DELETED (not set false) on {active:false}
+   * to keep welcome.peers lean. No room.storage side effects (ephemeral only).
+   */
+  private async handlePresent(connId: string, raw: unknown): Promise<void> {
+    // Shallow validation: must be one of the three PresentPayload union members
+    if (raw === null || typeof raw !== "object" || Array.isArray(raw)) return // silently dropped
+    const p = raw as Record<string, unknown>
+    let isActive: boolean | null = null
+    if (p.active === true) {
+      isActive = true
+    } else if (p.active === false) {
+      isActive = false
+    } else if (typeof p.x === "number" && typeof p.y === "number" && typeof p.z === "number") {
+      isActive = true
+    } else {
+      return // silently dropped — malformed payload
+    }
+    const member = this.roster.get(connId)
+    if (member === undefined) return // guard — never an admitted member
+    if (isActive) {
+      member.presenting = true
+    } else {
+      delete member.presenting
+    }
+    this.hooks.broadcast(JSON.stringify({ v: 1, t: "present", p: raw, from: connId }), connId)
   }
 
 

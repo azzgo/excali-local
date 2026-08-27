@@ -37,6 +37,11 @@ export interface Member {
   name: string // self-chosen display name
   color: ColorPair // derived from profileId
   connId: string // relay-stamped connection id
+  /** Ephemeral relay-internal state — set when the member is actively presenting
+   * (077); never persisted. Serialized into welcome.peers so late joiners
+   * inherit the current presenter. Deleted (not set to false) on de-activate
+   * to keep welcome.peers lean. */
+  presenting?: boolean
 }
 
 /** Hello payload (057 §3): membership proven by an Ed25519 signature. */

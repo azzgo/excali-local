@@ -493,3 +493,105 @@ describe("RoomState member-name (ADR 0006)", () => {
     expect([...h.room.members.values()].find((m) => m.connId === "conn-1")?.name).toBe("Ada Lee")
   })
 })
+
+// ─── present (077) ──────────────────────────────────────────────────────────────
+
+describe("RoomState present (077)", () => {
+  it("present {active:true} from an admitted member broadcasts with from, sender excluded, and sets presenting flag on the roster member", async () => {
+    const h = makeHarness()
+    await h.room.join("conn-1", baseHello())
+    await h.room.join("conn-2", HELLO_2)
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "present", p: { active: true } }))
+    // broadcast to others, sender excluded
+    expect(framesTo(h, "conn-2").filter((f) => f.t === "present")).toEqual([
+      { v: 1, t: "present", p: { active: true }, from: "conn-1" },
+    ])
+    expect(framesTo(h, "conn-1").filter((f) => f.t === "present")).toEqual([])
+    // roster member mutated in place with presenting flag
+    expect([...h.room.members.values()].find((m) => m.connId === "conn-1")?.presenting).toBe(true)
+    // other member unaffected
+    expect([...h.room.members.values()].find((m) => m.connId === "conn-2")?.presenting).toBeUndefined()
+  })
+
+  it("present {active:false} clears the presenting flag on the roster member (deletes the field, does not set false)", async () => {
+    const h = makeHarness()
+    await h.room.join("conn-1", baseHello())
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "present", p: { active: true } }))
+    expect([...h.room.members.values()].find((m) => m.connId === "conn-1")?.presenting).toBe(true)
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "present", p: { active: false } }))
+    const member = [...h.room.members.values()].find((m) => m.connId === "conn-1")
+    expect(member?.presenting).toBeUndefined() // deleted, not false
+    expect(member).toBeDefined() // member still in roster
+  })
+
+  it("present with position payload (x/y/z) also sets presenting:true on the roster member, broadcasts with from", async () => {
+    const h = makeHarness()
+    await h.room.join("conn-1", baseHello())
+    await h.room.join("conn-2", HELLO_2)
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "present", p: { x: 100, y: 200, z: 1.5 } }))
+    expect(framesTo(h, "conn-2").filter((f) => f.t === "present")).toEqual([
+      { v: 1, t: "present", p: { x: 100, y: 200, z: 1.5 }, from: "conn-1" },
+    ])
+    expect([...h.room.members.values()].find((m) => m.connId === "conn-1")?.presenting).toBe(true)
+  })
+
+  it("a late joiner's welcome.peers carries the presenting flag for members currently presenting", async () => {
+    const h = makeHarness()
+    await h.room.join("conn-1", baseHello())
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "present", p: { active: true } }))
+    await h.room.join("conn-2", HELLO_2)
+    const w2 = framesTo(h, "conn-2").find((f) => f.t === "welcome")!
+    const peer = w2.p.peers.find((m: { connId: string }) => m.connId === "conn-1")
+    expect(peer.presenting).toBe(true)
+    // non-presenting members do not carry the field
+    const peer2 = w2.p.peers.find((m: { connId: string }) => m.connId === "conn-2")
+    expect(peer2.presenting).toBeUndefined()
+  })
+
+  it("leave() clears the roster entry (which drops the presenting flag implicitly — no explicit deletion needed)", async () => {
+    const h = makeHarness()
+    await h.room.join("conn-1", baseHello())
+    await h.room.join("conn-2", HELLO_2)
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "present", p: { active: true } }))
+    expect([...h.room.members.values()].find((m) => m.connId === "conn-1")?.presenting).toBe(true)
+    h.room.leave("conn-1")
+    // member is gone from roster entirely — presenting flag cleared by roster entry removal
+    expect([...h.room.members.keys()]).toEqual(["conn-2"])
+  })
+
+  it("malformed present payloads are silently dropped: no broadcast, no error receipt, roster unchanged", async () => {
+    const h = makeHarness()
+    await h.room.join("conn-1", baseHello())
+    await h.room.join("conn-2", HELLO_2)
+    const broadcastsBefore = h.broadcasts.length
+    const errorSendsBefore = (h.outbox.get("conn-1") ?? []).filter((f) => f.t === "error").length
+    // invalid shapes — none of the three union members
+    for (const p of [null, 42, "string", { foo: "bar" }, { active: "yes" }, { x: "a", y: 2, z: 3 }]) {
+      await h.room.message("conn-1", JSON.stringify({ v: 1, t: "present", p }))
+    }
+    expect(h.broadcasts.length).toBe(broadcastsBefore)
+    expect((h.outbox.get("conn-1") ?? []).filter((f) => f.t === "error").length).toBe(errorSendsBefore)
+    expect([...h.room.members.values()].find((m) => m.connId === "conn-1")?.presenting).toBeUndefined()
+  })
+
+  it("a ghost-conn (not in roster) sending present is dropped, no broadcast, no error", async () => {
+    const h = makeHarness()
+    await h.room.join("conn-1", baseHello())
+    const before = h.broadcasts.length
+    await h.room.message("ghost", JSON.stringify({ v: 1, t: "present", p: { active: true } }))
+    expect(h.broadcasts.length).toBe(before)
+    // no error receipt sent to ghost conn
+    expect((h.outbox.get("ghost") ?? []).filter((f) => f.t === "error")).toHaveLength(0)
+  })
+
+  it("present traffic causes ZERO storage.put calls (ephemeral state — no room.storage side effects)", async () => {
+    const h = makeHarness()
+    await h.room.join("conn-1", baseHello())
+    const storageKeysBefore = new Set(h.storage.map.keys())
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "present", p: { active: true } }))
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "present", p: { x: 50, y: 75, z: 2.0 } }))
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "present", p: { active: false } }))
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "present", p: { active: true } }))
+    expect([...h.storage.map.keys()]).toEqual([...storageKeysBefore])
+  })
+})
