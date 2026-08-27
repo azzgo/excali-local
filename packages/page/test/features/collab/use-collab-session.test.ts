@@ -14,7 +14,7 @@
  * pointer presence and saveToGallery persistence.
  */
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
 import * as excalidraw from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { AppState } from "@excalidraw/excalidraw/types";
@@ -23,7 +23,7 @@ import { clearSession, loadSession, saveRoomMeta, saveSession, PROBE_TIMEOUT_MS 
 import type { Member } from "collab-core";
 import { getDrawingFullData, getDrawings, getRoom } from "@/features/editor/utils/indexdb";
 import { useCollabSession } from "@/features/collab/use-collab-session";
-import type { CollabIdentity, CollabRoomMeta } from "@/features/collab/use-collab-session";
+import type { CollabIdentity, CollabRoomMeta, CollabSessionHandle } from "@/features/collab/use-collab-session";
 import type { ServerConfig } from "@/features/collab/storage";
 import { mintTestIdentity } from "./helpers";
 
@@ -1507,5 +1507,311 @@ describe("use-collab-session — mid-session reconnect conflict merge (ADR 0007)
       expect(ws2.sent.some((s) => isEnvelope(s, "scene"))).toBe(true),
     );
     unmount();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* presenting state + follow controls (task 080) ---------------------- */
+/* ------------------------------------------------------------------ */
+
+describe("use-collab-session — presenting state + follow (task 080)", () => {
+  const peer: Member = {
+    profileId: "profile-2",
+    name: "Min",
+    color: { background: "hsl(220, 100%, 83%)", stroke: "hsl(220, 100%, 83%)" },
+    connId: "conn-2",
+  };
+
+  const presentMsg = (from: string, payload: object): string =>
+    JSON.stringify({ v: 1, t: "present", p: payload, from });
+
+  // --- roster: presenting + lastKnownViewport from welcome -----------
+
+  test("RosterMember carries presenting + lastKnownViewport (task 080)", async () => {
+    const api = makeApi();
+    const presentingPeer: Member = { ...peer, presenting: true };
+    const { result, unmount } = await dialAndWelcome(api, { peers: [presentingPeer] });
+    const p2 = result.current.peers.find((p) => p.profileId === "profile-2");
+    expect(p2?.presenting).toBe(true);
+    unmount();
+  });
+
+  test("welcome peers with no presenting flag → presenting undefined on roster", async () => {
+    const api = makeApi();
+    const { result, unmount } = await dialAndWelcome(api, { peers: [peer] });
+    const p2 = result.current.peers.find((p) => p.profileId === "profile-2");
+    expect(p2?.presenting).toBeUndefined();
+    expect(p2?.lastKnownViewport).toBeUndefined();
+    unmount();
+  });
+
+  // --- onPresent: active:true → set presenting ----------------------
+
+  test("onPresent {active:true} sets presenting on the correct peer", async () => {
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api, { peers: [peer] });
+    await act(async () => {
+      ws.message(presentMsg("conn-2", { active: true }));
+    });
+    const p2 = result.current.peers.find((p) => p.profileId === "profile-2");
+    expect(p2?.presenting).toBe(true);
+    unmount();
+  });
+
+  // --- onPresent: active:false → clear presenting --------------------
+
+  test("onPresent {active:false} clears presenting on the correct peer", async () => {
+    const api = makeApi();
+    const presentingPeer: Member = { ...peer, presenting: true };
+    const { result, unmount, ws } = await dialAndWelcome(api, { peers: [presentingPeer] });
+    expect(result.current.peers.find((p) => p.profileId === "profile-2")?.presenting).toBe(true);
+    await act(async () => {
+      ws.message(presentMsg("conn-2", { active: false }));
+    });
+    const p2 = result.current.peers.find((p) => p.profileId === "profile-2");
+    expect(p2?.presenting).toBeUndefined();
+    unmount();
+  });
+
+  // --- onPresent: viewport → update lastKnownViewport ---------------
+
+  test("onPresent {x,y,z} updates lastKnownViewport on the correct peer", async () => {
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api, { peers: [peer] });
+    await act(async () => {
+      ws.message(presentMsg("conn-2", { x: 100, y: 200, z: 1.5 }));
+    });
+    const p2 = result.current.peers.find((p) => p.profileId === "profile-2");
+    expect(p2?.lastKnownViewport).toEqual({ x: 100, y: 200, z: 1.5 });
+    unmount();
+  });
+
+  test("subsequent viewport frames overwrite lastKnownViewport", async () => {
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api, { peers: [peer] });
+    await act(async () => {
+      ws.message(presentMsg("conn-2", { x: 100, y: 200, z: 1.5 }));
+      ws.message(presentMsg("conn-2", { x: 300, y: 400, z: 2.0 }));
+    });
+    const p2 = result.current.peers.find((p) => p.profileId === "profile-2");
+    expect(p2?.lastKnownViewport).toEqual({ x: 300, y: 400, z: 2.0 });
+    unmount();
+  });
+
+  // --- peer leave clears presenting/viewport + breaks follow --------
+
+  test("peer leave clears presenting + lastKnownViewport on that peer", async () => {
+    const api = makeApi();
+    const presentingPeer: Member = { ...peer, presenting: true };
+    const { result, unmount, ws } = await dialAndWelcome(api, { peers: [presentingPeer] });
+    await act(async () => {
+      ws.message(presentMsg("conn-2", { x: 100, y: 200, z: 1.5 }));
+    });
+    const p2 = result.current.peers.find((p) => p.profileId === "profile-2");
+    expect(p2?.presenting).toBe(true);
+    expect(p2?.lastKnownViewport).toEqual({ x: 100, y: 200, z: 1.5 });
+
+    await act(async () => {
+      ws.message(JSON.stringify({ v: 1, t: "peer", p: { kind: "leave", member: peer } }));
+    });
+    const after = result.current.peers.find((p) => p.profileId === "profile-2");
+    expect(after).toBeUndefined();
+    unmount();
+  });
+
+  test("peer leave breaks follow when they were the followTarget", async () => {
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api, { peers: [peer] });
+    await act(async () => {
+      (result.current as CollabSessionHandle & { setFollowTarget: (id: string | null) => void }).setFollowTarget("profile-2");
+    });
+    expect(result.current.followTargetId).toBe("profile-2");
+    await act(async () => {
+      ws.message(JSON.stringify({ v: 1, t: "peer", p: { kind: "leave", member: peer } }));
+    });
+    expect(result.current.followTargetId).toBeNull();
+    unmount();
+  });
+
+  // --- startPresenting / stopPresenting --------------------------------
+
+  test("startPresenting() sends {active:true} and sets presentingSelf", async () => {
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api);
+    expect(result.current.presentingSelf).toBe(false);
+    await act(async () => {
+      result.current.startPresenting!();
+    });
+    expect(result.current.presentingSelf).toBe(true);
+    const presents = ws.sent.filter((s) => isEnvelope(s, "present"));
+    expect(presents.some((s) => JSON.parse(s).p.active === true)).toBe(true);
+    unmount();
+  });
+
+  test("stopPresenting() sends {active:false} and clears presentingSelf", async () => {
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api);
+    await act(async () => {
+      result.current.startPresenting!();
+    });
+    expect(result.current.presentingSelf).toBe(true);
+    await act(async () => {
+      result.current.stopPresenting!();
+    });
+    expect(result.current.presentingSelf).toBe(false);
+    const presents = ws.sent.filter((s) => isEnvelope(s, "present"));
+    expect(presents.some((s) => JSON.parse(s).p.active === false)).toBe(true);
+    unmount();
+  });
+
+  test("startPresenting() clears followTarget first", async () => {
+    const api = makeApi();
+    const { result, unmount } = await dialAndWelcome(api, { peers: [peer] });
+    await act(async () => {
+      (result.current as CollabSessionHandle & { setFollowTarget: (id: string | null) => void }).setFollowTarget("profile-2");
+    });
+    expect(result.current.followTargetId).toBe("profile-2");
+    await act(async () => {
+      result.current.startPresenting!();
+    });
+    expect(result.current.followTargetId).toBeNull();
+    unmount();
+  });
+
+  // --- presentingSelf + onLocalViewportChange → sendPresentViewport -
+
+  test("while presentingSelf, onLocalViewportChange sends sendPresentViewport frames", async () => {
+    const api = makeApi();
+    vi.mocked(api.getAppState as ReturnType<typeof vi.fn>).mockReturnValue({});
+    const { result, unmount, ws } = await dialAndWelcome(api);
+    await act(async () => {
+      result.current.startPresenting!();
+    });
+    (api.updateScene as ReturnType<typeof vi.fn>).mockClear();
+    // Track setTimeout calls to directly fire the throttle timer.
+    const scheduledTimeouts: Array<{ fn: () => void; ms: number }> = [];
+    const origSetTimeout = globalThis.setTimeout;
+    vi.spyOn(globalThis, "setTimeout").mockImplementation((fn: () => void, ms?: number) => {
+      scheduledTimeouts.push({ fn, ms: ms ?? 0 });
+      return origSetTimeout(fn, ms) as unknown as ReturnType<typeof setTimeout>;
+    });
+    await act(async () => {
+      result.current.onLocalViewportChange(120, 340, { value: 1.5 } as never);
+    });
+    // Fire the sendPresentViewport throttle timer directly (100ms).
+    const throttleTimeout = scheduledTimeouts.find((t) => t.ms === 100);
+    expect(throttleTimeout).toBeDefined();
+    throttleTimeout!.fn();
+    vi.mocked(globalThis.setTimeout).mockRestore();
+    const presentFrames = ws.sent.filter((s) => isEnvelope(s, "present"));
+    const viewportFrame = presentFrames.find((s) => {
+      const p = JSON.parse(s).p;
+      return typeof p.x === "number" && typeof p.y === "number" && typeof p.z === "number";
+    });
+    expect(viewportFrame).toBeDefined();
+    const vp = JSON.parse(viewportFrame!).p;
+    expect(vp.x).toBe(120);
+    expect(vp.y).toBe(340);
+    expect(vp.z).toBe(1.5);
+    unmount();
+  });
+
+  test("onLocalViewportChange does NOT send sendPresentViewport when not presenting", async () => {
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api);
+    expect(result.current.presentingSelf).toBe(false);
+    await act(async () => {
+      result.current.onLocalViewportChange(999, 888, { value: 3.0 } as never);
+    });
+    const presentFrames = ws.sent.filter((s) => isEnvelope(s, "present"));
+    expect(presentFrames).toHaveLength(0);
+    unmount();
+  });
+
+  // --- setFollowTarget(null) -------------------------------------------
+
+  test("setFollowTarget(null) clears followTargetId silently (no throw)", async () => {
+    const api = makeApi();
+    const { result, unmount } = await dialAndWelcome(api, { peers: [peer] });
+    await act(async () => {
+      (result.current as CollabSessionHandle & { setFollowTarget: (id: string | null) => void }).setFollowTarget("profile-2");
+    });
+    expect(result.current.followTargetId).toBe("profile-2");
+    await act(async () => {
+      result.current.setFollowTarget!(null);
+    });
+    expect(result.current.followTargetId).toBeNull();
+    unmount();
+  });
+
+  // --- duplicate-profile reconnect: presenting/viewport dedupe ---------
+
+  test("reconnect with fresh connId: lastKnownViewport cleared on join replace", async () => {
+    const api = makeApi();
+    const { result, unmount, ws } = await dialAndWelcome(api, { peers: [peer] });
+    await act(async () => {
+      ws.message(presentMsg("conn-2", { x: 50, y: 60, z: 1.2 }));
+    });
+    const before = result.current.peers.find((p) => p.profileId === "profile-2");
+    expect(before?.lastKnownViewport).toEqual({ x: 50, y: 60, z: 1.2 });
+    // Fresh join on a new connId replaces the entry (dedupe by profileId)
+    await act(async () => {
+      ws.message(JSON.stringify({
+        v: 1,
+        t: "peer",
+        p: { kind: "join", member: { ...peer, connId: "conn-9" } },
+      }));
+    });
+    const after = result.current.peers.find((p) => p.profileId === "profile-2");
+    expect(after?.connId).toBe("conn-9");
+    // Viewport is cleared on join (the new connection starts fresh)
+    expect(after?.lastKnownViewport).toBeUndefined();
+    expect(result.current.peers.filter((p) => p.profileId === "profile-2")).toHaveLength(1);
+    unmount();
+  });
+
+  test("welcome dedupes same-profile peers: last wins, stale connId active:false silently dropped", async () => {
+    const api = makeApi();
+    const stalePeer: Member = { ...peer, connId: "conn-2", presenting: true };
+    const freshPeer: Member = { ...peer, connId: "conn-9" };
+    const { result, unmount, ws } = await dialAndWelcome(api, { peers: [stalePeer, freshPeer] });
+    const entries = result.current.peers.filter((p) => p.profileId === "profile-2");
+    expect(entries).toHaveLength(1);
+    expect(entries[0].connId).toBe("conn-9");
+    expect(entries[0].presenting).toBeUndefined();
+    // stale connId's active:false: no entry for conn-2 → silent no-op
+    await act(async () => {
+      ws.message(presentMsg("conn-2", { active: false }));
+    });
+    expect(result.current.peers.filter((p) => p.profileId === "profile-2")).toHaveLength(1);
+    unmount();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* follow-break predicate (task 080) ---------------------------------- */
+/* ------------------------------------------------------------------ */
+
+describe("follow-break predicate", () => {
+  // Dynamic import resolves at module load time — same as top-level import
+  // but avoids the "import inside describe" linter warning.
+  let shouldBreakFollow: (inputs: { localGesture: boolean; presenterLeft: boolean; ownPresentStarted: boolean }) => boolean;
+  beforeAll(async () => {
+    ({ shouldBreakFollow } = await import("@/features/collab/follow-break"));
+  });
+  test("no break when all inputs are false", () => {
+    expect(shouldBreakFollow({ localGesture: false, presenterLeft: false, ownPresentStarted: false })).toBe(false);
+  });
+  test("breaks on localGesture", () => {
+    expect(shouldBreakFollow({ localGesture: true, presenterLeft: false, ownPresentStarted: false })).toBe(true);
+  });
+  test("breaks on presenterLeft", () => {
+    expect(shouldBreakFollow({ localGesture: false, presenterLeft: true, ownPresentStarted: false })).toBe(true);
+  });
+  test("breaks on ownPresentStarted", () => {
+    expect(shouldBreakFollow({ localGesture: false, presenterLeft: false, ownPresentStarted: true })).toBe(true);
+  });
+  test("breaks when any input is true (OR semantics)", () => {
+    expect(shouldBreakFollow({ localGesture: true, presenterLeft: true, ownPresentStarted: true })).toBe(true);
   });
 });

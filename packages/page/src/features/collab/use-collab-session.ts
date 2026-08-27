@@ -61,6 +61,7 @@ import type {
   FileHydrator,
   HelloPayload,
   IncomingPointer,
+  IncomingPresent,
   IncomingScene,
   Member,
   RoomInvite,
@@ -120,6 +121,10 @@ export interface RosterMember {
   color: string;
   connId: string;
   self: boolean;
+  /** 077: set when this member is actively presenting (welcome or onPresent active:true). */
+  presenting?: boolean;
+  /** 080: last viewport {x,y,z} received from onPresent frames. */
+  lastKnownViewport?: { x: number; y: number; z: number };
 }
 
 /** Per-recovery reset notice (061 §3): N local edits conflicted — the online
@@ -224,6 +229,17 @@ export interface CollabSessionHandle {
   /** 052: Excalidraw onScrollChange wiring — debounced lazy hydration of
    *  image refs that enter the viewport (051 §4). */
   onLocalViewportChange: (scrollX: number, scrollY: number, zoom: Zoom) => void;
+  // 080: presenting state + follow controls
+  /** true while the local user is actively presenting */
+  presentingSelf: boolean;
+  /** profileId of the followed presenter — null means not following */
+  followTargetId: string | null;
+  /** begin local presentation (sends {active:true}, clears followTarget, sets presentingSelf) */
+  startPresenting: () => void;
+  /** end local presentation (sends {active:false}, clears presentingSelf) */
+  stopPresenting: () => void;
+  /** follow a peer's presentation — null to stop following (silent no-op when already null) */
+  setFollowTarget: (profileId: string | null) => void;
 }
 
 /** Deep scene equality (canonical JSON, key order irrelevant — merge.ts
@@ -263,6 +279,7 @@ function toRosterMember(member: Member, self: boolean): RosterMember {
     color: deriveColor(member.profileId),
     connId: member.connId,
     self,
+    presenting: member.presenting,
   };
 }
 
@@ -292,6 +309,8 @@ export interface CollabSessionCallbacks {
   onRoomName: (info: { name: string; from: string }) => void;
   /** ADR 0006: relay-stamped member-name broadcast (peer renamed self) */
   onMemberName: (info: { name: string; from: string }) => void;
+  /** 080: relay-stamped present broadcast (active:true/false or viewport x,y,z) */
+  onPresent: (present: IncomingPresent) => void;
 }
 
 /* ------------------------------------------------------------------ */
@@ -319,6 +338,10 @@ export function useCollabSession({
   const [snapshotAvailable, setSnapshotAvailable] = useState<boolean | null>(null);
   const [emptyRoom, setEmptyRoom] = useState(false);
   const [peers, setPeers] = useState<RosterMember[]>([]);
+  /** 080: true while the local user is presenting */
+  const [presentingSelf, setPresentingSelf] = useState(false);
+  /** 080: the profileId of the followed presenter (null = not following) */
+  const [followTargetId, setFollowTargetIdState] = useState<string | null>(null);
   const [hadOfflineEdits, setHadOfflineEdits] = useState(false);
   const [resets, setResets] = useState<CollabResetNotice | null>(null);
   const [missingFileIds, setMissingFileIds] = useState<ReadonlySet<string>>(new Set());
@@ -372,6 +395,10 @@ export function useCollabSession({
   const firstSceneRef = useRef(false);
   /** ADR 0007: latched by `onReconnect`; the next single scene is the reconciliation snapshot. */
   const midReconnectRef = useRef(false);
+  /** 080: whether the local user is currently presenting — drives viewport streaming. */
+  const presentingSelfRef = useRef(false);
+  /** 080: ref twin of followTargetId — read inside callbacks to avoid stale closures. */
+  const followTargetIdRef = useRef<string | null>(null);
   /** Echo-guard triad: timing, remote-content, and established-content markers
    * cover synchronous and delayed updateScene echoes; see onLocalChange. */
   const applyingRemoteRef = useRef(false);
@@ -536,9 +563,14 @@ export function useCollabSession({
   /** Excalidraw onScrollChange wiring — the 052 "onViewportChange
    *  equivalent" in the patched tgz (scroll/zoom flow into the debounced
    *  scan; width/height are read fresh from the imperative API). */
+  // 080: onLocalViewportChange — debounced lazy hydration always fires;
+  // additionally, when presentingSelf, route raw viewport to sendPresentViewport.
   const onLocalViewportChange = useCallback(
     (scrollX: number, scrollY: number, zoom: Zoom) => {
       debouncedViewportScan({ scrollX, scrollY, zoomValue: zoom.value });
+      if (presentingSelfRef.current) {
+        clientRef.current?.sendPresentViewport({ x: scrollX, y: scrollY, z: zoom.value });
+      }
     },
     [debouncedViewportScan],
   );
@@ -824,6 +856,7 @@ export function useCollabSession({
             // can arrive after the NEW one joined — a profileId-only match
             // would evict the live rejoined member and kill their cursor
             // mapping on this page.
+            const leaverProfileId = peer.member?.profileId;
             const next = current.filter(
               (m) =>
                 !(
@@ -835,6 +868,11 @@ export function useCollabSession({
               peersRef.current = next;
               setPeers(next);
               rebuildCollaborators(next);
+              // 080: leaver was the followTarget → break follow.
+              if (leaverProfileId !== undefined && followTargetIdRef.current === leaverProfileId) {
+                followTargetIdRef.current = null;
+                setFollowTargetIdState(null);
+              }
             }
           }
         },
@@ -867,6 +905,36 @@ export function useCollabSession({
           peersRef.current = next;
           setPeers(next);
           rebuildCollaborators(next);
+        },
+        // 080: onPresent — merge presenting/viewport state from peer broadcast.
+        // IncomingPresent variants: active:true | active:false | {x,y,z}.
+        onPresent: (present) => {
+          const current = peersRef.current;
+          const idx = current.findIndex((m) => m.connId === present.from);
+          // Stale connId (e.g. active:false from a half-open that was deduped
+          // by profileId): no entry → silent no-op.
+          if (idx === -1) return;
+          const next = [...current];
+          if ("active" in present) {
+            // active:true → set presenting; active:false → clear it.
+            if (present.active) {
+              next[idx] = { ...next[idx], presenting: true };
+            } else {
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              const { presenting: _p, ...rest } = next[idx];
+              next[idx] = rest as RosterMember;
+            }
+          } else {
+            // Viewport frame: update lastKnownViewport.
+            next[idx] = { ...next[idx], lastKnownViewport: { x: present.x, y: present.y, z: present.z } };
+          }
+          peersRef.current = next;
+          setPeers(next);
+          // 080: presenter left (active:false) → break follow if targeted.
+          if ("active" in present && !present.active && followTargetIdRef.current === current[idx].profileId) {
+            followTargetIdRef.current = null;
+            setFollowTargetIdState(null);
+          }
         },
         onPointer: (pointer) => {
           const profileId = connIdToProfileRef.current.get(pointer.from);
@@ -1248,12 +1316,39 @@ export function useCollabSession({
     roomNameRef.current = null;
     namedLabelRef.current = null;
     setRoomName(null);
+    setPresentingSelf(false);
+    presentingSelfRef.current = false;
+    setFollowTargetIdState(null);
     void clearSession(shareId);
   }, [shareId]);
 
   const seed = useCallback(() => {
     void seedCurrentCanvas();
   }, [seedCurrentCanvas]);
+
+  // 080: presenting controls
+  const startPresenting = useCallback(() => {
+    // Entering own presentation: break follow first.
+    if (followTargetIdRef.current !== null) {
+      followTargetIdRef.current = null;
+      setFollowTargetIdState(null);
+    }
+    setPresentingSelf(true);
+    presentingSelfRef.current = true;
+    clientRef.current?.sendPresentActive(true);
+  }, []);
+
+  const stopPresenting = useCallback(() => {
+    setPresentingSelf(false);
+    presentingSelfRef.current = false;
+    clientRef.current?.sendPresentActive(false);
+  }, []);
+
+  /** 080: set the followed presenter's profileId. null = stop following (silent). */
+  const setFollowTarget = useCallback((profileId: string | null) => {
+    followTargetIdRef.current = profileId;
+    setFollowTargetIdState(profileId);
+  }, []);
 
   const saveToGallery = useCallback(async (): Promise<boolean> => {
     const api = apiRef.current;
@@ -1401,6 +1496,12 @@ export function useCollabSession({
     onLocalPointer,
     missingFileIds,
     onLocalViewportChange,
+    // 080: presenting state
+    presentingSelf,
+    followTargetId,
+    startPresenting,
+    stopPresenting,
+    setFollowTarget,
   };
 }
 
@@ -1485,5 +1586,6 @@ async function buildClient({
     onScene: callbacks.onScene,
     onRoomName: callbacks.onRoomName,
     onMemberName: callbacks.onMemberName,
+    onPresent: callbacks.onPresent,
   });
 }

@@ -82,6 +82,12 @@ function makeSession(overrides: Partial<CollabSessionHandle> = {}): CollabSessio
     onLocalPointer: vi.fn(),
     missingFileIds: new Set(),
     onLocalViewportChange: vi.fn(),
+    // 080
+    presentingSelf: false,
+    followTargetId: null,
+    startPresenting: vi.fn(),
+    stopPresenting: vi.fn(),
+    setFollowTarget: vi.fn(),
     ...overrides,
   };
 }
