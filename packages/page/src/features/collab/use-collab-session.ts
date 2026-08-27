@@ -68,7 +68,7 @@ import type {
   WelcomePayload,
   WsFactory,
 } from "collab-core";
-import { CaptureUpdateAction } from "@excalidraw/excalidraw";
+import { CaptureUpdateAction, restoreAppState } from "@excalidraw/excalidraw";
 import type { AppState, BinaryFiles, DataURL, Zoom } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { Collaborator, SocketId } from "@excalidraw/excalidraw/types";
@@ -80,7 +80,7 @@ export type { CollabIdentity } from "./storage";
 import type { LabelMode } from "./labels";
 import { createRoomFileHydrator, fileIdsInRect, uploadNewLocalFiles, visibleSceneRect } from "./use-collab-files";
 import { useBackgroundResume } from "./use-background-resume";
-import { debounce } from "radash";
+import { debounce, omit } from "radash";
 import { toast } from "sonner";
 import i18n from "i18next";
 import { normalizeSceneImageRefs } from "@/features/gallery/utils/normalize-image-refs";
@@ -208,6 +208,15 @@ export interface CollabSessionHandle {
   renameSelf: (name: string) => boolean;
   /** write the current canvas to the gallery (061: offline-safe, explicit) */
   saveToGallery: () => Promise<boolean>;
+  /**
+   * 086: broadcast a gallery-loaded scene as a REAL local edit so it travels
+   * the ordinary scene pipeline (ADR 0009 §1: zero new wire message).  The
+   * echo guard (knownSceneJsonRef) is cleared before updateScene so the
+   * resulting onChange is NOT swallowed; onLocalChange then handles the
+   * normal seq-bump + sendScene + debounced-persist path.  052: registers
+   * new fileIds with the hydrator for prefetch.
+   */
+  broadcastScene: (elements: readonly unknown[], files: any) => void;
 
   /** Excalidraw onChange wiring — throttle + cache (049 §5) */
   onLocalChange: (
@@ -1386,6 +1395,36 @@ export function useCollabSession({
     }
   }, [shareId, generateThumbnail]);
 
+  /** See CollabSessionHandle.broadcastScene JSDoc for the protocol design. */
+  const broadcastScene = useCallback(
+    (elements: readonly unknown[], files: any) => {
+      // Step 1: clear the echo guard so the updateScene echo is NOT swallowed.
+      // This is the 086 escape hatch past knownSceneJsonRef suppression.
+      knownSceneJsonRef.current = null;
+      const api = apiRef.current;
+      if (api === null) return;
+      // Apply the scene — mirrors loadDrawingToScene (excalidraw-api.helper.ts)
+      // exact sanitization: omit collaborators + viewModeEnabled like every load.
+      const appState = api.getAppState();
+      api.updateScene({
+        elements: elements as ExcalidrawElement[],
+        appState: restoreAppState(
+          omit({ ...appState, isLoading: false }, ["collaborators", "viewModeEnabled"]),
+          null,
+        ),
+      });
+      api.addFiles(files);
+      // 052: register new fileIds for hydration prefetch (051 §4 scene-load policy).
+      hydratorRef.current?.observeElements([...(elements as ExcalidrawElement[])]);
+      // Step 2: update local state so onLocalChange sees the new canvas content.
+      // The onChange from updateScene will fire asynchronously (microtask) and
+      // onLocalChange will: seq++ + sendScene + debouncedPersist — normal local edit.
+      localSceneRef.current = { elements: [...elements] as unknown[], appState };
+      localDirtyRef.current = true;
+    },
+    [],
+  );
+
   const onLocalChange = useCallback(
     (
       elements: readonly ExcalidrawElement[],
@@ -1492,6 +1531,7 @@ export function useCollabSession({
     leave,
     seed,
     saveToGallery,
+    broadcastScene,
     onLocalChange,
     onLocalPointer,
     missingFileIds,

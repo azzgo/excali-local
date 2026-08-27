@@ -30,7 +30,6 @@ import { Modal } from "@/components/ui/modal";
 import { useEditorTheme } from "@/features/editor/hooks/use-editor-theme";
 import Excalidraw from "@/features/editor/lib/excalidraw";
 import { getRoom, getDrawingFullData } from "@/features/editor/utils/indexdb";
-import { loadDrawingToScene } from "@/features/editor/utils/excalidraw-api.helper";
 import { normalizeSceneImageRefs } from "@/features/gallery/utils/normalize-image-refs";
 import type { DrawingMetadata } from "@/features/editor/utils/indexdb";
 import { useServerConfig } from "./hooks/use-server-config";
@@ -215,27 +214,33 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
     setPendingLoadDrawing(drawing);
   }, []);
 
-  /** Confirm modal CONFIRM: load drawing into scene + set chosen-drawing id. */
+  /** Confirm modal CONFIRM: load drawing into scene + set chosen-drawing id.
+   * 086: normalizes the gallery drawing and broadcasts it as a REAL local edit
+   * via the ordinary scene pipeline (ADR 0009 §1: no new wire message). The
+   * broadcastScene escape hatch clears the echo guard so onChange is NOT swallowed
+   * and the full-scene scene message travels the existing sendScene path.
+   */
   const handleConfirmLoad = useCallback(async () => {
-    if (!pendingLoadDrawing || !excalidrawAPI) {
+    if (!pendingLoadDrawing || !session.broadcastScene) {
       setPendingLoadDrawing(null);
       return;
     }
     try {
       const fullDrawing = await getDrawingFullData(pendingLoadDrawing.id);
       const elements = JSON.parse(fullDrawing.elements);
-      const appState = JSON.parse(fullDrawing.appState);
       const files = JSON.parse(fullDrawing.files);
       // ADR 0009 §2: normalize image fileIds before applying to scene
       const { elements: normEls, files: normFiles } = await normalizeSceneImageRefs(elements, files);
-      loadDrawingToScene(excalidrawAPI, normEls, appState, normFiles);
+      // 086: broadcastScene clears the echo guard, applies the scene, and registers
+      // fileIds — the ordinary onChange pipeline handles seq bump + sendScene + persist.
+      session.broadcastScene(normEls, normFiles);
       setChosenDrawingId(pendingLoadDrawing.id);
     } catch (err) {
       console.error("[room] failed to load drawing:", err);
     } finally {
       setPendingLoadDrawing(null);
     }
-  }, [pendingLoadDrawing, excalidrawAPI]);
+  }, [pendingLoadDrawing, session]);
 
   /** Confirm modal CANCEL: inert — just close the modal (canvas unchanged). */
   const handleCancelLoad = useCallback(() => {

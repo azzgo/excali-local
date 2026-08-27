@@ -114,11 +114,16 @@ vi.mock("@excalidraw/excalidraw", () => ({
     EVENTUALLY: "EVENTUALLY",
   },
   exportToBlob: vi.fn(),
+  // 086: restoreAppState is called inside broadcastScene
+  restoreAppState: (s: unknown) => s,
   Sidebar: ({ children }: { children?: React.ReactNode }) => (
     <div data-testid="sidebar-gallery">{children}</div>
   ),
 }));
 
+// 086: Track updateScene/addFiles calls for broadcastScene verification.
+const updateSceneCalls: unknown[][] = [];
+const addFilesCalls: unknown[][] = [];
 vi.mock("@/features/editor/lib/excalidraw", () => ({
   default: ({
     children,
@@ -134,12 +139,12 @@ vi.mock("@/features/editor/lib/excalidraw", () => ({
     // eslint-disable-next-line react-hooks/rules-of-hooks
     useEffect(() => {
       onExcalidrawAPI?.({
-        updateScene: vi.fn(),
+        updateScene: (...args: unknown[]) => { updateSceneCalls.push(args); },
         getSceneElements: () => [],
         getSceneElementsIncludingDeleted: () => [],
         getAppState: () => ({}),
         getFiles: () => ({}),
-        addFiles: () => {},
+        addFiles: (...args: unknown[]) => { addFilesCalls.push(args); },
       });
     }, [onExcalidrawAPI]);
     return (
@@ -230,6 +235,8 @@ beforeEach(async () => {
   localStorage.clear();
   await clearSession(SHARE_ID);
   vi.clearAllMocks();
+  updateSceneCalls.length = 0;
+  addFilesCalls.length = 0;
 });
 
 afterEach(() => {
@@ -282,7 +289,7 @@ describe("RoomScreen — gallery confirm modal (room-mode)", () => {
   );
 
   test(
-    "confirm modal CONFIRM fires loadDrawingToScene with elements/files and dismisses modal",
+    "confirm modal CONFIRM calls broadcastScene with normalized elements/files and dismisses modal",
     async () => {
       await mountConnectedSession();
 
@@ -300,17 +307,22 @@ describe("RoomScreen — gallery confirm modal (room-mode)", () => {
         expect(screen.queryByRole("dialog")).toBeNull();
       });
 
+      // 086: handleConfirmLoad calls broadcastScene which calls updateScene + addFiles
       await waitFor(() => {
-        expect(vi.mocked(loadDrawingToScene)).toHaveBeenCalled();
+        expect(updateSceneCalls.length).toBeGreaterThan(0);
       });
-      const [api, elements, appState, files] =
-        vi.mocked(loadDrawingToScene).mock.calls[0]!;
-      expect(api).toBeTruthy();
-      expect(elements).toEqual(
+      // Find the call that has 'elements' (not the collaborators-only call from rebuildCollaborators)
+      const elementCall = updateSceneCalls.find(
+        (call) => (call[0] as Record<string, unknown>)?.elements !== undefined,
+      );
+      expect(elementCall).toBeDefined();
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      const updateCall = elementCall![0] as { elements: unknown[]; appState: unknown };
+      expect(updateCall.elements).toEqual(
         expect.arrayContaining([expect.objectContaining({ id: "el-1" })]),
       );
-      expect(appState).toBeTruthy();
-      expect(files).toBeTruthy();
+      expect(updateCall.appState).toBeTruthy();
+      expect(addFilesCalls.length).toBeGreaterThan(0);
     },
   );
 
