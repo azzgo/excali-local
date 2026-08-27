@@ -316,14 +316,10 @@ export function initI18n() {
           // --- session chrome (053 sessionLive / 055 roster / 061 conn dot) ---
           "CollabCopyInvite": "Copy invite",
           "CollabCopied": "Copied",
-          "CollabSaveToGallery": "Save to my gallery",
-          "CollabSavedToGallery": "Saved to your gallery",
-          "CollabSaveFailed": "Couldn't save to the gallery — try again",
           "CollabLeave": "Leave",
           "CollabLeaveTitle": "Leave room?",
-          "CollabLeaveBody": "Changes aren't saved unless you save them. This room is ephemeral — save to your gallery to keep your copy.",
-          "CollabLeaveSaveAndLeave": "Save & leave",
-          "CollabLeaveWithoutSaving": "Leave without saving",
+          "CollabLeaveBody": "Unsaved changes will be lost. Save via the sidebar first (top-right panel → my gallery → save).",
+          "CollabLeaveWithoutSaving": "Leave",
           "CollabStay": "Stay",
           "CollabYou": "You",
           // ADR 0004: rename modal copy
@@ -702,14 +698,10 @@ export function initI18n() {
           // --- session chrome (053 sessionLive / 055 roster / 061 conn dot) ---
           "CollabCopyInvite": "复制邀请",
           "CollabCopied": "已复制",
-          "CollabSaveToGallery": "保存到画廊",
-          "CollabSavedToGallery": "已保存到画廊",
-          "CollabSaveFailed": "无法保存到画廊 — 请重试",
           "CollabLeave": "离开",
           "CollabLeaveTitle": "离开房间？",
-          "CollabLeaveBody": "房间数据不会自动保存。房间是临时的——如需保留副本，请保存到你的画廊。",
-          "CollabLeaveSaveAndLeave": "保存并离开",
-          "CollabLeaveWithoutSaving": "不保存离开",
+          "CollabLeaveBody": "未保存的更改将会丢失。请先通过侧边栏保存（右上角面板 → 我的画廊 → 保存）。",
+          "CollabLeaveWithoutSaving": "离开",
           "CollabStay": "留在房间",
           "CollabYou": "你",
           // ADR 0004：重命名弹窗文案

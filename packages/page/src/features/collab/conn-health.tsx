@@ -663,10 +663,7 @@ export function DegradedHint() {
 export interface FatalBannerProps {
   /** the fatal CollabError (lastError.fatal === true) */
   error: CollabError;
-  onSave: () => void;
   onLeave: () => void;
-  /** in-flight save → the button is disabled (Save to gallery is async) */
-  saving?: boolean;
 }
 
 /**
@@ -674,14 +671,11 @@ export interface FatalBannerProps {
  * stale.admit (keys rotated → "The server rejected this member key") for
  * the wire fatals, stale.gcm (room recreated → "This room's key doesn't
  * match") for E2E_AUTH_FAILED — the definitive GCM stale-key signal (058
- * §5). Retrying has stopped (the client went "rejected"); editing still
- * works locally — the actions are Save to gallery / Leave.
+ * §5). Retrying has stopped (the client went "rejected").
  */
 export function FatalBanner({
   error,
-  onSave,
   onLeave,
-  saving = false,
 }: FatalBannerProps) {
   const [t] = useTranslation();
   const [dismissed, setDismissed] = useState(false);
@@ -716,16 +710,6 @@ export function FatalBanner({
         </div>
       </div>
       <div className="flex shrink-0 gap-1.5">
-        <Button
-          data-testid="collab-fatal-save"
-          variant="secondary"
-          size="sm"
-          className="px-2 text-xs"
-          disabled={saving}
-          onClick={onSave}
-        >
-          {t("CollabSaveToGallery")}
-        </Button>
         <Button
           data-testid="collab-fatal-leave"
           variant="ghost"
@@ -767,7 +751,6 @@ export interface BannerSlotProps {
     | "snapshotAvailable"
     | "connect"
     | "leave"
-    | "saveToGallery"
   >;
   excalidrawAPI?: ExcalidrawImperativeAPI | null;
   /** 061 Q4: room label for the re-entry card body ({room} · {relay} …) */
@@ -783,7 +766,6 @@ export function ConnHealthBanners({
   relay,
 }: BannerSlotProps) {
   const [t] = useTranslation();
-  const [saving, setSaving] = useState(false);
   const offline =
     connDisplayState(session.conn, session.reconnect) === "reconnecting";
   // Debounced: a fast self-healing reconnect (ghost recovery) must not flash
@@ -806,22 +788,12 @@ export function ConnHealthBanners({
   );
   const fatal = session.lastError !== null && session.lastError.fatal === true;
 
-  const handleSave = useCallback(async () => {
-    if (saving) return;
-    setSaving(true);
-    const ok = await session.saveToGallery();
-    setSaving(false);
-    if (!ok) toast.error(t("CollabSaveFailed"));
-  }, [saving, session, t]);
-
   return (
     <>
       {fatal && session.lastError !== null && (
         <FatalBanner
           error={session.lastError}
-          onSave={handleSave}
           onLeave={reentry.leave}
-          saving={saving}
         />
       )}
       {!fatal && reentry.show && (

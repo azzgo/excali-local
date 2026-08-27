@@ -25,11 +25,8 @@
  *   saveSession(edited) to the persistent cache; base = last synced scene.
  * - **Presence.** onPeer → roster (self + peers, 055 dots); onPointer →
  *   collaborators map fed to updateScene (055 native cursor rendering).
- * - **saveToGallery** writes the current canvas to the gallery (061: local
- *   scene, works offline; explicit save only, no autosave indicator).
- * - **leave()** closes the client and drops the session cache (053: this
- *   room is ephemeral — explicit-save discipline; the gallery copy survives
- *   a Save & leave).
+  * - **leave()** closes the client and drops the session cache (053: this
+ *   room is ephemeral).
  * - **Background resume.** See use-background-resume.ts for the page-level
  *   stale-socket recovery policy; this hook supplies its current client.
  *
@@ -73,8 +70,7 @@ import type { AppState, BinaryFiles, DataURL, Zoom } from "@excalidraw/excalidra
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { Collaborator, SocketId } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
-import { useThumbnail } from "@/features/gallery/hooks/use-thumbnail";
-import { patchRoomMyName, patchRoomName, saveDrawing } from "@/features/editor/utils/indexdb";
+import { patchRoomMyName, patchRoomName } from "@/features/editor/utils/indexdb";
 import { resolveIdentity, type CollabIdentity, type ServerConfig } from "./storage";
 export type { CollabIdentity } from "./storage";
 import type { LabelMode } from "./labels";
@@ -206,8 +202,6 @@ export interface CollabSessionHandle {
    * to the rooms entry. Returns true on success, false on invalid.
    */
   renameSelf: (name: string) => boolean;
-  /** write the current canvas to the gallery (061: offline-safe, explicit) */
-  saveToGallery: () => Promise<boolean>;
   /**
    * 086: broadcast a gallery-loaded scene as a REAL local edit so it travels
    * the ordinary scene pipeline (ADR 0009 §1: zero new wire message).  The
@@ -373,7 +367,6 @@ export function useCollabSession({
     if (admission === null && server !== null) setAdmission(server);
   }, [admission, server]);
 
-  const { generateThumbnail } = useThumbnail();
 
   // --- refs (stable closures for client callbacks) -------------------
   const apiRef = useRef<ExcalidrawImperativeAPI | null>(null);
@@ -1359,41 +1352,6 @@ export function useCollabSession({
     setFollowTargetIdState(profileId);
   }, []);
 
-  const saveToGallery = useCallback(async (): Promise<boolean> => {
-    const api = apiRef.current;
-    if (api === null) return false;
-    try {
-      const elements = api.getSceneElements();
-      const appState = api.getAppState();
-      const files = api.getFiles();
-      let thumbnail = "";
-      try {
-        thumbnail = await generateThumbnail(elements, files);
-      } catch {
-        /* thumbnail is best-effort — the scene itself is the save */
-      }
-      const now = Date.now();
-      const shortId = shareId.slice(0, 6);
-      // ADR 0004: the shared room name (mirror) wins over the boot label.
-      const label = roomNameRef.current ?? roomRef.current?.label ?? shortId;
-      await saveDrawing({
-        // Stable id per room — re-saving overwrites the same gallery entry
-        // (explicit-save discipline, 061: gallery keeps blobs per 052).
-        id: `room-${shareId}`,
-        name: `${label} · ${shortId}`,
-        elements: JSON.stringify(elements),
-        appState: JSON.stringify(appState),
-        files: JSON.stringify(files),
-        thumbnail,
-        collectionIds: [],
-        createdAt: now,
-        updatedAt: now,
-      });
-      return true;
-    } catch {
-      return false;
-    }
-  }, [shareId, generateThumbnail]);
 
   /** See CollabSessionHandle.broadcastScene JSDoc for the protocol design. */
   const broadcastScene = useCallback(
@@ -1530,7 +1488,6 @@ export function useCollabSession({
     connect,
     leave,
     seed,
-    saveToGallery,
     broadcastScene,
     onLocalChange,
     onLocalPointer,

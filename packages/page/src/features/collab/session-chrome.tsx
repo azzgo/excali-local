@@ -5,10 +5,8 @@
  *
  * Layout (left → right):
  *   room label + privacy badge · conn dot (+word when degraded) · spacer ·
- *   copy invite · save to gallery · leave
- *
- * No autosave indicator (053 round 3 — removed as redundant; the explicit
- * save button + leave modal carry the message).
+ *   copy invite · leave
+
  *
  * Presence: the roster dots are REMOVED (merged into Excalidraw's UserList
  * in the top-right). The PresenceFeed dropdown (behind the Users button)
@@ -26,9 +24,8 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, Copy, DoorOpen, Pencil, Save, Users } from "lucide-react";
+import { Check, Copy, DoorOpen, Pencil, Users } from "lucide-react";
 import { MEMBER_NAME_MAX_LENGTH, ROOM_NAME_MAX_LENGTH } from "collab-core";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +38,6 @@ import {
 import { copyInvite } from "./invite";
 import { useLabelMode } from "./labels";
 import { PresenceFeed } from "./presence";
-import { ROUTES } from "./routes";
 import type { CollabRoomMeta, CollabSessionHandle } from "./use-collab-session";
 
 interface SessionChromeProps {
@@ -55,7 +51,6 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
   const [t] = useTranslation();
   const { mode: labelMode } = useLabelMode();
   const [copied, setCopied] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [leaveOpen, setLeaveOpen] = useState(false);
   // ADR 0004: rename modal state — anyone may rename, LWW.
   const [renameOpen, setRenameOpen] = useState(false);
@@ -117,36 +112,11 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
     }
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      if (await session.saveToGallery()) {
-        toast.success(t("CollabSavedToGallery"));
-      } else {
-        toast.error(t("CollabSaveFailed"));
-      }
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  /** 053 leave modal — Save & leave / Leave without saving / Stay. */
-  const handleSaveAndLeave = async () => {
-    setLeaveOpen(false);
-    const ok = await session.saveToGallery();
-    if (!ok) {
-      // The cache is the only local copy — never destroy it on a failed save.
-      toast.error(t("CollabSaveFailed"));
-      return;
-    }
-    session.leave();
-    window.location.hash = ROUTES.rooms;
-  };
-
-  const handleLeaveWithoutSaving = () => {
+  /** 087 leave modal — Leave / Stay (save first via the sidebar). */
+  const handleLeave = () => {
     setLeaveOpen(false);
     session.leave();
-    window.location.hash = ROUTES.rooms;
+    window.location.hash = "#rooms";
   };
 
   /** ADR 0004: open the rename modal seeded with the current name. */
@@ -269,19 +239,6 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
         {copied ? t("CollabCopied") : t("CollabCopyInvite")}
       </Button>
 
-      {/* explicit save to my gallery — no autosave indicator (053/061) */}
-      <Button
-        data-testid="collab-save-to-gallery"
-        variant="outline"
-        size="sm"
-        className="shrink-0 px-2 text-xs"
-        disabled={saving}
-        onClick={handleSave}
-      >
-        <Save className="size-3.5" />
-        {t("CollabSaveToGallery")}
-      </Button>
-
       <Button
         data-testid="collab-leave"
         variant="ghost"
@@ -293,7 +250,7 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
         {t("CollabLeave")}
       </Button>
 
-      {/* leave modal — 3 actions (053 round 1: modal, not dismissible banner) */}
+      {/* leave modal — 2 actions (087: save first via the sidebar) */}
       <Modal
         open={leaveOpen}
         title={t("CollabLeaveTitle")}
@@ -303,17 +260,10 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
           <p className="text-sm text-muted-foreground">{t("CollabLeaveBody")}</p>
           <div className="flex flex-col gap-2">
             <Button
-              data-testid="collab-leave-save"
-              className="w-full"
-              onClick={() => void handleSaveAndLeave()}
-            >
-              {t("CollabLeaveSaveAndLeave")}
-            </Button>
-            <Button
               data-testid="collab-leave-discard"
               variant="secondary"
               className="w-full"
-              onClick={handleLeaveWithoutSaving}
+              onClick={handleLeave}
             >
               {t("CollabLeaveWithoutSaving")}
             </Button>

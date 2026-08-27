@@ -5,13 +5,13 @@
  * StubSocket pattern as collab-core's client.test.ts); the session cache and
  * the gallery run against a REAL IndexedDB (fake-indexeddb via test/setup.ts)
  * and the hello signature is REAL WebCrypto Ed25519 (Node's webcrypto in the
- * test env). Only @excalidraw/excalidraw is mocked (CaptureUpdateAction +
- * exportToBlob — the tgz module itself is not loadable in happy-dom).
+ * test env). Only @excalidraw/excalidraw is mocked (CaptureUpdateAction,
+ * not the full tgz — it is not loadable in happy-dom).
  *
  * Covers the task's hook checklist: hello payload correctness, onScene →
  * updateScene (CaptureUpdateAction.NEVER), local onChange throttle + cache;
  * plus the 061 §3 re-activation merge, the 061 rule-B auto-seed, roster/
- * pointer presence and saveToGallery persistence.
+ * pointer presence.
  */
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
@@ -21,7 +21,7 @@ import type { AppState } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { clearSession, loadSession, saveRoomMeta, saveSession, PROBE_TIMEOUT_MS } from "collab-core";
 import type { Member } from "collab-core";
-import { getDrawingFullData, getDrawings, getRoom } from "@/features/editor/utils/indexdb";
+import { getRoom } from "@/features/editor/utils/indexdb";
 import { useCollabSession } from "@/features/collab/use-collab-session";
 import type { CollabIdentity, CollabRoomMeta, CollabSessionHandle } from "@/features/collab/use-collab-session";
 import type { ServerConfig } from "@/features/collab/storage";
@@ -34,7 +34,6 @@ vi.mock("@excalidraw/excalidraw", () => ({
     IMMEDIATELY: "IMMEDIATELY",
     EVENTUALLY: "EVENTUALLY",
   },
-  exportToBlob: vi.fn(),
 }));
 
 /* ------------------------------------------------------------------ */
@@ -182,7 +181,6 @@ async function dialAndWelcome(
 beforeEach(async () => {
   StubSocket.reset();
   await clearSession(SHARE_ID);
-  vi.mocked(excalidraw.exportToBlob).mockReset();
 });
 
 afterEach(() => {
@@ -702,10 +700,10 @@ describe("use-collab-session — programmatic echo guards", () => {
 });
 
 /* ------------------------------------------------------------------ */
-/* seed + save                                                          */
+/* seed                                                                 */
 /* ------------------------------------------------------------------ */
 
-describe("use-collab-session — seed + saveToGallery", () => {
+describe("use-collab-session — seed", () => {
   test("061 rule B: cached scene auto-seeds an empty room (no prompt)", async () => {
     const staged = { id: "el-staged", type: "rectangle", version: 1, versionNonce: 1 };
     await saveSession(SHARE_ID, {
@@ -782,27 +780,6 @@ describe("use-collab-session — seed + saveToGallery", () => {
     unmount();
   });
 
-  test("saveToGallery persists the current scene to the gallery (061)", async () => {
-    vi.mocked(excalidraw.exportToBlob).mockResolvedValue(
-      new Blob(["mock"], { type: "image/webp" }),
-    );
-    const api = makeApi();
-    const el = { id: "el-1", type: "rectangle", version: 1, versionNonce: 1 };
-    (api.getSceneElements as ReturnType<typeof vi.fn>).mockReturnValue([el]);
-    (api.getAppState as ReturnType<typeof vi.fn>).mockReturnValue({ viewBackgroundColor: "#fff" });
-    const { result, unmount } = await dialAndWelcome(api);
-
-    const ok = await act(async () => result.current.saveToGallery());
-    expect(ok).toBe(true);
-
-    const drawings = await getDrawings();
-    expect(drawings).toHaveLength(1);
-    expect(drawings[0].id).toBe(`room-${SHARE_ID}`);
-    const full = await getDrawingFullData(`room-${SHARE_ID}`);
-    expect(JSON.parse(full.elements)).toEqual([el]);
-    expect(JSON.parse(full.appState)).toEqual({ viewBackgroundColor: "#fff" });
-    unmount();
-  });
 
   test("leave() closes the client and drops the session cache", async () => {
     const api = makeApi();

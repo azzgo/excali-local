@@ -6,10 +6,9 @@
  *
  * Covers the task checklist: room label + privacy badge, roster dots from
  * peers with hover (name·short id), self outline, copy-invite → clipboard
- * with sentence+code, save-to-gallery → handle called + toast, conn-dot
- * states, and the leave modal's three actions.
+ * with sentence+code, conn-dot states, and the leave modal's two actions.
  */
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { SessionChrome } from "@/features/collab/session-chrome";
 import type {
@@ -63,7 +62,6 @@ function makeSession(overrides: Partial<CollabSessionHandle> = {}): CollabSessio
     connect: vi.fn(),
     leave: vi.fn(),
     seed: vi.fn(),
-    saveToGallery: vi.fn(async () => true),
     broadcastScene: vi.fn(),
     onLocalChange: vi.fn(),
     onLocalPointer: vi.fn(),
@@ -160,25 +158,23 @@ describe("SessionChrome — actions", () => {
     // brief "copied" feedback
     expect(screen.getByText("CollabCopied")).toBeTruthy();
   });
-
-  test("save to gallery calls the session handle and toasts success", async () => {
-    const saveToGallery = vi.fn(async () => true);
-    renderChrome(makeSession({ saveToGallery }));
-    fireEvent.click(screen.getByTestId("collab-save-to-gallery"));
-    await waitFor(() => expect(saveToGallery).toHaveBeenCalledTimes(1));
-    expect(toast.success).toHaveBeenCalledWith("CollabSavedToGallery");
-  });
-
-  test("failed save toasts an error", async () => {
-    const saveToGallery = vi.fn(async () => false);
-    renderChrome(makeSession({ saveToGallery }));
-    fireEvent.click(screen.getByTestId("collab-save-to-gallery"));
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("CollabSaveFailed"));
-  });
 });
 
-describe("SessionChrome — leave modal (053)", () => {
-  test("Stay closes the modal without leaving or saving", () => {
+describe("SessionChrome — leave modal (087)", () => {
+  test("renders exactly 2 buttons: Leave + Stay", () => {
+    renderChrome(makeSession());
+    fireEvent.click(screen.getByTestId("collab-leave"));
+    expect(screen.getByTestId("collab-leave-modal")).toBeTruthy();
+    // exactly 2 action buttons (no save) — scope to modal to avoid counting
+    // the chrome bar's own buttons
+    const modal = screen.getByTestId("collab-leave-modal");
+    const buttons = within(modal).getAllByRole("button");
+    expect(buttons).toHaveLength(2);
+    expect(screen.getByTestId("collab-leave-discard")).toBeTruthy();
+    expect(screen.getByTestId("collab-leave-stay")).toBeTruthy();
+  });
+
+  test("Stay closes the modal without leaving", () => {
     const session = makeSession();
     renderChrome(session);
     fireEvent.click(screen.getByTestId("collab-leave"));
@@ -187,45 +183,16 @@ describe("SessionChrome — leave modal (053)", () => {
     fireEvent.click(screen.getByTestId("collab-leave-stay"));
     expect(screen.queryByTestId("collab-leave-modal")).toBeNull();
     expect(session.leave).not.toHaveBeenCalled();
-    expect(session.saveToGallery).not.toHaveBeenCalled();
   });
 
-  test("Leave without saving leaves immediately, no gallery write", () => {
+  test("Leave leaves immediately and navigates to rooms", () => {
     const session = makeSession();
     renderChrome(session);
     fireEvent.click(screen.getByTestId("collab-leave"));
     fireEvent.click(screen.getByTestId("collab-leave-discard"));
 
     expect(session.leave).toHaveBeenCalledTimes(1);
-    expect(session.saveToGallery).not.toHaveBeenCalled();
     expect((window.location as { hash?: string }).hash).toBe("#rooms");
-  });
-
-  test("Save & leave persists to the gallery first, then leaves", async () => {
-    const saveToGallery = vi.fn(async () => true);
-    const session = makeSession({ saveToGallery });
-    renderChrome(session);
-    fireEvent.click(screen.getByTestId("collab-leave"));
-    fireEvent.click(screen.getByTestId("collab-leave-save"));
-
-    await waitFor(() => expect(saveToGallery).toHaveBeenCalledTimes(1));
-    await waitFor(() => expect(session.leave).toHaveBeenCalledTimes(1));
-    expect((window.location as { hash?: string }).hash).toBe("#rooms");
-  });
-
-  test("Save & leave with a failed save stays (the cache is the only copy)", async () => {
-    const saveToGallery = vi.fn(async () => false);
-    const session = makeSession({ saveToGallery });
-    renderChrome(session);
-    fireEvent.click(screen.getByTestId("collab-leave"));
-    fireEvent.click(screen.getByTestId("collab-leave-save"));
-
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("CollabSaveFailed"));
-    expect(session.leave).not.toHaveBeenCalled();
-    expect((window.location as { hash?: string }).hash).not.toBe("#rooms");
-    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("CollabSaveFailed"));
-    expect(session.leave).not.toHaveBeenCalled();
-    expect((window.location as { hash?: string }).hash).not.toBe("#rooms");
   });
 });
 

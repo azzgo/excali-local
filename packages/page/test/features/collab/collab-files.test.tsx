@@ -532,44 +532,6 @@ describe("collab file sync — on-demand hydration", () => {
 /* ------------------------------------------------------------------ */
 
 describe("collab file sync — gallery keeps the blobs", () => {
-  test("save after hydration persists the blob dataURL; loadDrawingToScene restores it", async () => {
-    vi.mocked(excalidraw.exportToBlob).mockResolvedValue(
-      new Blob(["mock"], { type: "image/webp" }),
-    );
-    const api = makeApi();
-    (api.getAppState as ReturnType<typeof vi.fn>).mockReturnValue({ viewBackgroundColor: "#fff" });
-    const fileId = await fileIdFor(dataURLToBytes(PNG_DATA_URL));
-    const el = imageElement(fileId);
-    const { result, unmount, ws } = await dialAndWelcome(api);
-
-    await act(async () => {
-      ws.message(sceneMessage([el], 1));
-    });
-    await waitFor(() => expect(sentOfType(ws, "file-get")).toHaveLength(1));
-    await act(async () => {
-      ws.message(fileHeaderMessage(fileId, "image/png"));
-      ws.message(fileDataMessage(PNG_DATA_URL));
-    });
-    await waitFor(() => expect(api.addFiles).toHaveBeenCalled());
-
-    const ok = await act(async () => result.current.saveToGallery());
-    expect(ok).toBe(true);
-    const drawings = await getDrawings();
-    expect(drawings).toHaveLength(1);
-    const full = await getDrawingFullData(`room-${SHARE_ID}`);
-    const savedFiles = JSON.parse(full.files) as Record<string, { dataURL: string; mimeType: string }>;
-    expect(savedFiles[fileId].dataURL).toBe(PNG_DATA_URL);
-    expect(savedFiles[fileId].mimeType).toBe("image/png");
-
-    // restore path (excalidraw-api.helper — the gallery's loadDrawingToScene)
-    const api2 = makeApi();
-    loadDrawingToScene(api2, [el], { viewBackgroundColor: "#fff" }, savedFiles);
-    expect(api2.updateScene).toHaveBeenCalledWith(
-      expect.objectContaining({ elements: [el] }),
-    );
-    expect(api2.addFiles).toHaveBeenCalledWith(savedFiles);
-    unmount();
-  });
 
   test("the collab session cache stays refs-only — blobs never enter it", async () => {
     const api = makeApi();

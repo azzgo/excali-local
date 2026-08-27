@@ -199,7 +199,7 @@ describe("ResetNotice", () => {
 
 /** Module-level session fixture (047: the banner slot now consumes the
  * full health slice — conn/reconnect/peers/resets + lastError/
- * snapshotAvailable/connect/leave/saveToGallery). */
+ * snapshotAvailable/connect/leave). */
 type SessionSlice = Pick<
   CollabSessionHandle,
   | "conn"
@@ -211,7 +211,6 @@ type SessionSlice = Pick<
   | "snapshotAvailable"
   | "connect"
   | "leave"
-  | "saveToGallery"
 >;
 
 function session(overrides: Partial<SessionSlice> = {}): SessionSlice {
@@ -225,7 +224,6 @@ function session(overrides: Partial<SessionSlice> = {}): SessionSlice {
     snapshotAvailable: true,
     connect: vi.fn(),
     leave: vi.fn(),
-    saveToGallery: vi.fn(async () => true),
     ...overrides,
   };
 }
@@ -515,24 +513,6 @@ describe("fatal banner (061 Q7 + 054)", () => {
     expect(screen.getByTestId("collab-fatal-body").textContent).toBe("CollabConnFatalGcmBody");
   });
 
-  test("Save to gallery + Leave actions; failed save surfaces the toast", async () => {
-    const saveToGallery = vi.fn(async () => false);
-    const leave = vi.fn();
-    render(
-      <ConnHealthBanners
-        session={session({
-          conn: "rejected",
-          lastError: { code: "MESSAGE_TOO_LARGE", reason: "big", fatal: true },
-          saveToGallery,
-          leave,
-        })}
-      />,
-    );
-    fireEvent.click(screen.getByTestId("collab-fatal-save"));
-    await waitFor(() => expect(saveToGallery).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByTestId("collab-fatal-leave"));
-    expect(leave).toHaveBeenCalledTimes(1);
-  });
 });
 
 /* ------------------------------------------------------------------ */
