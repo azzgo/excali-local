@@ -373,7 +373,15 @@ export function initI18n() {
           "CollabSelfMarker": " (you)",
           // 075: show/hide the Excalidraw right-side UserList (was full/quiet)
           "CollabShowUserList": "Show user list",
-          "CollabShowUserListHint": "Show the collaborator list in the top-right; uncheck to hide it.",
+                    "CollabShowUserListHint": "Show the collaborator list in the top-right; uncheck to hide it.",
+          // 082: cursor-jump icon tooltip
+          "CollabJumpToViewport": "Jump to their viewport",
+          // 082: follow toggle icon tooltip
+          "CollabFollowToggle": "Follow their view",
+          // 082: self Present toggle (start / stop)
+          "CollabStartPresenting": "Start presenting",
+          "CollabStopPresenting": "Stop presenting",
+
           // --- local-editor toolbar collab entry (handoff) ---
           "Collab": "Collab",
           "More": "More",
@@ -755,7 +763,15 @@ export function initI18n() {
           "CollabSelfMarker": "（自己）",
           // 075: show/hide the Excalidraw right-side UserList (was full/quiet)
           "CollabShowUserList": "显示用户列表",
-          "CollabShowUserListHint": "在右上角显示协作者列表；取消勾选以隐藏。",
+                    "CollabShowUserListHint": "在右上角显示协作者列表；取消勾选以隐藏。",
+          // 082: cursor-jump icon tooltip
+          "CollabJumpToViewport": "跳转到他们的视图",
+          // 082: follow toggle icon tooltip
+          "CollabFollowToggle": "跟随他们的视图",
+          // 082: self Present toggle (start / stop)
+          "CollabStartPresenting": "开始演示",
+          "CollabStopPresenting": "停止演示",
+
           // --- 本地编辑器工具栏协作入口（handoff）---
           "Collab": "协作",
           "More": "更多",

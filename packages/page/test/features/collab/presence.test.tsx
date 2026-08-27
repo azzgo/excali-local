@@ -11,6 +11,13 @@
  *   the collaborators map carries {id, username, color, socketId} per peer,
  *   remote pointers land in the map, quiet mode omits `username`, and
  *   onLocalPointer broadcasts our own cursor (trailing-edge throttled).
+ *
+ * Task 082: presence row dual actions + Present self toggle:
+ * - non-self rows: hover reveals jump + follow icons
+ * - jump grayed when no lastKnownViewport; enabled + calls applyViewport when present
+ * - follow icon only on presenting rows; clicking toggles follow (setFollowTarget)
+ * - self row: Present toggle (startPresenting/stopPresenting)
+ * - SessionChrome (via PresenceFeed) stays interactive while presentingSelf
  */
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useEffect, useRef } from "react";
@@ -39,6 +46,7 @@ vi.mock("@excalidraw/excalidraw", () => ({
     EVENTUALLY: "EVENTUALLY",
   },
   exportToBlob: vi.fn(),
+  default: vi.fn(),
 }));
 
 vi.mock("react-i18next", () => ({
@@ -56,6 +64,16 @@ const PEERS: RosterMember[] = [
   { profileId: "a3f9c2d1", name: "Min", color: "hsl(220, 100%, 83%)", connId: "conn-a", self: false },
   { profileId: "9c1d2e3f", name: "王小明", color: "hsl(40, 100%, 83%)", connId: "conn-b", self: false },
 ];
+
+function makeApi(): ExcalidrawImperativeAPI {
+  return {
+    updateScene: vi.fn(),
+    getSceneElements: vi.fn(() => []),
+    getSceneElementsIncludingDeleted: vi.fn(() => []),
+    getAppState: vi.fn(() => ({})),
+    getFiles: vi.fn(() => ({})),
+  } as unknown as ExcalidrawImperativeAPI;
+}
 
 function makeSession(overrides: Partial<CollabSessionHandle> = {}): CollabSessionHandle {
   return {
@@ -92,7 +110,10 @@ function makeSession(overrides: Partial<CollabSessionHandle> = {}): CollabSessio
   };
 }
 
-const renderFeed = (session: CollabSessionHandle = makeSession(), props: { onEditSelfName?: () => void } = {}) =>
+const renderFeed = (
+  session: CollabSessionHandle = makeSession(),
+  props: { onEditSelfName?: () => void; excalidrawAPI?: ExcalidrawImperativeAPI | null } = {},
+) =>
   render(<PresenceFeed session={session} {...props} />);
 
 beforeEach(() => {
@@ -129,14 +150,10 @@ describe("PresenceFeed — collaborators list (055)", () => {
     const rows = screen.getAllByTestId(/^collab-feed-row-/);
     expect(rows).toHaveLength(3);
 
-    // avatar dot = the member's 055 native color (deriveColor result)
     const dotMin = screen.getByTestId("collab-feed-dot-a3f9c2d1");
     expect((dotMin as HTMLElement).style.background).toBe("hsl(220, 100%, 83%)");
-    // full labels: 名·短id
     expect(screen.getByTestId("collab-feed-label-a3f9c2d1").textContent).toBe("Min · a3f");
     expect(screen.getByTestId("collab-feed-label-9c1d2e3f").textContent).toBe("王小明 · 9c1");
-    // 075: self row shows the real per-room name + the "（自己）" marker, with
-    // NO · short-id tail. (i18n is mocked → marker renders as its key.)
     expect(screen.getByTestId("collab-feed-label-self-1").textContent).toBe("AdaCollabSelfMarker");
   });
 
@@ -155,7 +172,6 @@ describe("PresenceFeed — collaborators list (055)", () => {
     expect(screen.getAllByTestId(/^collab-feed-row-/)).toHaveLength(3);
 
     rerender(<PresenceFeed session={makeSession({ peers: PEERS.slice(0, 2) })} />);
-    // the departed row lingers for the fade window at opacity 0
     const gone = screen.getByTestId("collab-feed-row-9c1d2e3f");
     expect(gone.className).toContain("opacity-0");
     await waitFor(
@@ -181,6 +197,7 @@ describe("PresenceFeed — self-name edit (ADR 0006)", () => {
     expect(onEditSelfName).toHaveBeenCalledTimes(1);
   });
 });
+
 /* ------------------------------------------------------------------ */
 /* label-mode toggle (055: 最全 default, quiet persists)                */
 /* ------------------------------------------------------------------ */
@@ -189,7 +206,6 @@ describe("PresenceFeed — show-user-list checkbox (075)", () => {
   test("default is checked (full); unchecking hides the UserList (quiet) and persists", async () => {
     renderFeed();
     const checkbox = screen.getByTestId("collab-show-userlist-checkbox");
-    // default = full (checked) → feed labels stay full `名·短id`
     expect(checkbox.getAttribute("aria-checked")).toBe("true");
     expect(checkbox.dataset.checked).toBe("true");
     expect(screen.getByTestId("collab-feed-label-a3f9c2d1").textContent).toBe("Min · a3f");
@@ -197,12 +213,9 @@ describe("PresenceFeed — show-user-list checkbox (075)", () => {
     fireEvent.click(checkbox);
     expect(checkbox.getAttribute("aria-checked")).toBe("false");
     expect(checkbox.dataset.checked).toBeUndefined();
-    // 075: quiet no longer shrinks the feed label — only the UserList
     expect(screen.getByTestId("collab-feed-label-a3f9c2d1").textContent).toBe("Min · a3f");
-    // persisted (localStorage on the test path — getBrowser() is null)
     expect(JSON.parse(localStorage.getItem(LABEL_MODE_KEY) ?? "")).toBe("quiet");
 
-    // back to full
     fireEvent.click(checkbox);
     expect(checkbox.getAttribute("aria-checked")).toBe("true");
     expect(JSON.parse(localStorage.getItem(LABEL_MODE_KEY) ?? "")).toBe("full");
@@ -221,9 +234,8 @@ describe("PresenceFeed — show-user-list checkbox (075)", () => {
 /* cursor wiring (real hook, stub socket)                               */
 /* ------------------------------------------------------------------ */
 
-/** Stub socket (collab-core client.test.ts pattern). */
 class StubSocket {
-  readyState = 0; // CONNECTING
+  readyState = 0;
   readonly sent: string[] = [];
   private listeners: Record<string, Set<(ev: unknown) => void>> = {
     open: new Set(),
@@ -307,7 +319,7 @@ const isEnvelope = (raw: string, t: string) => {
   }
 };
 
-function makeApi(): ExcalidrawImperativeAPI {
+function makeApiReal(): ExcalidrawImperativeAPI {
   return {
     updateScene: vi.fn(),
     getSceneElements: vi.fn(() => []),
@@ -317,7 +329,6 @@ function makeApi(): ExcalidrawImperativeAPI {
   } as unknown as ExcalidrawImperativeAPI;
 }
 
-/** Harness — the real useCollabSession under test. */
 function HookHarness({
   labelMode,
   api,
@@ -368,11 +379,9 @@ describe("presence — cursor wiring (collaborators map, 049 §5 / 055)", () => 
   });
 
   test("welcome builds the collaborators map with id/username/color/socketId", async () => {
-    const api = makeApi();
+    const api = makeApiReal();
     const { unmount } = await renderHookHarness(api);
 
-    // The FIRST updateScene with a collaborators Map may be the pre-welcome
-    // empty map (hook boot); take the LAST one — welcome's rebuild.
     const mapCalls = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls.filter(
       (c: unknown[]) => (c[0] as { collaborators?: unknown })?.collaborators instanceof Map,
     );
@@ -389,8 +398,6 @@ describe("presence — cursor wiring (collaborators map, 049 §5 / 055)", () => 
       },
       socketId: "profile-2",
     });
-    // Self is now included in the collaborators map (for the UserList avatar),
-    // but has no pointer field → the local cursor is never rendered as a collaborator cursor
     expect(call.collaborators.has("profile-1")).toBe(true);
     const self = call.collaborators.get("profile-1") as { pointer?: unknown };
     expect(self.pointer).toBeUndefined();
@@ -398,7 +405,7 @@ describe("presence — cursor wiring (collaborators map, 049 §5 / 055)", () => 
   });
 
   test("a remote pointer lands in the collaborators map (updateScene)", async () => {
-    const api = makeApi();
+    const api = makeApiReal();
     const { unmount, ws } = await renderHookHarness(api);
     (api.updateScene as ReturnType<typeof vi.fn>).mockClear();
 
@@ -425,7 +432,7 @@ describe("presence — cursor wiring (collaborators map, 049 §5 / 055)", () => 
   });
 
   test("quiet label mode omits username from the collaborators map; full re-adds it", async () => {
-    const api = makeApi();
+    const api = makeApiReal();
     const { unmount } = await renderHookHarness(api, "quiet");
     const lastCall = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls.at(-1)?.[0];
     expect(lastCall.collaborators.get("profile-2").username).toBeUndefined();
@@ -433,7 +440,7 @@ describe("presence — cursor wiring (collaborators map, 049 §5 / 055)", () => 
   });
 
   test("onLocalPointer broadcasts our own cursor (trailing-edge throttled, latest wins)", async () => {
-    const api = makeApi();
+    const api = makeApiReal();
     const { handle, unmount, ws } = await renderHookHarness(api);
 
     vi.useFakeTimers();
@@ -441,16 +448,234 @@ describe("presence — cursor wiring (collaborators map, 049 §5 / 055)", () => 
       handle.onLocalPointer({ pointer: { x: 10, y: 20, tool: "pointer" }, button: "down" });
       handle.onLocalPointer({ pointer: { x: 30, y: 40, tool: "pointer" }, button: "up" });
     });
-    // throttle window: nothing on the wire yet
     expect(ws.sent.filter((s) => isEnvelope(s, "pointer"))).toHaveLength(0);
     await act(async () => {
       await vi.runAllTimersAsync();
     });
 
     const pointers = ws.sent.filter((s) => isEnvelope(s, "pointer"));
-    expect(pointers).toHaveLength(1); // coalesced — the latest wins
+    expect(pointers).toHaveLength(1);
     expect(JSON.parse(pointers[0]).p).toEqual({ x: 30, y: 40, tool: "pointer", button: "up" });
     vi.useRealTimers();
     unmount();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* task 082: presence row dual actions + Present self toggle           */
+/* ------------------------------------------------------------------ */
+
+describe("PresenceFeed — row actions (082: cursor jump + follow toggle)", () => {
+  const selfRow: RosterMember = {
+    profileId: "self-1", name: "Ada", color: "hsl(0, 100%, 83%)", connId: "conn-self", self: true,
+  };
+  const peerWithViewport: RosterMember = {
+    profileId: "a3f9c2d1", name: "Min", color: "hsl(220, 100%, 83%)",
+    connId: "conn-a", self: false,
+    lastKnownViewport: { x: 100, y: 200, z: 1 },
+  };
+  const peerWithoutViewport: RosterMember = {
+    profileId: "9c1d2e3f", name: "王小明", color: "hsl(40, 100%, 83%)",
+    connId: "conn-b", self: false,
+  };
+
+  test("hover reveals dual icons on non-self row", () => {
+    const presentingWithViewport: RosterMember = { ...peerWithViewport, presenting: true };
+    const session = makeSession({
+      peers: [selfRow, presentingWithViewport, peerWithoutViewport],
+    });
+    renderFeed(session, { excalidrawAPI: makeApi() });
+
+    // Icons hidden by default
+    expect(screen.queryByTestId("collab-row-jump-a3f9c2d1")).toBeNull();
+    expect(screen.queryByTestId("collab-row-follow-a3f9c2d1")).toBeNull();
+
+    // Hover row → icons appear
+    const row = screen.getByTestId("collab-feed-row-a3f9c2d1");
+    fireEvent.mouseEnter(row);
+    expect(screen.getByTestId("collab-row-jump-a3f9c2d1")).toBeTruthy();
+    expect(screen.getByTestId("collab-row-follow-a3f9c2d1")).toBeTruthy();
+  });
+
+  test("jump icon is disabled/grayed when profile has no lastKnownViewport", () => {
+    const session = makeSession({
+      peers: [selfRow, peerWithViewport, peerWithoutViewport],
+    });
+    renderFeed(session, { excalidrawAPI: makeApi() });
+
+    const row = screen.getByTestId("collab-feed-row-9c1d2e3f");
+    fireEvent.mouseEnter(row);
+    const jumpBtn = screen.getByTestId("collab-row-jump-9c1d2e3f");
+    expect(jumpBtn).toBeTruthy();
+    expect(jumpBtn.getAttribute("aria-disabled")).toBe("true");
+  });
+
+  test("jump icon is enabled when profile has lastKnownViewport; clicking calls applyViewport once", () => {
+    const api = makeApi();
+    const session = makeSession({
+      peers: [selfRow, peerWithViewport, peerWithoutViewport],
+    });
+    renderFeed(session, { excalidrawAPI: api });
+
+    const row = screen.getByTestId("collab-feed-row-a3f9c2d1");
+    fireEvent.mouseEnter(row);
+    const jumpBtn = screen.getByTestId("collab-row-jump-a3f9c2d1");
+    expect(jumpBtn).toBeTruthy();
+    expect(jumpBtn.getAttribute("aria-disabled")).not.toBe("true");
+
+    fireEvent.click(jumpBtn);
+    expect(api.updateScene).toHaveBeenCalledTimes(1);
+    const call = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.appState.scrollX).toBe(100);
+    expect(call.appState.scrollY).toBe(200);
+    expect(call.appState.zoom.value).toBe(1);
+  });
+
+  test("jump disabled when follow target has no viewport", () => {
+    const presentingNoViewport: RosterMember = {
+      ...peerWithoutViewport, presenting: true,
+    };
+    const session = makeSession({
+      peers: [selfRow, presentingNoViewport],
+      followTargetId: "9c1d2e3f",
+    });
+    renderFeed(session, { excalidrawAPI: makeApi() });
+
+    const row = screen.getByTestId("collab-feed-row-9c1d2e3f");
+    fireEvent.mouseEnter(row);
+    const jumpBtn = screen.getByTestId("collab-row-jump-9c1d2e3f");
+    expect(jumpBtn.getAttribute("aria-disabled")).toBe("true");
+  });
+
+  test("jump uses peer's own viewport when not following", () => {
+    const api = makeApi();
+    const session = makeSession({
+      peers: [selfRow, peerWithViewport],
+      followTargetId: null,
+    });
+    renderFeed(session, { excalidrawAPI: api });
+
+    const row = screen.getByTestId("collab-feed-row-a3f9c2d1");
+    fireEvent.mouseEnter(row);
+    const jumpBtn = screen.getByTestId("collab-row-jump-a3f9c2d1");
+    fireEvent.click(jumpBtn);
+    const call = (api.updateScene as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(call.appState.scrollX).toBe(100);
+  });
+
+  test("follow icon shown only on presenting rows", () => {
+    const presentingPeer: RosterMember = { ...peerWithViewport, presenting: true };
+    const session = makeSession({
+      peers: [selfRow, presentingPeer, peerWithoutViewport],
+    });
+    renderFeed(session, { excalidrawAPI: makeApi() });
+
+    // Presenting row: follow icon on hover
+    const presentingRow = screen.getByTestId("collab-feed-row-a3f9c2d1");
+    fireEvent.mouseEnter(presentingRow);
+    expect(screen.getByTestId("collab-row-follow-a3f9c2d1")).toBeTruthy();
+
+    // Non-presenting row: no follow icon on hover
+    const nonPresRow = screen.getByTestId("collab-feed-row-9c1d2e3f");
+    fireEvent.mouseEnter(nonPresRow);
+    expect(screen.queryByTestId("collab-row-follow-9c1d2e3f")).toBeNull();
+  });
+
+  test("clicking follow icon calls setFollowTarget(profileId)", () => {
+    const presentingPeer: RosterMember = { ...peerWithViewport, presenting: true };
+    const session = makeSession({
+      peers: [selfRow, presentingPeer],
+      followTargetId: null,
+    });
+    renderFeed(session, { excalidrawAPI: makeApi() });
+
+    const row = screen.getByTestId("collab-feed-row-a3f9c2d1");
+    fireEvent.mouseEnter(row);
+    const followBtn = screen.getByTestId("collab-row-follow-a3f9c2d1");
+    fireEvent.click(followBtn);
+    expect(session.setFollowTarget).toHaveBeenCalledWith("a3f9c2d1");
+  });
+
+  test("following a presenter shows active-follow visual state", () => {
+    const presentingPeer: RosterMember = { ...peerWithViewport, presenting: true };
+    const session = makeSession({
+      peers: [selfRow, presentingPeer],
+      followTargetId: "a3f9c2d1",
+    });
+    renderFeed(session, { excalidrawAPI: makeApi() });
+
+    const row = screen.getByTestId("collab-feed-row-a3f9c2d1");
+    fireEvent.mouseEnter(row);
+    const followBtn = screen.getByTestId("collab-row-follow-a3f9c2d1");
+    expect(followBtn.dataset.followActive).toBe("true");
+  });
+
+  test("clicking active follow icon calls setFollowTarget(null) (silent unfollow)", () => {
+    const presentingPeer: RosterMember = { ...peerWithViewport, presenting: true };
+    const session = makeSession({
+      peers: [selfRow, presentingPeer],
+      followTargetId: "a3f9c2d1",
+    });
+    renderFeed(session, { excalidrawAPI: makeApi() });
+
+    const row = screen.getByTestId("collab-feed-row-a3f9c2d1");
+    fireEvent.mouseEnter(row);
+    const followBtn = screen.getByTestId("collab-row-follow-a3f9c2d1");
+    expect(followBtn.dataset.followActive).toBe("true");
+    fireEvent.click(followBtn);
+    expect(session.setFollowTarget).toHaveBeenCalledWith(null);
+  });
+});
+
+describe("PresenceFeed — self Present toggle (082)", () => {
+  const selfRow: RosterMember = {
+    profileId: "self-1", name: "Ada", color: "hsl(0, 100%, 83%)",
+    connId: "conn-self", self: true,
+  };
+
+  test("self row has Present toggle button", () => {
+    const session = makeSession({ peers: [selfRow] });
+    renderFeed(session, { excalidrawAPI: makeApi() });
+    expect(screen.getByTestId("collab-self-present-btn")).toBeTruthy();
+  });
+
+  test("Present toggle shows start state when not presenting; calls startPresenting", () => {
+    const session = makeSession({ peers: [selfRow], presentingSelf: false });
+    renderFeed(session, { excalidrawAPI: makeApi() });
+    const btn = screen.getByTestId("collab-self-present-btn");
+    expect(btn.dataset.presenting).toBeUndefined();
+    fireEvent.click(btn);
+    expect(session.startPresenting).toHaveBeenCalledTimes(1);
+  });
+
+  test("Present toggle shows stop state when presentingSelf; calls stopPresenting", () => {
+    const session = makeSession({ peers: [selfRow], presentingSelf: true });
+    renderFeed(session, { excalidrawAPI: makeApi() });
+    const btn = screen.getByTestId("collab-self-present-btn");
+    expect(btn.dataset.presenting).toBe("true");
+    fireEvent.click(btn);
+    expect(session.stopPresenting).toHaveBeenCalledTimes(1);
+  });
+
+  test("PresenceFeed renders identically when presentingSelf (no dimming — SessionChrome interactive)", () => {
+    const session = makeSession({ peers: [selfRow], presentingSelf: true });
+    const { container } = renderFeed(session, { excalidrawAPI: makeApi() });
+
+    expect(screen.getByTestId("collab-presence-feed")).toBeTruthy();
+    const selfRowEl = screen.getByTestId("collab-feed-row-self-1");
+    expect(selfRowEl).toBeTruthy();
+    const feed = container.querySelector("[data-testid='collab-presence-feed']");
+    expect(feed?.className).not.toContain("opacity-");
+    const editBtn = screen.getByTestId("collab-selfname-edit");
+    expect(editBtn.getAttribute("disabled")).toBeNull();
+    expect(editBtn.getAttribute("aria-disabled")).toBeNull();
+    expect(screen.getByTestId("collab-self-present-btn")).toBeTruthy();
+  });
+
+  test("self row still has edit button alongside Present toggle", () => {
+    const session = makeSession({ peers: [selfRow] });
+    renderFeed(session, { excalidrawAPI: makeApi() });
+    expect(screen.getByTestId("collab-selfname-edit")).toBeTruthy();
+    expect(screen.getByTestId("collab-self-present-btn")).toBeTruthy();
   });
 });
