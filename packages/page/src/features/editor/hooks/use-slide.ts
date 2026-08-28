@@ -8,14 +8,27 @@ import {
   slideIdOrderListRef,
   slidesAtom,
 } from "../store/presentation";
-import { updateFrameElements } from "../utils/excalidraw-api.helper";
 
-export const useSlide = (excalidrawAPI: ExcalidrawImperativeAPI | null) => {
-  const [presentationMode, setPresentationMode] = useAtom(presentationModeAtom);
+export interface UseSlideOptions {
+  /**
+   * When true (default), handleTogglePresentation calls
+   * updateScene({appState:{viewModeEnabled}}) — the normal local-editor behaviour.
+   * Set to false for the collab room: the room must never write viewModeEnabled
+   * (ADR 0008) but still needs atom flips, quickNav closes, and scroll.
+   */
+  viewMode?: boolean;
+}
+
+export const useSlide = (
+  excalidrawAPI: ExcalidrawImperativeAPI | null,
+  options?: UseSlideOptions
+) => {
+  const viewMode = options?.viewMode ?? true;
   const currentSlide = useAtomValue(slideGlobalIndexAtom);
   const toggleShowSlideQuickNav = useSetAtom(showSlideQuickNavAtom);
   const updateSlideIndex = useSetAtom(slideGlobalIndexAtom);
   const slides = useAtomValue(slidesAtom);
+  const [presentationMode, setPresentationMode] = useAtom(presentationModeAtom);
 
   const scrollToSlide = useCallback(
     (targetSlide: { index?: number; id?: string }) => {
@@ -56,12 +69,14 @@ export const useSlide = (excalidrawAPI: ExcalidrawImperativeAPI | null) => {
           });
         }
       }
-      requestAnimationFrame(() => {
-        excalidrawAPI?.updateScene({ appState: { viewModeEnabled: newMode } });
-      });
+      if (viewMode) {
+        requestAnimationFrame(() => {
+          excalidrawAPI?.updateScene({ appState: { viewModeEnabled: newMode } });
+        });
+      }
       return newMode;
     });
-  }, [excalidrawAPI, scrollToSlide]);
+  }, [excalidrawAPI, scrollToSlide, viewMode]);
 
   const slidePrev = useCallback(() => {
     const nextSlideIndex = Math.max(0, currentSlide - 1);

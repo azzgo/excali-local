@@ -6,12 +6,23 @@
  * - Gallery opener: opens the gallery sidebar (hidden when already open).
  *
  * Mirrors the shell of top-right-toolbar.tsx (flex gap-x-1, Hint→Button ghost).
+ *
+ * Present toggle coupling (Task 100):
+ * - ON  → session.startPresenting() + (slides.length > 0 ? handleTogglePresentation(viewMode:false) : nothing)
+ * - OFF → session.stopPresenting() + (presentationMode ? handleTogglePresentation() : nothing)
+ * - Lockstep: presentationMode=false while presentingSelf → session.stopPresenting()
+ *   (Escape / manual exit path keeps room and session in sync)
+ * - useRoomSlideStateReset ensures the room always starts and ends clean.
  */
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { IconLayoutGrid, IconPresentation, IconPresentationOff } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
-import { useAtomValue } from "jotai";
+import { useAtomValue, useSetAtom } from "jotai";
+import { useEffect, useRef } from "react";
 import { galleryIsOpenAtom } from "@/features/gallery/store/gallery-atoms";
+import { presentationModeAtom, slidesAtom } from "@/features/editor/store/presentation";
+import { useSlide } from "@/features/editor/hooks/use-slide";
+import { useRoomSlideStateReset } from "@/features/collab/use-room-slide-state";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
 
@@ -30,6 +41,57 @@ export function RoomTopRightControls({
 }: RoomTopRightControlsProps) {
   const [t] = useTranslation();
   const isGalleryOpen = useAtomValue(galleryIsOpenAtom);
+
+  // Reset slide atoms on mount/unmount so the room always starts clean.
+  useRoomSlideStateReset();
+
+  const presentationMode = useAtomValue(presentationModeAtom);
+  const slides = useAtomValue(slidesAtom);
+  const { handleTogglePresentation } = useSlide(excalidrawAPI, { viewMode: false });
+
+  // Debounce ref: prevents the lockstep from firing on the same toggle cycle.
+  const togglingRef = useRef(false);
+
+  // Lockstep: presentationMode=false while presentingSelf → stopPresenting.
+  // Catches Escape / manual slide-mode exit without an explicit Present-OFF click.
+  // Mount guard prevents a stale initial render from firing on first mount.
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    if (!mountedRef.current) {
+      mountedRef.current = true;
+      return;
+    }
+    if (!presentationMode && session.presentingSelf && !togglingRef.current) {
+      session.stopPresenting();
+    }
+  }, [presentationMode, session.presentingSelf, session.stopPresenting]);
+
+  const handlePresentToggle = () => {
+    if (session.presentingSelf) {
+      // OFF path: stop session, then exit slide mode if active.
+      togglingRef.current = true;
+      session.stopPresenting();
+      if (presentationMode) {
+        handleTogglePresentation();
+      }
+      // Defer reset so the lockstep effect (which runs after the re-render
+      // triggered by handleTogglePresentation) sees togglingRef.current === true
+      // and does NOT spuriously fire stopPresenting from within this toggle.
+      setTimeout(() => {
+        togglingRef.current = false;
+      }, 0);
+    } else {
+      // ON path: start session, then enter slide mode if there are slides.
+      togglingRef.current = true;
+      session.startPresenting();
+      if (slides.length > 0) {
+        handleTogglePresentation();
+      }
+      setTimeout(() => {
+        togglingRef.current = false;
+      }, 0);
+    }
+  };
 
   return (
     <div className="flex gap-x-1 items-center">
@@ -65,11 +127,7 @@ export function RoomTopRightControls({
           data-testid="collab-present-toggle"
           aria-pressed={session.presentingSelf}
           className={session.presentingSelf ? "text-foreground" : undefined}
-          onClick={() =>
-            session.presentingSelf
-              ? session.stopPresenting()
-              : session.startPresenting()
-          }
+          onClick={handlePresentToggle}
         >
           {session.presentingSelf ? (
             <IconPresentationOff className="size-4" />
