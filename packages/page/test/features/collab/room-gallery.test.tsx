@@ -113,6 +113,7 @@ vi.mock("@excalidraw/excalidraw", () => ({
     IMMEDIATELY: "IMMEDIATELY",
     EVENTUALLY: "EVENTUALLY",
   },
+  Footer: ({ children }: { children?: React.ReactNode }) => children,
   exportToBlob: vi.fn(),
   // 086: restoreAppState is called inside broadcastScene
   restoreAppState: (s: unknown) => s,

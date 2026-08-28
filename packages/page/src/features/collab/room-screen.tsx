@@ -24,6 +24,15 @@ import { RoomTopRightControls } from "./room-top-right-controls";
  * picker replace it once that task lands.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Footer } from "@excalidraw/excalidraw";
+import { useAtom } from "jotai";
+import { cn } from "@/lib/utils";
+import SlideNavigation from "@/features/editor/components/slide-navigation";
+import SlideNavbar from "@/features/editor/components/slide-navbar";
+import { useUpdateSlides } from "@/features/editor/hooks/use-update-slides";
+import { showSlideQuickNavAtom } from "@/features/editor/store/presentation";
+import { useRoomSlideStateReset } from "./use-room-slide-state";
+import { applySlideOrder } from "./apply-slide-order";
 import { useTranslation } from "react-i18next";
 import type { RoomEntry } from "collab-core";
 import { fileIdFor, parseInvite } from "collab-core";
@@ -187,6 +196,7 @@ interface RoomSessionProps {
 }
 
 function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProps) {
+  useRoomSlideStateReset();
   const [t] = useTranslation();
   const [excalidrawAPI, setExcalidrawAPI] = useState<ExcalidrawImperativeAPI | null>(null);
   const { theme, handleThemeChange } = useEditorTheme();
@@ -194,6 +204,8 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
   // omits `username` from the collaborators map in quiet mode.
   const { mode: labelMode } = useLabelMode();
   const session = useCollabSession({ shareId, server, room, excalidrawAPI, wsFactory, labelMode });
+  const updateSlides = useUpdateSlides();
+  const [showSlideQuickNav, updateShowSlideQuickNav] = useAtom(showSlideQuickNavAtom);
   // 083: fire a toast when the follow relationship breaks involuntarily;
   // capture-phase gesture listeners on the canvas area break follow at the
   // onset of any local pan/zoom (ADR 0008) — see use-follow-break-toast.
@@ -295,9 +307,10 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
             showDeprecatedFonts={false}
             onExcalidrawAPI={onExcalidrawAPI}
             onPointerUpdate={session.onLocalPointer}
-            onChange={(elements, appState, files) =>
-              session.onLocalChange(elements, appState, files)
-            }
+            onChange={(elements, appState, files) => {
+              session.onLocalChange(elements, appState, files);
+              updateSlides(elements, files);
+            }}
             generateIdForFile={generateIdForFile}
             onScrollChange={(scrollX, scrollY, zoom) =>
               session.onLocalViewportChange(scrollX, scrollY, zoom)
@@ -309,6 +322,13 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
               />
             )}
           >
+            <Footer>
+              <SlideNavigation
+                excalidrawAPI={excalidrawAPI}
+                hideNav={!session.presentingSelf}
+                hideWhenEmpty
+              />
+            </Footer>
             {/* Gallery sidebar (room-mode): mounts inside the Excalidraw Sidebar slot.
              * If the Excalidraw Sidebar island is unavailable (dock-panel fallback
              * taken), GallerySidebar still renders inside Excalidraw's children — it
@@ -320,6 +340,13 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
               chosenDrawingId={chosenDrawingId ?? undefined}
             />
           </Excalidraw>
+        </div>
+        <div className={cn(!showSlideQuickNav && "hidden")}>
+          <SlideNavbar
+            excalidrawAPI={excalidrawAPI}
+            close={() => updateShowSlideQuickNav(false)}
+            applyOrder={(frameIdList) => excalidrawAPI && applySlideOrder(excalidrawAPI, frameIdList)}
+          />
         </div>
 
         {/* seed prompt — empty room, no cache (053/061 rule C). Minimal
