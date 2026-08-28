@@ -5,8 +5,8 @@
  *   (a) applyViewport       — the ONE viewport writer (continuous follow + cursor hop).
  *   (b) classifyFollowEvent — break classifier mapping event-ish inputs to
  *                             {shouldBreak, toastKey}.
- *   (c) Guard token         — getFollowGuardToken() / followSuppressToken; consumed
- *                              by use-collab-session in a later task so follower-side
+ *   (c) Guard token         — getFollowGuardToken(); consumed by
+ *                              use-collab-session so follower-side
  *                              onChange echoes are never re-broadcast.
  *
  * ADR 0008 truth table:
@@ -34,7 +34,7 @@ import { shouldBreakFollow } from "./follow-break";
  *
  * HOW it works:
  *   Before calling applyViewport() on a received remote frame, the hook
- *   sets `followSuppressToken = getFollowGuardToken()`.
+ *   stores the token via getFollowGuardToken().
  *   When onChange fires inside Excalidraw, the hook reads the current
  *   token and skips echo-broadcast if it matches — the echo is a
  *   side-effect of our own applyViewport, not a real user gesture.
@@ -46,7 +46,6 @@ import { shouldBreakFollow } from "./follow-break";
  *   if (currentToken === getFollowGuardToken()) return; // suppress
  */
 const _followSuppressToken = Symbol("followSuppress");
-export const followSuppressToken = _followSuppressToken;
 
 /** Returns the module's suppression identity token. */
 export function getFollowGuardToken(): symbol {

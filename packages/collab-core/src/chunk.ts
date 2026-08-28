@@ -69,7 +69,7 @@ function splitJson(json: string, maxBytes: number): string[] {
   let start = 0
   let byteLen = 0
   for (let i = 0; i < points.length; i++) {
-    const cp = points[i].codePointAt(0)!
+    const cp = points[i]!.codePointAt(0)!
     const cpBytes = cp <= 0x7f ? 1 : cp <= 0x7ff ? 2 : cp <= 0xffff ? 3 : 4
     if (byteLen + cpBytes > maxBytes && byteLen > 0) {
       fragments.push(points.slice(start, i).join(""))

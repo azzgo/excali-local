@@ -415,13 +415,13 @@ Manual unfollow (clicking the active follow icon to stop following) breaks silen
 
 ### Cursor jump
 
-The jump button (compass icon) on every presence row performs a **one-shot hop** to the target's viewport. Priority:
+The jump button (compass icon) on every presence row performs a **one-shot hop** based on the clicked row's OWN data only — never the follow target's. Priority:
 
-1. **Follow target's viewport wins** — if the row's profileId matches your current `followTargetId` and that member is presenting, use their live presentation viewport.
+1. **Live presentation viewport** — if that member is presenting, hop to their last broadcast presentation viewport `{x,y,z}` (the presenter's zoom applies verbatim).
 
-2. **Row's own last-known pointer position** — for non-presenting members (or when not following them), hop to their last broadcast `{x,y,z}` from the pointer stream.
+2. **Last-known pointer position** — otherwise, hop to their last broadcast pointer position `{x,y}` from the 055 pointer stream (the jumper's current zoom is kept).
 
-3. **Button disabled** — when neither is known, the jump button is grayed out (no viewport to hop to).
+3. **Button disabled** — when neither is known, the jump button is grayed out (nothing to hop to).
 
 ### Protocol versioning
 
