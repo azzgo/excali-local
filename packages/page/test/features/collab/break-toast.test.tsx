@@ -177,9 +177,21 @@ describe("useFollowBreakToast — follow-break toast wiring (083)", () => {
 /* gesture-onset breaks (ADR 0008 — task 081/083 closing work) -------- */
 /* ------------------------------------------------------------------ */
 
-function GestureHarness({ session, targetRef }: { session: CollabSessionHandle; targetRef: React.RefObject<HTMLDivElement | null> }) {
+function GestureHarness({ session, targetRef, withSidebar = false }: { session: CollabSessionHandle; targetRef: React.RefObject<HTMLDivElement | null>; withSidebar?: boolean }) {
   useFollowBreakToast(session, targetRef);
-  return <div ref={targetRef} data-testid="canvas-area" />;
+  // withSidebar mimics the room's gallery sidebar: an Excalidraw Sidebar island
+  // (.sidebar) rendered INSIDE the canvas host subtree
+  return (
+    <div ref={targetRef} data-testid="canvas-area">
+      {withSidebar && (
+        <div className="sidebar" data-testid="docked-sidebar">
+          <button type="button" data-testid="sidebar-card">
+            drawing
+          </button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 describe("useFollowBreakToast — gesture-onset breaks (081)", () => {
@@ -251,6 +263,31 @@ describe("useFollowBreakToast — gesture-onset breaks (081)", () => {
 
     expect(session.setFollowTarget).not.toHaveBeenCalled();
     expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  test("pointerdown/wheel starting on an Excalidraw Sidebar island (room gallery) does NOT break follow (083)", () => {
+    const session = followingSession();
+    const ref = { current: null } as React.RefObject<HTMLDivElement | null>;
+    const { container } = render(<GestureHarness session={session} targetRef={ref} withSidebar />);
+    ref.current = container.querySelector('[data-testid="canvas-area"]') as HTMLDivElement;
+    const card = container.querySelector('[data-testid="sidebar-card"]') as HTMLElement;
+    expect(card).toBeTruthy();
+
+    // browsing the gallery: pointerdown + wheel inside the sidebar island
+    fireEvent.pointerDown(card);
+    fireEvent.wheel(card);
+    expect(session.setFollowTarget).not.toHaveBeenCalled();
+    expect(toastMock).not.toHaveBeenCalled();
+
+    // a two-finger pinch starting on the sidebar is also UI browsing
+    fireEvent.touchStart(card, { touches: [new Touch({ identifier: 1, target: card }), new Touch({ identifier: 2, target: card })] });
+    expect(session.setFollowTarget).not.toHaveBeenCalled();
+    expect(toastMock).not.toHaveBeenCalled();
+
+    // the same host still breaks on a real canvas gesture
+    fireEvent.pointerDown(ref.current);
+    expect(session.setFollowTarget).toHaveBeenCalledWith(null);
+    expect(toastMock).toHaveBeenCalledTimes(1);
   });
 
   test("manual unfollow via icon stays silent while canvas listeners are attached", () => {

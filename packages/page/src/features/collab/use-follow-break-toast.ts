@@ -95,7 +95,15 @@ export function useFollowBreakToast(
     if (session.followTargetId === null) return;
     const el = canvasRef?.current ?? null;
     if (el === null) return;
-    const breakWithToast = (event: "pointerdown" | "wheel" | "pinch") => {
+    // 083: gestures that START inside an Excalidraw Sidebar island (the room's
+    // gallery sidebar renders inside the excalidraw-container subtree) are UI
+    // browsing — scrolling the gallery, clicking a card — not canvas pan/zoom.
+    // Never break follow for them. (The notification stack / seed prompt live
+    // OUTSIDE the canvas host (room-screen), so host narrowing handles those.)
+    const isSidebarTarget = (event: Event): boolean =>
+      event.target instanceof Element && event.target.closest(".sidebar") !== null;
+    const breakWithToast = (event: "pointerdown" | "wheel" | "pinch", domEvent?: Event) => {
+      if (domEvent !== undefined && isSidebarTarget(domEvent)) return;
       const result = classifyFollowEvent(event, {
         localGesture: true,
         presenterLeft: false,
@@ -108,10 +116,10 @@ export function useFollowBreakToast(
       const name = followedPeerName.current ?? `user:${target}`;
       toast(t("CollabFollowBroke", { name }));
     };
-    const onPointerDown = () => breakWithToast("pointerdown");
-    const onWheel = () => breakWithToast("wheel");
+    const onPointerDown = (e: Event) => breakWithToast("pointerdown", e);
+    const onWheel = (e: Event) => breakWithToast("wheel", e);
     const onTouchStart = (e: TouchEvent) => {
-      if (e.touches.length >= 2) breakWithToast("pinch");
+      if (e.touches.length >= 2) breakWithToast("pinch", e);
     };
     el.addEventListener("pointerdown", onPointerDown, { capture: true, passive: true });
     el.addEventListener("wheel", onWheel, { capture: true, passive: true });
