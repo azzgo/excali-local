@@ -594,4 +594,37 @@ describe("RoomState present (077)", () => {
     await h.room.message("conn-1", JSON.stringify({ v: 1, t: "present", p: { active: true } }))
     expect([...h.storage.map.keys()]).toEqual([...storageKeysBefore])
   })
+
+  it("NaN/±Infinity viewport frames are dropped (mirror the client guard, task 078); finite frames still forward", async () => {
+    const h = makeHarness()
+    await h.room.join("conn-1", baseHello())
+    await h.room.join("conn-2", HELLO_2)
+    const broadcastsBefore = h.broadcasts.length
+    const rosterBefore = [...h.room.members.values()].find((m) => m.connId === "conn-1")?.presenting
+
+    // Not positions — silently dropped: no broadcast, no presenting flag, no error.
+    // NaN/±∞ are not valid JSON literals, but 1e999 overflow parses to Infinity,
+    // so a crafted frame can smuggle it past typeof-only checks. Mirror the
+    // client's Number.isFinite guard (task 078).
+    // raw frame text — JSON.stringify collapses Infinity/NaN to null, so
+    // craft the literal overflow exponents the parse turns into ±Infinity.
+    // The exponent stays inside a STRING literal so the test transformer
+    // cannot constant-fold it into a non-JSON "Infinity" token.
+    await h.room.message("conn-1", '{ "v": 1, "t": "present", "p": { "x": 1e999, "y": 1, "z": 1 } }')
+    await h.room.message("conn-1", '{ "v": 1, "t": "present", "p": { "x": 1, "y": -1e999, "z": 1 } }')
+    expect(h.broadcasts.length).toBe(broadcastsBefore)
+    expect((h.outbox.get("conn-1") ?? []).filter((f) => f.t === "error")).toHaveLength(0)
+    expect([...h.room.members.values()].find((m) => m.connId === "conn-1")?.presenting).toBe(rosterBefore)
+
+    // a finite frame still relays (sender excluded) and marks presenting —
+    // including a 1e-999 underflow, which is 0 — still a position
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "present", p: { x: 1, y: 1, z: 1e-999 } }))
+    await h.room.message("conn-1", JSON.stringify({ v: 1, t: "present", p: { x: 10.5, y: -3, z: 1.25 } }))
+    const presented = framesTo(h, "conn-2").filter((f) => f.t === "present")
+    expect(presented).toEqual([
+      { v: 1, t: "present", p: { x: 1, y: 1, z: 0 }, from: "conn-1" },
+      { v: 1, t: "present", p: { x: 10.5, y: -3, z: 1.25 }, from: "conn-1" },
+    ])
+    expect([...h.room.members.values()].find((m) => m.connId === "conn-1")?.presenting).toBe(true)
+  })
 })

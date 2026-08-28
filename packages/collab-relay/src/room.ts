@@ -501,7 +501,8 @@ export class RoomState {
       isActive = true
     } else if (p.active === false) {
       isActive = false
-    } else if (typeof p.x === "number" && typeof p.y === "number" && typeof p.z === "number") {
+    } else if (Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z)) {
+      // mirror the client guard (task 078): NaN/±∞ viewports are not positions
       isActive = true
     } else {
       return // silently dropped — malformed payload
