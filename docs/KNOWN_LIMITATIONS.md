@@ -174,9 +174,9 @@ durable record (ADR 0003).
 **What the code does**: the room list stores invite payloads locally; re-entering
 a dead room prompts the first member to reseed from their gallery.
 
-### Presentation mode × collaboration (ADR 0008 — shipped)
+### Presentation mode × collaboration (ADR 0008 — ships in 1.9)
 
-**What**: the 2026-08 deferral is partially lifted — **presentation follow is shipped as of 1.9**.
+**What**: the 2026-08 deferral is partially lifted — **presentation follow ships in 1.9**.
 
 **What ships**: a self-declared multi-presenter model (any member may present), one-way raw viewport streaming to followers, per-follower follow-entry on a roster click, and gesture-break at local pan/zoom onset with a toast ("Stopped following {name}"). One-shot cursor jump: clicking a presenter's avatar hops to their live viewport; for non-presenting members the hop uses their last known pointer position.
 

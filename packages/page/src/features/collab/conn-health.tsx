@@ -36,7 +36,8 @@
  * + Retry / Open last synced copy / Leave. Degraded hint (061 Q5): ≥3
  * reconnects within 5 min → ONE amber hint per session, while live only.
  * Fatal banner (061 Q7 + 054): lastError.fatal → red banner with the 054
- * stale.admit / stale.gcm copy word-identical + Save to gallery / Leave.
+ * stale.admit / stale.gcm copy word-identical + Leave only (saving is
+ * sidebar-only — COLLAB.md "Saving is sidebar-only").
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";

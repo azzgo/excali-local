@@ -220,7 +220,9 @@ Zero relay downtime.
 | GCM auth failure on the first snapshot/scene | `sk` still valid but `ck` rotated | `stale.gcm`: "This room's key doesn't match / The room may have been recreated." | Ask the host to copy the full room invite again (or paste a fresh server invite if the org key rotated) |
 
 Mid-session rotation surfaces the same families: the connection goes red
-"rejected", retrying stops, and the banner offers **Save to gallery / Leave**.
+"rejected", retrying stops, and the fatal banner offers **Leave** only —
+saving is sidebar-only (see "Saving is sidebar-only" below), so a fatal
+must hand over to the gallery before the room is gone.
 
 ## Local dev loop
 
@@ -337,9 +339,11 @@ snapshot survives.
   (amber pulse — dot + word), **rejected** (red, steady — fatal only). Tooltip =
   state + one detail line. Recovery returns **silently to green**.
 - **Mid-session server death.** Auto-reconnect never gives up; editing continues
-  freely offline. At T+60s the banner escalates copy only (elapsed + Keep waiting /
-  Save & leave). Offline banners promise "edits are kept, sync on return" plus a
-  one-line conflict pre-warning. The roster freezes dimmed — "presence frozen" on
+  freely offline. At T+60s the banner escalates copy only (elapsed + the
+  frozen-roster count) — it carries no action buttons; saving happens via the
+  gallery sidebar (see "Saving is sidebar-only" below). Offline banners promise
+  "edits are kept, sync on return" plus a one-line conflict pre-warning. The
+  roster freezes dimmed — "presence frozen" on
   hover, and the banner names the count ("N collaborators were in the room") so a
   frozen roster never reads as "everyone left". Peer-leave stays a silent fade.
 - **Re-entry while the server is down.** 10s timeout → red card "Can't reach your

@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted (pre-implementation — 2026-08 planning session)
+accepted — implemented in 1.9 (planned 2026-08; the pre-implementation qualifier is superseded by the shipping code)
 
 ## Context & decision
 
