@@ -29,16 +29,23 @@ vi.mock("@excalidraw/excalidraw", () => ({
     EVENTUALLY: "EVENTUALLY",
   },
   exportToBlob: vi.fn(),
+  // Sidebar is a compound component (Sidebar.Header, Sidebar.Triggers, etc.)
+  Sidebar: Object.assign(
+    ({ children }: { children?: React.ReactNode }) => <div data-testid="mock-sidebar">{children}</div>,
+    { Header: ({ children }: { children?: React.ReactNode }) => <div data-testid="mock-sidebar-header">{children}</div> }
+  ),
 }));
 
 // The lazy Excalidraw wrapper — a stub that exposes a minimal imperative API
 // so the session hook can connect and apply scenes.
 vi.mock("@/features/editor/lib/excalidraw", () => ({
   default: ({
+    children,
     onExcalidrawAPI,
     onChange,
     renderTopRightUI,
   }: {
+    children?: React.ReactNode;
     onExcalidrawAPI?: (api: unknown) => void;
     onChange?: (elements: unknown[], appState: unknown, files: unknown) => void;
     renderTopRightUI?: (isMobile: boolean, appState: unknown) => JSX.Element | null;
@@ -59,6 +66,7 @@ vi.mock("@/features/editor/lib/excalidraw", () => ({
     const topRight = renderTopRightUI?.(false, {});
     return (
       <div data-testid="mock-excalidraw" data-onchange={onChange ? "yes" : "no"}>
+        {children}
         {topRight ?? null}
       </div>
     );
@@ -68,6 +76,36 @@ vi.mock("@/features/editor/lib/excalidraw", () => ({
 vi.mock("react-i18next", () => ({
   useTranslation: () => [(key: string) => key],
 }));
+vi.mock("react-use", () => ({ useEvent: vi.fn() }));
+vi.mock("@/features/editor/hooks/use-update-slides", () => ({
+  useUpdateSlides: () => vi.fn(),
+}));
+// Provide minimal atom-like objects for Jotai useAtom/useAtomValue
+// Note: getDefaultStore().set/get in tests bypass these atom objects
+// but useAtom/useAtomValue in components read from the default store directly
+vi.mock("@/features/editor/store/presentation", () => {
+  const { atom } = require("jotai");
+  // Minimal Jotai atoms for test harness — all exported atoms must be present
+  // so that useSlide (used by SlideNavigation) doesn't throw on import.
+  const presentationModeAtom = atom(false);
+  const slidesAtom = atom([]);
+  const slideIdOrderListAtom = atom([]);
+  const showSlideQuickNavAtom = atom(false);
+  const slideGlobalIndexAtom = atom(0);
+  return {
+    presentationModeAtom,
+    slidesAtom,
+    slideIdOrderListAtom,
+    showSlideQuickNavAtom,
+    slideGlobalIndexAtom,
+    slideIdOrderListRef: { current: null },
+    // Derived atoms (computed, not exported directly — mock as atoms too)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    isFirstSlideAtom: atom((get: (x: any) => any) => get(slideGlobalIndexAtom) <= 0),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    isLastSlideAtom: atom((get: (x: any) => any) => get(slideGlobalIndexAtom) >= get(slidesAtom).length - 1),
+  };
+});
 
 const KEY43 = "A".repeat(43);
 const SHARE_ID = "B".repeat(22);
@@ -360,5 +398,32 @@ describe("RoomScreen — renderTopRightUI (092)", () => {
     // Both controls rendered via renderTopRightUI are in the document
     expect(screen.getByTestId("collab-present-toggle")).toBeTruthy();
     expect(screen.getByTestId("collab-gallery-toggle")).toBeTruthy();
+  });
+});
+
+describe("RoomScreen — slide deck integration (094)", () => {
+  test("'Edit Slides' button present in connected room", async () => {
+    localStorage.setItem(
+      COLLAB_SERVER_CONFIG,
+      JSON.stringify({ relay: "http://127.0.0.1:1999", org: "dev", sk: "A".repeat(43), ck: "A".repeat(43) }),
+    );
+    render(<RoomScreen lang="en" shareId={SHARE_ID} wsFactory={() => new StubSocket("ws://x")} />);
+    await screen.findByTestId("collab-session-chrome");
+    await waitFor(() => expect(lastSocket()).toBeDefined());
+    const ws = lastSocket();
+    await act(async () => { ws.open(); });
+    await act(async () => {
+      ws.message(
+        JSON.stringify({
+          v: 1,
+          t: "welcome",
+          p: { profileId: "any", connId: "conn-1", room: SHARE_ID, privacy: "team", snapshotAvailable: true, peers: [] },
+        }),
+      );
+    });
+    await waitFor(() => expect(screen.getByTestId("mock-excalidraw")).toBeTruthy());
+    // mock-footer renders the SlideNavigation output; the "Edit Slides" button
+    // is rendered by SlideNavigation when not in presentationMode and slides are empty
+    expect(screen.getByText("Edit Slides")).toBeTruthy();
   });
 });
