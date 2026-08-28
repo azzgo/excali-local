@@ -21,7 +21,6 @@
  * grayed/disabled when nothing is known. Enabled jump calls applyViewport
  * once (one-shot hop — pointer hops keep the current zoom). Follow icon is
  * shown only on presenting rows; clicking toggles follow (setFollowTarget).
- * The self row gains a Present toggle (startPresenting/stopPresenting).
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -29,7 +28,6 @@ import { Check, Pencil } from "lucide-react";
 import {
   IconEye,
   IconFocusCentered,
-  IconPresentation,
 } from "@tabler/icons-react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { MEMBER_NAME_MAX_LENGTH } from "collab-core";
@@ -307,7 +305,7 @@ function Row({ m, leaving, session, onEditSelfName, excalidrawAPI, onJump, onFol
         {isSelf ? `${m.name}${t("CollabSelfMarker")}` : formatLabel(m.name, m.profileId)}
       </span>
 
-      {/* --- self row actions (ADR 0006 edit + 082 Present toggle) --- */}
+      {/* --- self row actions (ADR 0006: my-name edit) --- */}
       {isSelf && (
         <>
           {/* ADR 0006: my-name edit */}
@@ -320,28 +318,6 @@ function Row({ m, leaving, session, onEditSelfName, excalidrawAPI, onJump, onFol
             onClick={onEditSelfName}
           >
             <Pencil className="size-3" />
-          </button>
-          {/* 082: Present toggle */}
-          <button
-            data-testid="collab-self-present-btn"
-            type="button"
-            title={
-              session.presentingSelf
-                ? t("CollabStopPresenting")
-                : t("CollabStartPresenting")
-            }
-            aria-label={
-              session.presentingSelf
-                ? t("CollabStopPresenting")
-                : t("CollabStartPresenting")
-            }
-            data-presenting={session.presentingSelf ? "true" : undefined}
-            className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            onClick={() =>
-              session.presentingSelf ? session.stopPresenting() : session.startPresenting()
-            }
-          >
-            <IconPresentation className="size-3" />
           </button>
         </>
       )}
