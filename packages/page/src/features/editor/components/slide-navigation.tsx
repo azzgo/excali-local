@@ -18,8 +18,10 @@ import { Hint } from "@/components/ui/hint";
 import { useTranslation } from "react-i18next";
 interface SlideNavigationProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
+  hideNav?: boolean;
+  hideWhenEmpty?: boolean;
 }
-const SlideNavigation = ({ excalidrawAPI }: SlideNavigationProps) => {
+const SlideNavigation = ({ excalidrawAPI, hideNav = false, hideWhenEmpty = false }: SlideNavigationProps) => {
   const isFirstSlide = useAtomValue(isFirstSlideAtom);
   const isLastSlide = useAtomValue(isLastSlideAtom);
   const {
@@ -35,7 +37,7 @@ const SlideNavigation = ({ excalidrawAPI }: SlideNavigationProps) => {
 
   const slideControlCallback = useCallback(
     (event: KeyboardEvent) => {
-      if (!presentationMode) {
+      if (!presentationMode || hideNav) {
         return;
       }
       if (event.key === "Escape") {
@@ -51,15 +53,17 @@ const SlideNavigation = ({ excalidrawAPI }: SlideNavigationProps) => {
         return;
       }
     },
-    [presentationMode, handleTogglePresentation, slideNext, slidePrev]
+    [presentationMode, hideNav, handleTogglePresentation, slideNext, slidePrev]
   );
 
   useEvent("keydown", slideControlCallback);
   const [t] = useTranslation();
 
+  const showEditSlides = (!hideWhenEmpty || slides.length > 0);
+
   return (
     <>
-      {presentationMode && (
+      {presentationMode && !hideNav && (
         <div className="m-auto h-full flex items-center">
           <Hint label="Slide Previous" sideOffset={8} align="end">
             <Button disabled={isFirstSlide} variant="ghost" onClick={slidePrev}>
@@ -73,7 +77,7 @@ const SlideNavigation = ({ excalidrawAPI }: SlideNavigationProps) => {
           </Hint>
         </div>
       )}
-      {!presentationMode && !showSlideQuickNavbar && (
+      {!presentationMode && !showSlideQuickNavbar && showEditSlides && (
         <div className="m-auto flex items-center">
           <Button
             disabled={slides.length === 0}

@@ -17,9 +17,10 @@ import {updateFrameElements} from "../utils/excalidraw-api.helper";
 interface SlideQuickNavbarProps {
   close: () => void;
   excalidrawAPI: ExcalidrawImperativeAPI | null;
+  applyOrder?: (frameIdList: string[]) => void;
 }
 
-const SlideNavbar = ({ close, excalidrawAPI }: SlideQuickNavbarProps) => {
+const SlideNavbar = ({ close, excalidrawAPI, applyOrder }: SlideQuickNavbarProps) => {
   const showSlideQuickNav = useAtomValue(showSlideQuickNavAtom);
   const orderedSlides = useAtomValue(slidesAtom);
   const { scrollToSlide } = useSlide(excalidrawAPI);
@@ -50,7 +51,11 @@ const SlideNavbar = ({ close, excalidrawAPI }: SlideQuickNavbarProps) => {
                 <SlideSortableList
                   initialSlides={orderedSlides}
                   onSlideClick={(slide) => scrollToSlide({ id: slide.id })}
-                  onOrderChange={(slideIdOrderList) => updateFrameElements(excalidrawAPI!, slideIdOrderList)}
+                  onOrderChange={(slideIdOrderList) =>
+                    applyOrder
+                      ? applyOrder(slideIdOrderList)
+                      : updateFrameElements(excalidrawAPI!, slideIdOrderList)
+                  }
                 />
               </div>
               <ScrollBar orientation="horizontal" />
