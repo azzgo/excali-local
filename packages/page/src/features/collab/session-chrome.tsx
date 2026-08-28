@@ -37,9 +37,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { copyInvite } from "./invite";
 import { useLabelMode } from "./labels";
+import { ROUTES } from "./routes";
 import { PresenceFeed } from "./presence";
 import type { CollabRoomMeta, CollabSessionHandle } from "./use-collab-session";
-
 interface SessionChromeProps {
   room: CollabRoomMeta;
   session: CollabSessionHandle;
@@ -116,7 +116,7 @@ export function SessionChrome({ room, session }: SessionChromeProps) {
   const handleLeave = () => {
     setLeaveOpen(false);
     session.leave();
-    window.location.hash = "#rooms";
+    window.location.hash = ROUTES.rooms;
   };
 
   /** ADR 0004: open the rename modal seeded with the current name. */

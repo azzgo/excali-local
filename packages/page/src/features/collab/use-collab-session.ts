@@ -66,7 +66,7 @@ import type {
   WsFactory,
 } from "collab-core";
 import { CaptureUpdateAction, restoreAppState } from "@excalidraw/excalidraw";
-import type { AppState, BinaryFiles, DataURL, Zoom } from "@excalidraw/excalidraw/types";
+import type { AppState, BinaryFileData, BinaryFiles, DataURL, Zoom } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { Collaborator, SocketId } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/excalidraw/element/types";
@@ -210,9 +210,12 @@ export interface CollabSessionHandle {
    * echo guard (knownSceneJsonRef) is cleared before updateScene so the
    * resulting onChange is NOT swallowed; onLocalChange then handles the
    * normal seq-bump + sendScene + debounced-persist path.  052: registers
-   * new fileIds with the hydrator for prefetch.
+   * new fileIds with the hydrator for prefetch. `files` is the Excalidraw
+   * BinaryFileData[] shape (this tgz's addFiles takes an array) — gallery
+   * normalization returns a keyed map, so callers stamp `id` per entry and
+   * spread it into an array.
    */
-  broadcastScene: (elements: readonly unknown[], files: any) => void;
+  broadcastScene: (elements: readonly unknown[], files: BinaryFileData[]) => void;
 
   /** Excalidraw onChange wiring — throttle + cache (049 §5) */
   onLocalChange: (
@@ -923,6 +926,13 @@ export function useCollabSession({
           // by profileId): no entry → silent no-op.
           if (idx === -1) return;
           const next = [...current];
+          // present-frame → state batching: presenting transitions (active)
+          // always flush; viewport frames flush only when some consumer needs
+          // them — the first frame per profile (the feed's jump button lights
+          // up) and every follow-target frame (the live follow consumer). The
+          // ~100ms present stream otherwise writes the ref twin only, so a
+          // nobody-follows room never re-renders React at 10Hz.
+          let needsFlush = "active" in present;
           if ("active" in present) {
             // active:true → set presenting; active:false → clear it.
             if (present.active) {
@@ -933,17 +943,20 @@ export function useCollabSession({
               next[idx] = rest as RosterMember;
             }
           } else {
-            // Viewport frame: update lastKnownViewport.
+            const firstFrame = current[idx].lastKnownViewport === undefined;
+            const isFollowTarget =
+              followTargetIdRef.current !== null &&
+              followTargetIdRef.current === current[idx].profileId;
+            // Viewport frame: update lastKnownViewport (ref twin always; state
+            // per needsFlush below — see the batching comment above).
             next[idx] = { ...next[idx], lastKnownViewport: { x: present.x, y: present.y, z: present.z } };
+            needsFlush = firstFrame || isFollowTarget;
             // 081: continuous follow — while this member is our follow target,
             // pin our viewport to their RAW {x,y,z} verbatim (Ticket 063 ① —
             // zero adaptation math). The echo guard token marks the resulting
             // onChange as viewport-sourced so onLocalChange can skip it (the
             // JSON-equality triad also suppresses it — same elements).
-            if (
-              followTargetIdRef.current !== null &&
-              followTargetIdRef.current === current[idx].profileId
-            ) {
+            if (isFollowTarget) {
               const apiInst = apiRef.current;
               if (apiInst !== null) {
                 followSuppressRef.current = getFollowGuardToken();
@@ -960,7 +973,7 @@ export function useCollabSession({
             }
           }
           peersRef.current = next;
-          setPeers(next);
+          if (needsFlush) setPeers(next);
           // 080: presenter left (active:false) → break follow if targeted.
           if ("active" in present && !present.active && followTargetIdRef.current === current[idx].profileId) {
             followTargetIdRef.current = null;
@@ -1400,9 +1413,7 @@ export function useCollabSession({
 
   /** See CollabSessionHandle.broadcastScene JSDoc for the protocol design. */
   const broadcastScene = useCallback(
-    (elements: readonly unknown[], files: any) => {
-      // Step 1: clear the echo guard so the updateScene echo is NOT swallowed.
-      // This is the 086 escape hatch past knownSceneJsonRef suppression.
+    (elements: readonly unknown[], files: BinaryFileData[]) => {
       knownSceneJsonRef.current = null;
       const api = apiRef.current;
       if (api === null) return;

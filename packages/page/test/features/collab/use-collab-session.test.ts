@@ -1563,15 +1563,27 @@ describe("use-collab-session — presenting state + follow (task 080)", () => {
     unmount();
   });
 
-  test("subsequent viewport frames overwrite lastKnownViewport", async () => {
+  test("later viewport frames update the ref twin; state re-flushes only when following that peer (no 10Hz re-renders)", async () => {
     const api = makeApi();
     const { result, unmount, ws } = await dialAndWelcome(api, { peers: [peer] });
+    // the FIRST frame per profile always flushes (feed jump button enables)
     await act(async () => {
       ws.message(presentMsg("conn-2", { x: 100, y: 200, z: 1.5 }));
+    });
+    expect(result.current.peers.find((p) => p.profileId === "profile-2")?.lastKnownViewport).toEqual({ x: 100, y: 200, z: 1.5 });
+    // nobody follows → later frames stay in the ref twin (no state churn)
+    await act(async () => {
       ws.message(presentMsg("conn-2", { x: 300, y: 400, z: 2.0 }));
     });
-    const p2 = result.current.peers.find((p) => p.profileId === "profile-2");
-    expect(p2?.lastKnownViewport).toEqual({ x: 300, y: 400, z: 2.0 });
+    expect(result.current.peers.find((p) => p.profileId === "profile-2")?.lastKnownViewport).toEqual({ x: 100, y: 200, z: 1.5 });
+    // following the peer → frames flush again (the live follow consumer)
+    await act(async () => {
+      (result.current as CollabSessionHandle & { setFollowTarget: (id: string | null) => void }).setFollowTarget("profile-2");
+    });
+    await act(async () => {
+      ws.message(presentMsg("conn-2", { x: 500, y: 600, z: 2.5 }));
+    });
+    expect(result.current.peers.find((p) => p.profileId === "profile-2")?.lastKnownViewport).toEqual({ x: 500, y: 600, z: 2.5 });
     unmount();
   });
 

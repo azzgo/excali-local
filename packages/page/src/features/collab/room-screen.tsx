@@ -42,7 +42,7 @@ import type { CollabRoomMeta } from "./use-collab-session";
 import type { WsFactory } from "collab-core";
 import { useCollabSession } from "./use-collab-session";
 import { useFollowBreakToast } from "./use-follow-break-toast";
-import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+import type { BinaryFileData, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import GallerySidebar from "@/features/gallery/components/gallery-sidebar";
 
 interface RoomScreenProps {
@@ -237,9 +237,16 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
       const files = JSON.parse(fullDrawing.files);
       // ADR 0009 §2: normalize image fileIds before applying to scene
       const { elements: normEls, files: normFiles } = await normalizeSceneImageRefs(elements, files);
+      // broadcastScene takes Excalidraw's BinaryFileData[] (this tgz's addFiles
+      // is array-shaped, each entry carrying its own `id`); normalization
+      // returns an id-less keyed map — stamp the id from each key.
+      const binaryFiles: BinaryFileData[] = Object.entries(normFiles).map(([fileId, f]) => ({
+        ...f,
+        id: fileId,
+      })) as BinaryFileData[];
       // 086: broadcastScene clears the echo guard, applies the scene, and registers
       // fileIds — the ordinary onChange pipeline handles seq bump + sendScene + persist.
-      session.broadcastScene(normEls, normFiles);
+      session.broadcastScene(normEls, binaryFiles);
       setChosenDrawingId(pendingLoadDrawing.id);
     } catch (err) {
       console.error("[room] failed to load drawing:", err);
