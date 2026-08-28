@@ -57,6 +57,23 @@ export function RoomTopRightControls({
 
   return (
     <div className="flex gap-x-1 items-center">
+      {/* Gallery opener — hidden when gallery sidebar is already open.
+       *  Order matches the local editor (top-right-toolbar.tsx): gallery
+       *  sits left of the presentation entry (task 095). */}
+      {!isGalleryOpen && (
+        <Hint label={t("Gallery")} align="end" sideOffset={8}>
+          <Button
+            variant="ghost"
+            data-testid="collab-gallery-toggle"
+            onClick={() =>
+              excalidrawAPI?.toggleSidebar({ name: "gallery", force: true })
+            }
+          >
+            <IconLayoutGrid className="size-4" />
+          </Button>
+        </Hint>
+      )}
+
       {/* Present toggle */}
       <Hint
         label={
@@ -93,21 +110,6 @@ export function RoomTopRightControls({
           )}
         </Button>
       </Hint>
-
-      {/* Gallery opener — hidden when gallery sidebar is already open */}
-      {!isGalleryOpen && (
-        <Hint label={t("Gallery")} align="end" sideOffset={8}>
-          <Button
-            variant="ghost"
-            data-testid="collab-gallery-toggle"
-            onClick={() =>
-              excalidrawAPI?.toggleSidebar({ name: "gallery", force: true })
-            }
-          >
-            <IconLayoutGrid className="size-4" />
-          </Button>
-        </Hint>
-      )}
     </div>
   );
 }
