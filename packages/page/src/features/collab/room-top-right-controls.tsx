@@ -2,7 +2,7 @@
  * RoomTopRightControls — the canvas top-right overlay for room sessions.
  *
  * Renders into Excalidraw's `renderTopRightUI` slot (Task 092):
- * - Present toggle: start / stop self-presentation (ADR 0008) + slide-deck (094).
+ * - Present toggle: start / stop self-presentation (ADR 0008).
  * - Gallery opener: opens the gallery sidebar (hidden when already open).
  *
  * Mirrors the shell of top-right-toolbar.tsx (flex gap-x-1, Hint→Button ghost).
@@ -14,8 +14,6 @@ import { useAtomValue } from "jotai";
 import { galleryIsOpenAtom } from "@/features/gallery/store/gallery-atoms";
 import { Button } from "@/components/ui/button";
 import { Hint } from "@/components/ui/hint";
-import { useEffect, useRef } from "react";
-import { useSlide } from "@/features/editor/hooks/use-slide";
 
 interface RoomTopRightControlsProps {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
@@ -32,28 +30,6 @@ export function RoomTopRightControls({
 }: RoomTopRightControlsProps) {
   const [t] = useTranslation();
   const isGalleryOpen = useAtomValue(galleryIsOpenAtom);
-  const { presentationMode, handleTogglePresentation } = useSlide(excalidrawAPI);
-
-  // Mount guard: skip the lockstep effect on the initial render
-  // (only react to ESCAPE-induced atom changes, not mount-time state)
-  const mounted = useRef(false);
-  // Debounce ref: prevents the effect from firing when the toggle click's
-  // handleTogglePresentation() call causes the same atom flip.
-  const debounceRef = useRef(false);
-
-  // Lockstep: when presentationMode turns OFF (e.g. SlideNavigation Escape)
-  // while we are still presenting, call stopPresenting to keep both systems in sync.
-  useEffect(() => {
-    if (!mounted.current) {
-      mounted.current = true;
-      return;
-    }
-    if (!presentationMode && session.presentingSelf && !debounceRef.current) {
-      session.stopPresenting();
-      excalidrawAPI?.updateScene({ appState: { viewModeEnabled: false } });
-    }
-    debounceRef.current = false;
-  }, [presentationMode, session, excalidrawAPI]);
 
   return (
     <div className="flex gap-x-1 items-center">
@@ -89,19 +65,11 @@ export function RoomTopRightControls({
           data-testid="collab-present-toggle"
           aria-pressed={session.presentingSelf}
           className={session.presentingSelf ? "text-foreground" : undefined}
-          onClick={() => {
-            const isOn = session.presentingSelf;
-            if (isOn) {
-              // OFF: stop session + exit slide mode via handleTogglePresentation
-              session.stopPresenting();
-              debounceRef.current = true;
-              handleTogglePresentation();
-            } else {
-              // ON: start session + enter slide mode via handleTogglePresentation
-              session.startPresenting();
-              handleTogglePresentation();
-            }
-          }}
+          onClick={() =>
+            session.presentingSelf
+              ? session.stopPresenting()
+              : session.startPresenting()
+          }
         >
           {session.presentingSelf ? (
             <IconPresentationOff className="size-4" />

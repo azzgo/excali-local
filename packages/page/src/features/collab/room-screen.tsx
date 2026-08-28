@@ -46,11 +46,6 @@ import { useCollabSession } from "./use-collab-session";
 import { useFollowBreakToast } from "./use-follow-break-toast";
 import type { BinaryFileData, ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import GallerySidebar from "@/features/gallery/components/gallery-sidebar";
-import SlideNavigation from "@/features/editor/components/slide-navigation";
-import SlideNavbar from "@/features/editor/components/slide-navbar";
-import { useUpdateSlides } from "@/features/editor/hooks/use-update-slides";
-import { showSlideQuickNavAtom } from "@/features/editor/store/presentation";
-import { useAtom } from "jotai";
 
 interface RoomScreenProps {
   lang: string;
@@ -216,10 +211,6 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
     setExcalidrawAPI(api);
   }, []);
 
-  // --- Slide deck assembly (094: slide-deck presentation mode) ---
-  const [showSlideQuickNav, updateShowSlideQuickNav] = useAtom(showSlideQuickNavAtom);
-  const updateSlides = useUpdateSlides();
-
   // --- Gallery sidebar state (room-mode only) ---
   // pendingLoadDrawing: drawing awaiting confirm (null = no modal open)
   const [pendingLoadDrawing, setPendingLoadDrawing] = useState<DrawingMetadata | null>(null);
@@ -304,11 +295,9 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
             showDeprecatedFonts={false}
             onExcalidrawAPI={onExcalidrawAPI}
             onPointerUpdate={session.onLocalPointer}
-            onChange={(elements, appState, files) => {
-              session.onLocalChange(elements, appState, files);
-              // 094: feed slide assembly from the live element stream
-              updateSlides(elements, files);
-            }}
+            onChange={(elements, appState, files) =>
+              session.onLocalChange(elements, appState, files)
+            }
             generateIdForFile={generateIdForFile}
             onScrollChange={(scrollX, scrollY, zoom) =>
               session.onLocalViewportChange(scrollX, scrollY, zoom)
@@ -320,7 +309,6 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
               />
             )}
           >
-            <SlideNavigation excalidrawAPI={excalidrawAPI} />
             {/* Gallery sidebar (room-mode): mounts inside the Excalidraw Sidebar slot.
              * If the Excalidraw Sidebar island is unavailable (dock-panel fallback
              * taken), GallerySidebar still renders inside Excalidraw's children — it
@@ -332,13 +320,6 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
               chosenDrawingId={chosenDrawingId ?? undefined}
             />
           </Excalidraw>
-          {/* 094: slide deck presentation mode — "Edit Slides" quick nav + prev/next controls */}
-          <div className={!showSlideQuickNav ? "hidden" : undefined}>
-            <SlideNavbar
-              excalidrawAPI={excalidrawAPI}
-              close={() => updateShowSlideQuickNav(false)}
-            />
-          </div>
         </div>
 
         {/* seed prompt — empty room, no cache (053/061 rule C). Minimal
