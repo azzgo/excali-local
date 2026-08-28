@@ -1,3 +1,5 @@
+import { RoomTopRightControls } from "./room-top-right-controls";
+
 /**
  * RoomScreen — the room session surface (Wayfinder 053 sessionLive; task
  * 044 replaces the shell placeholder). `#room/<shareId>` re-activates the
@@ -300,6 +302,12 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
             onScrollChange={(scrollX, scrollY, zoom) =>
               session.onLocalViewportChange(scrollX, scrollY, zoom)
             }
+            renderTopRightUI={() => (
+              <RoomTopRightControls
+                excalidrawAPI={excalidrawAPI}
+                session={session}
+              />
+            )}
           >
             {/* Gallery sidebar (room-mode): mounts inside the Excalidraw Sidebar slot.
              * If the Excalidraw Sidebar island is unavailable (dock-panel fallback

@@ -11,6 +11,7 @@
  * the chrome above the canvas, the conn-banner slot seam (046/047), and the
  * seed prompt for an empty room (rule C) with seed broadcast.
  */
+import type { JSX } from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import RoomScreen from "@/features/collab/room-screen";
@@ -36,9 +37,11 @@ vi.mock("@/features/editor/lib/excalidraw", () => ({
   default: ({
     onExcalidrawAPI,
     onChange,
+    renderTopRightUI,
   }: {
     onExcalidrawAPI?: (api: unknown) => void;
     onChange?: (elements: unknown[], appState: unknown, files: unknown) => void;
+    renderTopRightUI?: (isMobile: boolean, appState: unknown) => JSX.Element | null;
   }) => {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const { useEffect } = require("react");
@@ -53,7 +56,12 @@ vi.mock("@/features/editor/lib/excalidraw", () => ({
         addFiles: () => {},
       });
     }, [onExcalidrawAPI]);
-    return <div data-testid="mock-excalidraw" data-onchange={onChange ? "yes" : "no"} />;
+    const topRight = renderTopRightUI?.(false, {});
+    return (
+      <div data-testid="mock-excalidraw" data-onchange={onChange ? "yes" : "no"}>
+        {topRight ?? null}
+      </div>
+    );
   },
 }));
 
@@ -323,5 +331,34 @@ describe("RoomScreen — follow-break gesture listeners scope (083)", () => {
     await openFeed();
     expect(screen.getByTestId("collab-row-follow-peer-1").dataset.followActive).toBeUndefined();
     expect(toastMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("RoomScreen — renderTopRightUI (092)", () => {
+  test("in a connected room (StubSocket + welcome), both collab-present-toggle and collab-gallery-toggle are present", async () => {
+    localStorage.setItem(
+      COLLAB_SERVER_CONFIG,
+      JSON.stringify({ relay: "http://127.0.0.1:1999", org: "dev", sk: "A".repeat(43), ck: "A".repeat(43) }),
+    );
+    render(<RoomScreen lang="en" shareId={SHARE_ID} wsFactory={() => new StubSocket("ws://x")} />);
+    await screen.findByTestId("collab-session-chrome");
+    await waitFor(() => expect(lastSocket()).toBeDefined());
+    const ws = lastSocket();
+    await act(async () => { ws.open(); });
+    await act(async () => {
+      ws.message(
+        JSON.stringify({
+          v: 1,
+          t: "welcome",
+          p: { profileId: "any", connId: "conn-1", room: SHARE_ID, privacy: "team", snapshotAvailable: true, peers: [] },
+        }),
+      );
+    });
+    // wait for session to settle
+    await waitFor(() => expect(screen.getByTestId("mock-excalidraw")).toBeTruthy());
+
+    // Both controls rendered via renderTopRightUI are in the document
+    expect(screen.getByTestId("collab-present-toggle")).toBeTruthy();
+    expect(screen.getByTestId("collab-gallery-toggle")).toBeTruthy();
   });
 });
