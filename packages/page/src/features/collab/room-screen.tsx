@@ -280,8 +280,11 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
       <SessionChrome room={room} session={session} />
 
       {/* Session-level notification stack — floats over the top-right of the
-       * canvas so alerts never push the canvas down. */}
-      <div className="relative flex-1 overflow-hidden">
+       * canvas so alerts never push the canvas down. flex-col so the slide
+       * quick-nav (SlideNavbar, task 101) gets natural height BELOW the canvas
+       * when open — an h-full canvas + overflow-hidden clips it to invisibility
+       * (the "Edit Slides click does nothing" bug). */}
+      <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden">
         <div className="pointer-events-none absolute inset-0 z-50">
           <div data-testid="collab-notification-stack" className="pointer-events-auto absolute right-4 top-4 flex w-80 max-w-[calc(100%-2rem)] flex-col gap-2">
             <ConfigPropagationBanner live={session.live} />
@@ -297,7 +300,7 @@ function RoomSession({ lang, shareId, server, room, wsFactory }: RoomSessionProp
         {/* 083: the follow-break gesture listeners attach at the CANVAS
          * container level ONLY — a pointerdown on the notification stack /
          * seed prompt must never break follow (see use-follow-break-toast). */}
-        <div ref={canvasAreaRef} data-testid="collab-canvas-area" className="h-full min-h-0">
+        <div ref={canvasAreaRef} data-testid="collab-canvas-area" className="flex-1 min-h-0">
           <Excalidraw
             autoFocus
             langCode={lang}
