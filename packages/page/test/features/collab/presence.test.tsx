@@ -510,21 +510,28 @@ describe("PresenceFeed — row actions (082: cursor jump + follow toggle)", () =
     connId: "conn-c", self: false,
   };
 
-  test("hover reveals dual icons on non-self row", () => {
+  test("hover fades in dual icons on non-self row (icons always mounted — no hover jitter)", () => {
     const session = makeSession({
       peers: [selfRow, presenterWithViewport, peerWithPointer],
     });
     renderFeed(session, { excalidrawAPI: makeApi() });
 
-    // Icons hidden by default
-    expect(screen.queryByTestId("collab-row-jump-a3f9c2d1")).toBeNull();
-    expect(screen.queryByTestId("collab-row-follow-a3f9c2d1")).toBeNull();
+    // Icons are ALWAYS mounted (wayfinder .row-hover: reserve space, hover only
+    // fades them in — width/height must not change on hover). Hidden state:
+    const jumpBtn = screen.getByTestId("collab-row-jump-a3f9c2d1");
+    const followBtn = screen.getByTestId("collab-row-follow-a3f9c2d1");
+    const wrap = jumpBtn.parentElement as HTMLElement;
+    expect(wrap.getAttribute("data-hidden")).toBe("true");
+    expect(wrap.className).toContain("opacity-0");
+    expect(wrap.className).toContain("pointer-events-none");
 
-    // Hover row → icons appear
+    // Hover row → icons fade in (same nodes, no layout shift)
     const row = screen.getByTestId("collab-feed-row-a3f9c2d1");
     fireEvent.mouseEnter(row);
-    expect(screen.getByTestId("collab-row-jump-a3f9c2d1")).toBeTruthy();
-    expect(screen.getByTestId("collab-row-follow-a3f9c2d1")).toBeTruthy();
+    expect(wrap.getAttribute("data-hidden")).toBeNull();
+    expect(wrap.className).toContain("opacity-100");
+    expect(jumpBtn).toBeTruthy();
+    expect(followBtn).toBeTruthy();
   });
 
   test("jump icon is disabled/grayed when the row has neither viewport nor pointer", () => {

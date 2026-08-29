@@ -21,14 +21,15 @@
  * grayed/disabled when nothing is known. Enabled jump calls applyViewport
  * once (one-shot hop — pointer hops keep the current zoom). Follow icon is
  * shown only on presenting rows; clicking toggles follow (setFollowTarget).
+ *
+ * Icons restored toward the wayfinder collab-room-ux prototype: lucide
+ * Crosshair (jump) + Video (follow) at 14px in uniform 24px hit boxes,
+ * violet accent #6965db on the follow button (#e5dbff while following),
+ * row hover background, name pushed left with icons pinned right.
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, Pencil } from "lucide-react";
-import {
-  IconEye,
-  IconFocusCentered,
-} from "@tabler/icons-react";
+import { Check, Crosshair, Pencil, Video } from "lucide-react";
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { MEMBER_NAME_MAX_LENGTH } from "collab-core";
 import { cn } from "@/lib/utils";
@@ -282,7 +283,7 @@ function Row({ m, leaving, session, onEditSelfName, excalidrawAPI, onJump, onFol
       data-testid={`collab-feed-row-${m.profileId}`}
       data-self={isSelf ? "true" : undefined}
       className={cn(
-        "flex items-center gap-2 rounded-md px-1 py-1",
+        "flex items-center gap-2 rounded-md px-1.5 py-1 transition-colors hover:bg-muted/50",
         leaving
           ? "opacity-0 transition-opacity duration-250"
           : "animate-in fade-in duration-250",
@@ -301,7 +302,7 @@ function Row({ m, leaving, session, onEditSelfName, excalidrawAPI, onJump, onFol
       />
 
       {/* name label */}
-      <span data-testid={`collab-feed-label-${m.profileId}`} className="truncate text-xs">
+      <span data-testid={`collab-feed-label-${m.profileId}`} className="min-w-0 flex-1 truncate text-xs">
         {isSelf ? `${m.name}${t("CollabSelfMarker")}` : formatLabel(m.name, m.profileId)}
       </span>
 
@@ -314,17 +315,26 @@ function Row({ m, leaving, session, onEditSelfName, excalidrawAPI, onJump, onFol
             type="button"
             title={t("CollabSelfNameEdit")}
             aria-label={t("CollabSelfNameEdit")}
-            className="shrink-0 rounded p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             onClick={onEditSelfName}
           >
-            <Pencil className="size-3" />
+            <Pencil className="size-3.5" />
           </button>
         </>
       )}
 
       {/* --- non-self row hover actions (082: jump + follow) --- */}
-      {!isSelf && hovered && (
-        <>
+      {/* Always mounted (wayfinder prototype .row-hover): the icons reserve
+          their space so hover only fades them in — no width/height jitter. */}
+      {!isSelf && (
+        <span
+          data-hidden={hovered ? undefined : "true"}
+          inert={!hovered || undefined}
+          className={cn(
+            "flex shrink-0 items-center gap-0.5 transition-opacity duration-150",
+            hovered ? "opacity-100" : "pointer-events-none opacity-0",
+          )}
+        >
           {/* Jump: cursor-jump to peer's viewport */}
           <button
             data-testid={`collab-row-jump-${m.profileId}`}
@@ -333,14 +343,14 @@ function Row({ m, leaving, session, onEditSelfName, excalidrawAPI, onJump, onFol
             aria-label={t("CollabJumpToViewport")}
             aria-disabled={jumpDisabled}
             className={cn(
-              "shrink-0 rounded p-0.5 transition-colors",
+              "flex size-6 shrink-0 items-center justify-center rounded-md transition-colors",
               jumpDisabled
-                ? "cursor-not-allowed text-muted-foreground/40"
+                ? "cursor-not-allowed text-muted-foreground opacity-35"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
             onClick={handleJumpClick}
           >
-            <IconFocusCentered className="size-3" />
+            <Crosshair className="size-3.5" />
           </button>
 
           {/* Follow: only on presenting rows */}
@@ -352,17 +362,17 @@ function Row({ m, leaving, session, onEditSelfName, excalidrawAPI, onJump, onFol
               aria-label={t("CollabFollowToggle")}
               data-follow-active={isFollowing ? "true" : undefined}
               className={cn(
-                "shrink-0 rounded p-0.5 transition-colors",
+                "flex size-6 shrink-0 items-center justify-center rounded-md transition-colors",
                 isFollowing
-                  ? "text-foreground hover:bg-muted"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                  ? "bg-[#e5dbff] text-[#6965db]"
+                  : "text-[#6965db] hover:bg-muted",
               )}
               onClick={handleFollowClick}
             >
-              <IconEye className={cn("size-3", isFollowing && "fill-current")} />
+              <Video className="size-3.5" />
             </button>
           )}
-        </>
+        </span>
       )}
     </div>
   );
