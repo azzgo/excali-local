@@ -1,6 +1,7 @@
 ---
 name: excali-local
 description: Draw and iterate on Excalidraw diagrams by driving the Excali Local browser extension via its CLI. Covers canvas drawing (elements, scene, export), the local gallery, and font config. Fully offline, no browser automation, no remote services.
+disable-model-invocation: true
 ---
 
 # Excali Local — drive the editor from a CLI
