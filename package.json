@@ -28,6 +28,7 @@
     "relay:dev:https": "tsx scripts/relay-dev.ts --https",
     "relay:keygen": "tsx scripts/relay-keygen.ts",
     "relay:integration": "tsx scripts/relay-integration.ts",
+    "relay:smoke": "tsx scripts/relay-ed25519-smoke.ts",
     "relay:serve": "tsx scripts/relay-serve.ts"
   },
   "devDependencies": {
