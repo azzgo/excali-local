@@ -69,6 +69,68 @@ Excali Local 是一个浏览器扩展，让 **Excalidraw 完全离线可用**：
 
 6. **从智能体或 CLI 驱动画布** — 在扩展中开启智能体访问，安装技能（`npx skills add azzgo/excali-local --skill excali-local -y`），然后通过本地 WebSocket 桥接以编程方式绘图。完整指南：[Agent Bridge 指南](docs/AGENT_BRIDGE.zh-CN.md)。
 
+## 用 workerd 自托管中继（不需要 Cloudflare 账号）
+
+协作需要一个中继。**默认方式是 Cloudflare Workers** —— 在你自己的 Cloudflare 账号上
+执行一次 `wrangler deploy`（见[协作指南](docs/COLLAB.md)）。如果你完全不想用
+Cloudflare，可以用 `workerd`（Cloudflare 边缘跑的那个开源运行时）把**同一个中继**跑在
+你自己的机器上。不需要账号，不经过第三方；进程监听在你本机，房间状态存在本地 SQLite 里。
+
+一条命令搞定：
+
+```bash
+pnpm install
+pnpm relay:serve --url https://relay.example.com
+```
+
+它会打印一个 `ORG_PUBKEYS` 值（同时写入中继读取的环境变量），以及一份可直接粘贴的
+**服务器邀请**（Options → Collaboration）。把这个 URL 放到 Caddy 或 nginx 后面提供 TLS。
+成员粘贴邀请即可照常协作。
+
+```bash
+pnpm relay:serve                                  # 127.0.0.1:1999，本地测试
+pnpm relay:serve --port 8080 --url https://relay.example.com
+pnpm relay:serve --help                           # 查看全部参数
+```
+
+| 参数 | 默认值 | 含义 |
+| --- | --- | --- |
+| `--port` | `1999` | 监听端口 |
+| `--host` | `127.0.0.1` | 监听地址（用 `0.0.0.0` 接受远程流量） |
+| `--url` | `http://127.0.0.1:<port>` | 成员实际拨号的**公网** URL |
+| `--org` | `local` | 组织标签 |
+| `--keys` | `.selfhost-keys.json` | 组织身份文件（已加入 gitignore） |
+
+### 真实部署必须有 TLS
+
+客户端只对回环地址（`127.0.0.1` / `[::1]`）接受明文 `http://`\/`ws://`。任何其他机器能访问的
+地址都必须是 `https://`。`relay:serve` 自身不处理 TLS —— 请在它前面挂一层，例如：
+
+```caddyfile
+relay.example.com {
+  reverse_proxy 127.0.0.1:1999
+}
+```
+
+```bash
+pnpm relay:serve --host 127.0.0.1 --port 1999 --url https://relay.example.com
+```
+
+### 需要知道的几件事
+
+- **密钥就是组织。** `.selfhost-keys.json` 保存签名种子与内容密钥；持有邀请的人就是成员。
+  请备份、切勿提交（已在 gitignore 中），若泄露则按[密钥轮换](docs/COLLAB.md)处理。
+  如果你想要一次性生成的、不落盘的生产密钥，改用
+  `pnpm relay:keygen --org acme --relay https://relay.example.com`，并自行设置
+  `ORG_PUBKEYS`。
+- **仅单节点，无 SLA。** 房间状态是单机上的本地 SQLite —— 没有复制，也没有第二个节点。
+  可用性、备份、TLS 与升级都由你自己负责。
+- **先验证运行时再信任它。** 中继的准入基于 Ed25519，而并非所有 Workers 运行时都实现它：
+  `workerd` 实现了，但例如 `celld` 没有。`pnpm relay:smoke` 会证明当前运行时能正确导入并
+  验证 Ed25519 原始密钥 —— 更换运行时版本后请跑一次。
+
+背景与被淘汰的备选方案：[ADR 0010](docs/adr/0010-self-host-cf-workerd.md)。
+
 ## 参见
 
 构建智能体驱动功能时参考过的实现：

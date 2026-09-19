@@ -23,20 +23,21 @@ Excali Local 1.8.0 的实时协作：**无宿主、端到端加密的房间，�
 Cloudflare 账号**——不需要 PartyKit 云、无需额外登录；或用 `wrangler dev` 本地跑
 （见[本地开发循环](#本地开发循环)）。
 
-> **不用 Cloudflare？** Durable Objects 运行时可以自托管：
-> [celld](https://github.com/denoland/celld) 内嵌 V8、直接执行 wrangler 打包产物
-> （Workers + Durable Objects）跑在你自己的机器上——每个 DO 由 SQLite 支撑、
-> 复制到你自有的 bucket（S3/GCS/Azure），无控制面。这是本中继可行的非
-> Cloudflare 路径，无需重写 WS 服务器。
+> **不用 Cloudflare？就自托管 `workerd` 本身。** 用 `pnpm relay:serve` 把
+> Cloudflare 边缘跑的那个运行时跑在你自己的机器上——单节点、Durable Objects 由
+> SQLite 支撑、无控制面、不需要账号。TLS 由你自己提供（前面挂 Caddy/nginx 反向代理）。
+> 完整步骤：[README → 用 workerd 自托管中继](../README.zh-CN.md)（"用 workerd 自托管中继" 一节）。
+> 决策与备选方案：[ADR 0010](./adr/0010-self-host-cf-workerd.md)。
 >
-> **状态：暂停 —— 等待 celld 支持 WebCrypto Ed25519。** 2026-08 试点已把中继
-> 部署到 celld v0.3.0（deploy/vars/DO cells/hibernatable WebSocket 全部正常），
-> 但其内嵌 V8 拒绝 `crypto.subtle.importKey("raw", …, { name: "Ed25519" })`
-> （"unsupported key import"）——每个 org 签名 hello 都被拒绝。celld 仍是首选
-> 自托管目标（原生读 wrangler 配置 + partyserver + 休眠；只缺加密）。目前唯一
-> 完整替代是自行运行 **workerd** 运行时（自托管 Workers）——#4 `cloudflare:workers`
-> 和 #12 Ed25519 都原生通过，但需要 capnp 配置翻译、单节点、TLS 靠反向代理。
-> 待 celld upstream 落地 Ed25519 后重新评估。
+> 决定这件事的门槛是 **Ed25519 原始公钥导入**——没有它，中继的 org 签名准入会
+> 拒绝每一个 hello。`workerd` 通过（2026-09-08 端到端验证）；此前首选的
+> [celld](https://github.com/denoland/celld) 不通过——其内嵌 V8 对
+> `crypto.subtle.importKey("raw", …, { name: "Ed25519" })` 报
+> "unsupported key import"。在 celld 上游补上之前，它只作为跟踪中的备选。
+>
+> `pnpm relay:smoke` 把这个契约钉死：它是你更换运行时或 workerd 版本时按需跑的
+> 检查；任何运行时丢掉 Ed25519 原始导入，几秒内就会失败。自托管是可选项，所以
+> 它刻意不做成 CI 步骤。
 
 下面所有 wrangler 命令都在 **`packages/collab-relay/`** 目录执行（`wrangler.jsonc`
 在那里）；`pnpm relay:keygen` 是**仓库根目录**脚本：

@@ -124,24 +124,31 @@ trusts the membership; bandwidth abuse is not part of the v1 threat model.
 **What the code does**: documented behavior — the relay is not intended for
 public/multi-tenant operation.
 
-### Non-Cloudflare relay self-hosting deferred (pending celld WebCrypto)
+### Non-Cloudflare relay self-hosting: single-node only, no SLA
 
-**What**: the relay's non-Cloudflare self-hosting path is parked. The preferred
-target — [celld](https://github.com/denoland/celld), which natively reads the
-wrangler config and runs partyserver DOs with hibernatable WebSockets — lacks
-WebCrypto Ed25519 key import in its embedded V8, so the relay's org-signature
-admission rejects every connection.
+**What**: self-hosting the relay away from Cloudflare is supported — run
+`workerd` itself (`pnpm relay:dev` drives it via `wrangler dev`; see
+[ADR 0010](./adr/0010-self-host-cf-workerd.md)). Two limits come with it:
 
-**Why**: evaluated in the 2026-08 pilot: the whole stack (deploy via
-`celld deploy`, SQLite cells, vars, WS upgrades) works except
-`crypto.subtle.importKey("raw", …, {name:"Ed25519"})`. The relay's admission
-and per-frame verification are Ed25519-based by design (ADR 0003).
+1. **Single-node.** Durable Object persistence rides on workerd's built-in
+   SQLite cells, which live on one machine. There is no replication story; a
+   second node does not exist. Multi-node is deliberately out of scope for now
+   (a future ADR, not this one).
+2. **No SLA.** This repo ships the runtime integration, not a turnkey platform.
+   Cloudflare offers no SLA for the open-source `workerd` build and we do not
+   commit to one on the deployer's behalf — availability, backups, TLS
+   termination (Caddy/nginx in front of it), and upgrades are the deployer's.
 
-**What the code does**: the relay targets Cloudflare today (`wrangler deploy`);
-COLLAB.md marks self-hosting as parked pending celld's crypto support. Should
-it become a release requirement earlier, the fallback is running **workerd**
-itself (complete runtime; capnp config translation, single-node, TLS via
-reverse proxy) or a pure-JS Ed25519 verify shim in `collab-core` as a stopgap.
+**Why**: the runtime choice was gated on Ed25519 raw key import, which the
+relay's org-signature admission requires. [celld](https://github.com/denoland/celld)
+was the preferred target until the 2026-08 pilot showed its embedded V8 rejects
+`crypto.subtle.importKey("raw", …, {name:"Ed25519"})`, so every org-signed hello
+was refused. `workerd` passed the same probe on 2026-09-08.
+
+**What the code does**: `pnpm relay:smoke` asserts the Ed25519 raw-import + verify
+round-trip (happy and tampered) against the current runtime, so a runtime that
+regresses this fails loudly instead of silently locking out every member.
+Multi-node replication is not implemented.
 
 ### Effective single-org: rooms are org-unbound (v1)
 

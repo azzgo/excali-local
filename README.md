@@ -70,6 +70,74 @@ Demo: [YouTube](https://youtu.be/_aHWUz9Og-I) | [Bilibili](https://www.bilibili.
 
 6. **Drive the canvas from an agent or CLI** — enable agent access in the extension, install the Skill (`npx skills add azzgo/excali-local --skill excali-local -y`), and draw programmatically over the local WebSocket bridge. Full guide: [Agent Bridge Guide](docs/AGENT_BRIDGE.md).
 
+## Self-host the relay on workerd (no Cloudflare account)
+
+Collaboration needs a relay. **The default is Cloudflare Workers** — one
+`wrangler deploy` on your own Cloudflare account (see the [Collaboration
+Guide](docs/COLLAB.md)). If you would rather not use Cloudflare at all, you can
+run the very same relay on your own machine with `workerd`, the open-source
+runtime Cloudflare's edge runs. No account, no third party; the process listens
+on your box and stores room state in local SQLite.
+
+One command does it:
+
+```bash
+pnpm install
+pnpm relay:serve --url https://relay.example.com
+```
+
+It prints an `ORG_PUBKEYS` value (also written to the env the relay reads) and a
+paste-ready **server invite** for Options → Collaboration. Put that URL behind
+Caddy or nginx for TLS. Members paste the invite and collaborate as usual.
+
+```bash
+pnpm relay:serve                                  # 127.0.0.1:1999, local testing
+pnpm relay:serve --port 8080 --url https://relay.example.com
+pnpm relay:serve --help                           # all flags
+```
+
+| Flag | Default | Meaning |
+| --- | --- | --- |
+| `--port` | `1999` | bind port |
+| `--host` | `127.0.0.1` | bind host (use `0.0.0.0` to accept remote traffic) |
+| `--url` | `http://127.0.0.1:<port>` | **public** URL members dial |
+| `--org` | `local` | org label |
+| `--keys` | `.selfhost-keys.json` | org identity file (gitignored) |
+
+### TLS is required for a real deployment
+
+The client only accepts plaintext `http://`/`ws://` for loopback
+(`127.0.0.1` / `[::1]`). Anything reachable by another machine must be
+`https://`. `relay:serve` does not terminate TLS itself — front it, for example:
+
+```caddyfile
+relay.example.com {
+  reverse_proxy 127.0.0.1:1999
+}
+```
+
+```bash
+pnpm relay:serve --host 127.0.0.1 --port 1999 --url https://relay.example.com
+```
+
+### Things to know
+
+- **Keys are the org.** `.selfhost-keys.json` holds the signing seed and content
+  key; everyone with the invite is a member. Back it up, never commit it (it is
+  gitignored), and rotate via [Key rotation](docs/COLLAB.md) if leaked. For a
+  one-shot production keypair that is not written to disk, use
+  `pnpm relay:keygen --org acme --relay https://relay.example.com` instead and
+  set `ORG_PUBKEYS` yourself.
+- **Single-node, no SLA.** Room state is local SQLite on one machine — there is no
+  replication and no second node. Availability, backups, TLS, and upgrades are
+  yours to own.
+- **Verify the runtime before trusting it.** The relay's admission is Ed25519-based,
+  and not every Workers runtime implements it: `workerd` does, but `celld` for
+  example does not. `pnpm relay:smoke` proves the current runtime imports and
+  verifies Ed25519 raw keys correctly — run it after changing runtime versions.
+
+Background and the alternatives considered: [ADR 0010](docs/adr/0010-self-host-cf-workerd.md).
+
 ## See also
 
 Reference implementations consulted when building the agent-drive feature:

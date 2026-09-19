@@ -35,23 +35,24 @@ project (Cloudflare Workers + Durable Objects). Deploy to **your own Cloudflare
 account** with wrangler — no PartyKit cloud, no extra login — or run locally with
 `wrangler dev` (see [Local dev loop](#local-dev-loop)).
 
-> **Not on Cloudflare?** Durable Objects runtimes are self-hostable:
-> [celld](https://github.com/denoland/celld) embeds V8 and executes wrangler
-> bundles (Workers + Durable Objects) on your own machines — each DO backed by
-> SQLite replicated to a bucket you own (S3/GCS/Azure), no control plane. A
-> viable non-Cloudflare path for this relay with zero WS-server rewrite.
+> **Not on Cloudflare? Self-host on `workerd` itself.** Run the same runtime
+> Cloudflare's edge runs, via `pnpm relay:serve`, on your own machine —
+> single-node, SQLite-backed Durable Objects, no control plane, no account.
+> You supply TLS (Caddy/nginx reverse proxy in front). Full walkthrough:
+> [README → Self-host the relay on workerd](../README.md#self-host-the-relay-on-workerd-no-cloudflare-account).
+> Decision and alternatives: [ADR 0010](./adr/0010-self-host-cf-workerd.md).
 >
-> **Status: PARKED — awaiting celld WebCrypto Ed25519.** The 2026-08 pilot
-> shipped the relay to celld v0.3.0 (deploy/vars/DO cells/hibernatable
-> WebSockets all work) but its embedded V8 rejects
-> `crypto.subtle.importKey("raw", …, { name: "Ed25519" })` ("unsupported key
-> import") — every org-signed hello is rejected. celld remains the preferred
-> self-hosting target (native wrangler config + partyserver + hibernation; only
-> crypto is missing). The one complete alternative today is running the
-> **workerd** runtime yourself (self-hosted Workers) — it passes the
-> `cloudflare:workers` and Ed25519 gates natively, but needs a capnp config
-> translation, runs single-node, and wants a reverse proxy for TLS. Revisit
-> celld when Ed25519 lands upstream.
+> The gate that decides this is **Ed25519 raw key import** — the relay's
+> org-signature admission rejects every hello without it. `workerd` passes it
+> (verified end-to-end 2026-09-08); [celld](https://github.com/denoland/celld),
+> the previously preferred target, fails it — its embedded V8 answers
+> `crypto.subtle.importKey("raw", …, { name: "Ed25519" })` with "unsupported key
+> import". celld stays a tracked alternative until that lands upstream.
+>
+> `pnpm relay:smoke` pins this contract: an on-demand check you run when the
+> runtime or workerd version changes. Any runtime that loses Ed25519 raw
+> import fails it in seconds. Self-hosting is opt-in, so this is deliberately
+> not a CI step.
 
 All wrangler commands below run from **`packages/collab-relay/`** (where
 `wrangler.jsonc` lives); `pnpm relay:keygen` is a **repo-root** script:

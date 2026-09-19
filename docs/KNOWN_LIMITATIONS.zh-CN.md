@@ -100,21 +100,27 @@ Chrome 把扩展源当作启用了 `document.domain` 的源，而 WebMCP 实现�
 
 **代码做了什么**：记录在案的行为——中继不适用于公开/多租户运营。
 
-### 非 Cloudflare 的自托管中继延后（等待 celld WebCrypto）
+### 非 Cloudflare 自托管中继：仅单节点，无 SLA
 
-**现象**：中继的非 Cloudflare 自托管路径暂停。首选目标
-——[celld](https://github.com/denoland/celld)（原生读 wrangler 配置、跑 partyserver DO、
-支持 hibernatable WebSocket）——其内嵌 V8 缺少 WebCrypto Ed25519 密钥导入，
-导致中继的 org 签名准入拒绝所有连接。
+**现象**：中继可以自托管在 Cloudflare 之外——自行运行 `workerd`（`pnpm relay:dev`
+通过 `wrangler dev` 驱动它；见 [ADR 0010](./adr/0010-self-host-cf-workerd.md)）。
+随之而来两条限制：
 
-**原因**：2026-08 试点实测：整条链路（`celld deploy`、SQLite cells、vars、WS 升级）
-都正常，唯独 `crypto.subtle.importKey("raw", …, {name:"Ed25519"})` 失败。中继的
-准入与逐帧验签按设计就是 Ed25519 系的（ADR 0003）。
+1. **单节点。** Durable Object 的持久化依赖 workerd 内建的 SQLite cells，落在一台
+   机器上。没有复制方案，不存在第二个节点。多节点目前刻意不在范围内（留给后续
+   ADR，不是这一个）。
+2. **无 SLA。** 本仓库交付的是运行时集成，不是交钥即用的平台。Cloudflare 不为开源
+   `workerd` 构建提供 SLA，我们也不代部署者承诺任何 SLA——可用性、备份、TLS 终结
+   （在前面挂 Caddy/nginx）与升级都由部署者负责。
 
-**代码做了什么**：中继当前以 Cloudflare 为目标（`wrangler deploy`）；COLLAB.md 已把
-自托管标记为暂停、等待 celld 的加密支持。若自托管提前成为发布要求，兜底方案是自行运行
-**workerd**（完整运行时；需 capnp 配置翻译、单节点、TLS 走反向代理），或给
-`collab-core` 加纯 JS Ed25519 验签补丁作为应急。
+**原因**：运行时选型卡在 Ed25519 原始公钥导入上，这是中继 org 签名准入的前提。
+[celld](https://github.com/denoland/celld) 曾是首选目标，但 2026-08 试点显示其内嵌
+V8 拒绝 `crypto.subtle.importKey("raw", …, {name:"Ed25519"})`，导致每个 org 签名
+hello 都被拒。`workerd` 在 2026-09-08 通过了同一探测。
+
+**代码做了什么**：`pnpm relay:smoke` 针对当前运行时断言 Ed25519 原始导入 + 验签
+往返（正常与篡改两种输入），因此如果一个运行时在这点上退化，会立即高声失败，
+而不是静默把所有成员锁在门外。多节点复制未实现。
 
 ### v1 实际为单 org：房间不绑定组织
 
