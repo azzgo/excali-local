@@ -167,13 +167,20 @@ Cloudflare's acquisition of PartyKit:
   `packages/collab-relay/.dev.vars`, spawns `wrangler dev` on 127.0.0.1:1999.
 - **Keygen** (`pnpm relay:keygen --org … --relay …`): the production org keypair +
   server-invite generator (the doc'd `org-keygen` tool, now real).
-- **Non-Cloudflare self-hosting — parked, awaiting celld WebCrypto.** DO runtimes
-  like [celld](https://github.com/denoland/celld) execute wrangler bundles (Workers +
-  DO, SQLite cells) natively — the preferred target — but the 2026-08 pilot found
-  celld v0.3.0's embedded V8 rejects Ed25519 raw key import, so org-signature
-  admission rejects every hello. Complete fallback today: run **workerd** itself
-  (self-hosted Workers runtime; capnp config translation, single-node, TLS via
-  reverse proxy). Revisit celld when Ed25519 lands upstream (details in COLLAB.md).
+- **Non-Cloudflare self-hosting — settled by [ADR 0010](./0010-self-host-cf-workerd.md).**
+  DO runtimes like [celld](https://github.com/denoland/celld) execute
+  wrangler bundles (Workers + DO, SQLite cells) natively and remain the
+  preferred target — but the 2026-08 pilot found celld v0.3.0's embedded
+  V8 rejects Ed25519 raw key import, so org-signature admission rejects
+  every hello. The 2026-09-08 Ed25519 hello probe against stock
+  `workerd 1.20260820.1` passed cleanly (raw 32-byte pubkey import +
+  verify on a tampered control), so the approved self-host path is to
+  run **workerd itself** with `wrangler dev` as the production entry
+  (single invocation covers dev and prod; TLS at a Caddy/nginx
+  terminator). open-compute and celld remain tracked alternative paths
+  (ADR 0010 §"Why not the alternatives"); the Ed25519 hello fixture
+  becomes `scripts/relay-ed25519-smoke.ts` (`pnpm relay:smoke`) so
+  neither regression can resurface silently.
 - **Production gotchas found in the first real deployment** (both fixed in code,
   recorded for future maintainers): (a) passing the entry upgrade `Request`
   straight into the DO RPC loses the `Upgrade` header on production (the DO
