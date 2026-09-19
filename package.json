@@ -27,7 +27,8 @@
     "relay:dev": "tsx scripts/relay-dev.ts",
     "relay:dev:https": "tsx scripts/relay-dev.ts --https",
     "relay:keygen": "tsx scripts/relay-keygen.ts",
-    "relay:integration": "tsx scripts/relay-integration.ts"
+    "relay:integration": "tsx scripts/relay-integration.ts",
+    "relay:serve": "tsx scripts/relay-serve.ts"
   },
   "devDependencies": {
     "@types/node": "^26.1.2",

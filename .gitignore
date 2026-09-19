@@ -39,3 +39,8 @@ packages/bridge/bin/
 # collab-relay dev loop — partyserver/wrangler local state + dev vars
 .wrangler/
 .dev.vars
+
+# collab-relay self-hosting (workerd) — org identity + seeded env. Never commit:
+# .selfhost-keys.json carries the org signing seed and content key.
+.selfhost-keys.json
+.selfhost.vars
