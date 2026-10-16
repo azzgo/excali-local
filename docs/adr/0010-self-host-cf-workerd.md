@@ -89,7 +89,7 @@ workerd; celld fails it and the denoland team has not prioritized the gap.
   beyond v0.3 with documented crypto. Documented as a TODO with a
   trigger: *"the moment celld passes our Ed25519 hello fixture, we
   re-promote it as the preferred path — it has the cleanest single-
-  binary story for users who want no Node-runtime"* (ADR-0011+).
+  binary story for users who want no Node-runtime"* (a future ADR).
 - **A custom runtime over V8** — rejected. Adding primitives celld
   missed is a bottomless pit; the entire reason to pick workerd over
   celld is "the runtime maintainers know Workers". Reaching past

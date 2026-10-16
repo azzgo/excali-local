@@ -471,6 +471,9 @@ The leave modal now has two actions: **Leave** (discard and exit) and **Stay** (
 
 - [ADR 0003 — BYO relay realtime collab](adr/0003-byo-relay-realtime-collab.md) — the
   decision record: model, considered options, consequences.
+- [ADR 0011 — the relay stays a direct DO app](adr/0011-collab-relay-stays-a-direct-do-app.md) —
+  why no actor-orchestration migration (RivetKit) and no generic actor-core
+  refactor, plus the relay host contract.
 - [Known Limitations](KNOWN_LIMITATIONS.md) — 20MB file cap, one relay per extension,
   no per-member revocation, continuous viewport follow deferred, laser sync not in v1,
   audience visibility not in v1, and more.

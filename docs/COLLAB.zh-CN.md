@@ -314,6 +314,7 @@ pnpm page:dev                     # 终端 2 和 3 —— 两个编辑器窗口
 ## 参见
 
 - [ADR 0003 — 自带中继的实时协作](adr/0003-byo-relay-realtime-collab.md) — 决策记录：模型、备选方案、后果。
+- [ADR 0011 — 中继保持为直连 DO 应用](adr/0011-collab-relay-stays-a-direct-do-app.md) — 为何不迁移到 actor 编排平台（RivetKit）、不做通用 actor 内核重构，以及中继的宿主契约。
 - [已知限制](KNOWN_LIMITATIONS.zh-CN.md) — 20MB 文件上限、每个扩展一个中继、无逐成员吊销、非演示持续跟随延后、激光笔同步不在 v1、观众可见性不在 v1 等。
 - [架构](ARCHITECTURE.md) — 仓库布局与编辑器启动模型。
 - [README](../README.zh-CN.md) — 安装与功能概览。
