@@ -43,19 +43,26 @@ func run(args []string) int {
 		return cmdServe()
 	case "status":
 		return cmdStatus()
+	case "lan":
+		return cmdLAN(args[1:])
+	case "peers":
+		return cmdPeers(args[1:])
+	case "autostart":
+		return cmdAutostart(args[1:])
 	case "help", "--help", "-h":
 		usage()
 		return 0
 	}
 	// CLI subcommand == JSON-RPC method (canvas/v1 + gallery/v1 + fonts/v1 +
-// locals):
+	// locals):
 	//   excali-bridge scene.get
 	//   excali-bridge scene.update '{"elements":[...]}'
 	//   excali-bridge gallery.list
 	//   excali-bridge fonts.system.list
 	//   excali-bridge bridge.status
 	if contract.IsCanvasV1Method(cmd) || contract.IsGalleryV1Method(cmd) ||
-		contract.IsFontsV1Method(cmd) ||
+		contract.IsFontsV1Method(cmd) || contract.IsPeeringMethod(cmd) ||
+		contract.DaemonLocalMethods[cmd] ||
 		cmd == "ping" || cmd == contract.BridgeStatusMethod {
 		var paramsJSON string
 		if len(args) > 1 {
@@ -88,7 +95,15 @@ Usage:
                              fonts.clear
                              args = optional params JSON (e.g. '{"elements":[...]}')
   excali-bridge status       report daemon status from pidfile + /health
+  excali-bridge lan status   report the LAN listener switch (the single source of truth);
+  excali-bridge lan on      persist "LAN listener open" (takes effect on the next daemon start);
+  excali-bridge lan off     persist "LAN listener closed"
+  excali-bridge peers        list the discovered peer devices (needs a running daemon);
+  excali-bridge autostart status
+                             report the OS login item that starts the daemon
+                             (autostart on|off: not implemented yet — see ADR 0012 decision 2)
   excali-bridge help         this help
+                             add --json to lan status | lan on | lan off | peers | autostart status
 
 Env:
   EXCALI_BRIDGE_PIDFILE   override the pidfile path
@@ -117,6 +132,12 @@ func cmdServe() int {
 		<-ctx.Done()
 		_ = s.Shutdown(ctx)
 	}()
+
+	if err := s.StartLAN(ctx); err != nil {
+		logger.Printf("LAN listener not started: %v", err)
+	} else if port := s.LANPort(); port != 0 {
+		logger.Printf("LAN listener on 0.0.0.0:%d (Canvas transfer only)", port)
+	}
 
 	if err := s.ListenAndServe(); err != nil {
 		if err == server.ErrAlreadyRunning {

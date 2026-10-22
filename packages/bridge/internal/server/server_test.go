@@ -116,6 +116,7 @@ func dialProfile(t *testing.T, s *Server, token, profileID, role, version string
 		c.Close()
 		return nil, fmt.Errorf("handshake rejected: %v", reply)
 	}
+	t.Cleanup(func() { _ = c.Close() })
 	return c, nil
 }
 
@@ -399,6 +400,6 @@ func TestBridgeStopFlushesResponseBeforeClose(t *testing.T) {
 	// Then Shutdown() closes every live WS connection.
 	_ = page.SetReadDeadline(time.Now().Add(2 * time.Second))
 	if _, err := page.ReadMessage(); err == nil {
-	t.Fatal("page socket should have been closed by the daemon shutdown")
+		t.Fatal("page socket should have been closed by the daemon shutdown")
 	}
 }

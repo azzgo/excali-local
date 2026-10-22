@@ -27,11 +27,17 @@ import (
 	"os"
 	"regexp"
 	"sync"
+	"sync/atomic"
 	"time"
 
+	"github.com/excali-local/excali-bridge/internal/autostart"
+	"github.com/excali-local/excali-bridge/internal/config"
 	"github.com/excali-local/excali-bridge/internal/contract"
 	"github.com/excali-local/excali-bridge/internal/fonts"
+	"github.com/excali-local/excali-bridge/internal/lan"
+	"github.com/excali-local/excali-bridge/internal/peering"
 	"github.com/excali-local/excali-bridge/internal/pidfile"
+	"github.com/excali-local/excali-bridge/internal/transfer"
 	"github.com/excali-local/excali-bridge/internal/ws"
 )
 
@@ -79,7 +85,7 @@ type Config struct {
 // Server is the bridge daemon.
 type Server struct {
 	cfg  Config
-	port int
+	port atomic.Int32
 	log  *log.Logger
 
 	mu      sync.Mutex
@@ -90,11 +96,15 @@ type Server struct {
 	// hold a control connection simultaneously; a second dial from the SAME
 	// profile displaces the prior one (mirrors the active slot).
 	controls   map[string]*client
-	srv        *http.Server
+	srv        atomic.Pointer[http.Server]
 	closeOnce  sync.Once
 	rpcMu      sync.Mutex
 	pending    map[string]*pendingRPC // key: JSON-RPC id (raw bytes as string)
 	rpcTimeout time.Duration
+	peering    *peering.Handler
+	lanSrv     atomic.Pointer[lan.Server]
+	lanPort    atomic.Int32
+	peerAddrs  atomic.Pointer[[]string]
 }
 
 // New returns a configured server.
@@ -119,7 +129,7 @@ func New(cfg Config) *Server {
 }
 
 // Port returns the bound port (valid after ListenAndServe has started).
-func (s *Server) Port() int { return s.port }
+func (s *Server) Port() int { return int(s.port.Load()) }
 
 // ListenAndServe binds the first free loopback port in the range, writes the
 // pidfile (pid + port only — never the token), and serves until Shutdown.
@@ -136,7 +146,8 @@ func (s *Server) ListenAndServe() error {
 	if ln == nil {
 		return errors.New("no free port in the bridge range")
 	}
-	s.port = ln.Addr().(*net.TCPAddr).Port
+	port := int32(ln.Addr().(*net.TCPAddr).Port)
+	s.port.Store(port)
 
 	// Single-instance race guard: if a live daemon appeared while we were
 	// binding (e.g. two CLI invocations spawned concurrently), reuse it.
@@ -145,14 +156,14 @@ func (s *Server) ListenAndServe() error {
 		return ErrAlreadyRunning
 	}
 
-	if err := pidfile.WriteAt(s.cfg.Pidfile, os.Getpid(), s.port); err != nil {
+	if err := pidfile.WriteAt(s.cfg.Pidfile, os.Getpid(), int(port)); err != nil {
 		ln.Close()
 		return fmt.Errorf("pidfile: %w", err)
 	}
-	s.log.Printf("listening ws://127.0.0.1:%d (pid %d, loopback only)", s.port, os.Getpid())
+	s.log.Printf("listening ws://127.0.0.1:%d (pid %d, loopback only)", port, os.Getpid())
 
 	srv := &http.Server{Handler: s}
-	s.srv = srv
+	s.srv.Store(srv)
 	err := srv.Serve(ln)
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
@@ -163,8 +174,8 @@ func (s *Server) ListenAndServe() error {
 // Shutdown stops accepting connections and closes all live WS connections.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.closeOnce.Do(func() {
-		if s.srv != nil {
-			_ = s.srv.Close() // stops the listener + idle conns
+		if srv := s.srv.Load(); srv != nil {
+			_ = srv.Close() // stops the listener + idle conns
 		}
 		s.failAllPending(contract.JSONRPCErrorPageDisconnected, "daemon shutting down")
 		s.mu.Lock()
@@ -401,7 +412,7 @@ func (s *Server) handleRPC(cl *client, m map[string]any, raw []byte) {
 	method, _ := m["method"].(string)
 	switch {
 	case contract.DaemonLocalMethods[method]:
-		s.handleLocalMethod(cl, id, method)
+		s.handleLocalMethod(cl, id, method, raw)
 	case contract.IsCanvasBoundMethod(method):
 		s.routeToActive(cl, id, raw)
 	case contract.IsPairedOnlyMethod(method):
@@ -412,7 +423,230 @@ func (s *Server) handleRPC(cl *client, m map[string]any, raw []byte) {
 }
 
 // handleLocalMethod resolves daemon-local methods without involving the page.
-func (s *Server) handleLocalMethod(cl *client, id json.RawMessage, method string) {
+// StartLAN opens the LAN listener when the effective configuration says on
+// (ADR 0013 decision 2). A listener that is off, or that fails to bind, leaves
+// the daemon fully functional on loopback: Peering is an addition, never a
+// precondition.
+func (s *Server) StartLAN(ctx context.Context) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	if !cfg.LANEnabled() {
+		return nil
+	}
+	registry := transfer.NewRegistry()
+	s.peering = peering.NewHandler(registry, nil, nil)
+	srv, err := lan.ListenAndServe(ctx, lan.Config{
+		LAN:     cfg,
+		Handler: s.peering,
+		Logger:  s.log,
+	})
+	if err != nil {
+		return err
+	}
+	s.lanSrv.Store(srv)
+	s.lanPort.Store(int32(srv.Endpoint().Port))
+	go func() {
+		<-ctx.Done()
+		_ = srv.Close()
+	}()
+	return nil
+}
+
+// LANPort reports the LAN listener's port, or 0 when it is not open.
+func (s *Server) LANPort() int { return int(s.lanPort.Load()) }
+
+// LANState reports the persisted LAN switch and the live port: the switch is
+// the single source of truth (config), the port is this process's fact.
+func (s *Server) LANState() map[string]any {
+	switchValue := string(config.LANUnset)
+	if cfg, err := config.Load(); err == nil {
+		switchValue = string(cfg.LAN)
+	}
+	return map[string]any{"lan": switchValue, "lanPort": s.LANPort()}
+}
+
+func (s *Server) lanStatus() map[string]any {
+	state := s.LANState()
+	peers := []string{}
+	if addrs := s.peerAddrs.Load(); addrs != nil {
+		peers = *addrs
+	}
+	state["peers"] = len(peers)
+	state["peerAddresses"] = peers
+	return state
+}
+
+func (s *Server) setLAN(cl *client, id json.RawMessage, on bool) {
+	next := config.LANOff
+	if on {
+		next = config.LANOn
+	}
+	if err := config.SetLAN(next); err != nil {
+		s.sendRPCError(cl, id, contract.JSONRPCErrorNotFound, "could not persist the LAN switch")
+		return
+	}
+	state := s.lanStatus()
+	state["takesEffectOnRestart"] = true
+	s.sendRPCResult(cl, id, state)
+}
+
+func (s *Server) addPeer(address string) {
+	if address == "" {
+		return
+	}
+	existing := []string{}
+	if cur := s.peerAddrs.Load(); cur != nil {
+		existing = *cur
+	}
+	for _, a := range existing {
+		if a == address {
+			return
+		}
+	}
+	next := append(append([]string{}, existing...), address)
+	s.peerAddrs.Store(&next)
+}
+
+// transferOffer carries the active canvas to a peer device (ADR 0013 S1). It is
+// the only Peering entry that touches both surfaces: the scene comes from the
+// active page over loopback, the bytes leave over the LAN listener's dial.
+func (s *Server) transferOffer(cl *client, id json.RawMessage, params json.RawMessage) {
+	var req struct {
+		Address string `json:"address"`
+	}
+	if len(params) > 0 {
+		if err := json.Unmarshal(params, &req); err != nil {
+			s.sendRPCError(cl, id, -32602, "invalid params: want {address}")
+			return
+		}
+	}
+	if req.Address == "" {
+		s.sendRPCError(cl, id, -32602, "invalid params: address is required")
+		return
+	}
+	s.mu.Lock()
+	active := s.active
+	handler := s.peering
+	s.mu.Unlock()
+	if active == nil || active == cl {
+		s.sendRPCError(cl, id, contract.JSONRPCErrorNoActiveCanvas,
+			"a Canvas transfer needs an activated canvas to read the scene from")
+		return
+	}
+	if handler == nil {
+		s.sendRPCError(cl, id, contract.JSONRPCErrorNotFound,
+			"the LAN listener is not open; run `excali-bridge lan on` and restart the daemon")
+		return
+	}
+
+	scene, err := s.readScene(active)
+	if err != nil {
+		s.sendRPCError(cl, id, contract.JSONRPCErrorPageTimeout, err.Error())
+		return
+	}
+
+	offer := lan.Offer{Alias: s.deviceAlias(), Fingerprint: s.deviceFingerprint(), Bytes: len(scene)}
+	ctx, cancel := context.WithTimeout(context.Background(), transfer.OfferTTL)
+	defer cancel()
+	result, err := handler.Send(ctx, req.Address, offer, scene)
+	if err != nil {
+		code := contract.JSONRPCErrorNotFound
+		if errors.Is(err, peering.ErrAcceptTimeout) {
+			code = contract.JSONRPCErrorOfferExpired
+		} else if errors.Is(err, peering.ErrRejected) {
+			code = contract.JSONRPCErrorPeerUnreachable
+		} else if tc := peering.TransferCode(err); tc != 0 {
+			code = tc
+		}
+		s.sendRPCError(cl, id, code, err.Error())
+		return
+	}
+	s.sendRPCResult(cl, id, map[string]any{
+		"transferId":     result.TransferID,
+		"peerTransferId": result.PeerTransferID,
+		"bytes":          result.Bytes,
+		"sha256":         result.SHA256,
+	})
+}
+
+// readScene asks the active page for its scene and returns the opaque bytes the
+// peer will receive. The daemon never parses them (ADR 0013 decision 5).
+func (s *Server) readScene(active *client) ([]byte, error) {
+	payload, err := json.Marshal(map[string]any{
+		"jsonrpc": "2.0",
+		"id":      sceneReadID,
+		"method":  "scene.get",
+		"params":  map[string]any{},
+	})
+	if err != nil {
+		return nil, err
+	}
+	done := make(chan []byte, 1)
+	p := &pendingRPC{page: active, id: json.RawMessage(`"` + sceneReadID + `"`), done: done}
+	p.timer = time.AfterFunc(s.rpcTimeout, func() {
+		s.rpcMu.Lock()
+		if s.pending[sceneReadID] == p {
+			delete(s.pending, sceneReadID)
+			s.rpcMu.Unlock()
+			done <- nil
+			return
+		}
+		s.rpcMu.Unlock()
+	})
+	s.rpcMu.Lock()
+	s.pending[sceneReadID] = p
+	s.rpcMu.Unlock()
+
+	if err := active.conn.WriteText(payload); err != nil {
+		s.failPendingKey(sceneReadID, contract.JSONRPCErrorPageDisconnected, "page unavailable")
+		<-done
+		return nil, errors.New("the active page is unavailable")
+	}
+	raw := <-done
+	if raw == nil {
+		return nil, errors.New("the active page did not return its scene in time")
+	}
+	var reply struct {
+		Result json.RawMessage `json:"result"`
+		Error  *struct {
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(raw, &reply); err != nil {
+		return nil, errors.New("the active page returned an unreadable scene")
+	}
+	if reply.Error != nil {
+		return nil, errors.New("the active page refused to read its scene: " + reply.Error.Message)
+	}
+	return reply.Result, nil
+}
+
+// sceneReadID is the JSON-RPC id of the daemon's own scene read. It never
+// collides with an agent request: agents send numeric ids, this one is a string.
+const sceneReadID = "excali-daemon-scene-read"
+
+func (s *Server) deviceAlias() string {
+	if cfg, err := config.Load(); err == nil && cfg.Alias != "" {
+		return cfg.Alias
+	}
+	return ""
+}
+
+func (s *Server) deviceFingerprint() string {
+	if cfg, err := config.Load(); err == nil {
+		return cfg.Fingerprint
+	}
+	return ""
+}
+
+func (s *Server) handleLocalMethod(cl *client, id json.RawMessage, method string, raw []byte) {
+	var request struct {
+		Params json.RawMessage `json:"params"`
+	}
+	_ = json.Unmarshal(raw, &request)
+	params := request.Params
 	switch method {
 	case "ping":
 		s.sendRPCResult(cl, id, "pong")
@@ -451,6 +685,35 @@ func (s *Server) handleLocalMethod(cl *client, id json.RawMessage, method string
 			time.Sleep(150 * time.Millisecond)
 			_ = s.Shutdown(context.Background())
 		}()
+	case "lan.status":
+		s.sendRPCResult(cl, id, s.lanStatus())
+	case "lan.on":
+		s.setLAN(cl, id, true)
+	case "lan.off":
+		s.setLAN(cl, id, false)
+	case "peers.transferOffer":
+		s.transferOffer(cl, id, params)
+	case "peers.transferStatus":
+		s.sendRPCResult(cl, id, map[string]any{"inFlight": 0})
+	case "peers.transferRespond":
+		s.sendRPCError(cl, id, contract.JSONRPCErrorNotFound,
+			"a transfer offer is answered on the receiving editor page, not over loopback")
+	case "peers.list":
+		peers := []string{}
+		if addrs := s.peerAddrs.Load(); addrs != nil {
+			peers = *addrs
+		}
+		s.sendRPCResult(cl, id, map[string]any{"peers": peers, "count": len(peers)})
+	case "autostart.status":
+		status, err := autostart.Detect(autostart.Options{})
+		if err != nil {
+			s.sendRPCResult(cl, id, map[string]any{"enabled": false, "error": err.Error()})
+			return
+		}
+		s.sendRPCResult(cl, id, map[string]any{"enabled": status.Enabled, "entries": status.Entries})
+	case "autostart.on", "autostart.off":
+		s.sendRPCError(cl, id, contract.JSONRPCErrorNotFound,
+			"the autostart write side is undecided (ADR 0012 decision 2); the daemon only reports it")
 	}
 }
 
@@ -468,7 +731,10 @@ func (s *Server) bridgeStatus() map[string]any {
 	for _, c := range s.controls {
 		controls = append(controls, map[string]any{"profileId": c.identity})
 	}
+	state := s.LANState()
 	return map[string]any{
+		"lan":             state["lan"],
+		"lanPort":         state["lanPort"],
 		"activeCanvas":    activeInfo,
 		"controlPages":    controls,
 		"protocol":        contract.LegAProtocolVersion,
@@ -558,13 +824,15 @@ func (s *Server) handleHealth(w http.ResponseWriter) {
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"ok":                     true,
 		"pid":                    os.Getpid(),
-		"port":                   s.port,
+		"port":                   s.Port(),
 		"version":                contract.LegAProtocolVersion,
 		"active":                 active,
 		"activeProfileId":        activeIdentity,
 		"pageConnections":        pages,
 		"controlPageConnections": controlPages,
 		"agentConnections":       agents,
+		"lan":                    s.LANState()["lan"],
+		"lanPort":                s.LANPort(),
 	})
 }
 
@@ -623,6 +891,10 @@ type pendingRPC struct {
 	page  *client // page the request was routed to
 	id    json.RawMessage
 	timer *time.Timer // timeout → fail the request
+	// done, when set, receives the page's raw response instead of the agent
+	// connection: an internal request (the scene read of a Canvas transfer) has
+	// no agent waiting on a socket.
+	done chan []byte
 }
 
 // rpcID extracts the exact raw JSON-RPC id bytes from a request/response.
@@ -733,6 +1005,10 @@ func (s *Server) routeResponse(cl *client, raw []byte) {
 	if !ok {
 		return // stale (timed out / already failed) — ignore
 	}
+	if p.done != nil {
+		p.done <- raw
+		return
+	}
 	_ = p.agent.conn.WriteText(raw)
 }
 
@@ -749,6 +1025,13 @@ func (s *Server) failPendingKey(key string, code int, message string) {
 		return
 	}
 	p.timer.Stop()
+	if p.done != nil {
+		select {
+		case p.done <- nil:
+		default:
+		}
+		return
+	}
 	s.sendRPCError(p.agent, p.id, code, message)
 }
 

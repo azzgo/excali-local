@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -60,7 +61,7 @@ type Conn struct {
 	readTimeout time.Duration
 
 	writeMu   sync.Mutex
-	closeSent bool
+	closeSent atomic.Bool
 }
 
 func newConn(conn net.Conn, br *bufio.Reader, writeMask bool, readTimeout time.Duration) *Conn {
@@ -150,10 +151,9 @@ func (c *Conn) handleCloseFrame(payload []byte) error {
 }
 
 func (c *Conn) writeClose(code int) error {
-	if c.closeSent {
+	if !c.closeSent.CompareAndSwap(false, true) {
 		return nil
 	}
-	c.closeSent = true
 	if code == 1005 || code == 0 {
 		return c.writeFrame(opClose, nil)
 	}
@@ -163,10 +163,9 @@ func (c *Conn) writeClose(code int) error {
 }
 
 func (c *Conn) writeClosePayload(payload []byte) error {
-	if c.closeSent {
+	if !c.closeSent.CompareAndSwap(false, true) {
 		return nil
 	}
-	c.closeSent = true
 	if len(payload) > 125 {
 		payload = nil
 	}
