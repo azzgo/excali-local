@@ -31,6 +31,10 @@ import (
 // and activation are the human consent gates, not this header).
 const Origin = "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
+// ErrDaemonNotRunning is returned when a call needs a running daemon and none
+// is up (and the lazy spawn is disabled).
+var ErrDaemonNotRunning = errors.New("no bridge daemon is running")
+
 // Options configures a CLI invocation.
 type Options struct {
 	// BinPath is the path to this binary, used to spawn the daemon lazily.
@@ -45,6 +49,10 @@ type Options struct {
 	// Stdout/Stderr receive CLI output (default os.Stdout/os.Stderr).
 	Stdout io.Writer
 	Stderr io.Writer
+	// NoSpawn forbids the lazy daemon spawn: the call fails when no daemon is
+	// already running. Commands that report state use it so a status query
+	// never starts a daemon as a side effect.
+	NoSpawn bool
 }
 
 func (o *Options) fill() {
@@ -97,6 +105,9 @@ func EnsureDaemon(ctx context.Context, opts Options) (int, error) {
 		}
 	}
 	// 2. stale pidfile → clean up, then spawn lazily (Ticket 009).
+	if opts.NoSpawn {
+		return 0, ErrDaemonNotRunning
+	}
 	pidfile.RemoveAt(opts.Pidfile)
 	if err := spawnDaemon(opts); err != nil {
 		return 0, fmt.Errorf("spawn daemon: %w", err)

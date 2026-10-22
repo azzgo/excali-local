@@ -1,7 +1,9 @@
 // Package pidfile implements the daemon single-instance mechanism
 // (Wayfinder Ticket 017): a fixed-path pidfile holding pid + port ONLY —
 // never the token (Ticket 011: the per-session token is rotated and never
-// persisted or logged).
+// persisted or logged). The pidfile lives in the platform state directory
+// (ADR 0012 decision 5); the pre-move location is read once so an upgrade
+// never leaves two daemons running.
 package pidfile
 
 import (
@@ -10,6 +12,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/excali-local/excali-bridge/internal/paths"
 )
 
 // Info is the pidfile payload. Deliberately minimal: {pid, port}.
@@ -19,17 +23,17 @@ type Info struct {
 }
 
 // Path returns the pidfile path: $EXCALI_BRIDGE_PIDFILE if set (tests /
-// non-standard setups), else ~/.excali-local/bridge.pid (Ticket 017's
-// fixed path under a per-user location).
+// non-standard setups), else bridge.pid inside the platform state directory
+// (ADR 0012 decision 5).
 func Path() (string, error) {
 	if p := os.Getenv("EXCALI_BRIDGE_PIDFILE"); p != "" {
 		return p, nil
 	}
-	home, err := os.UserHomeDir()
+	dir, err := paths.StateDir()
 	if err != nil {
-		return "", fmt.Errorf("home dir: %w", err)
+		return "", err
 	}
-	return filepath.Join(home, ".excali-local", "bridge.pid"), nil
+	return filepath.Join(dir, "bridge.pid"), nil
 }
 
 // Dir returns the directory the pidfile lives in (used for the daemon log).
@@ -46,7 +50,10 @@ func Read() (*Info, error) {
 	return ReadAt("")
 }
 
-// ReadAt loads the pidfile at path ("" = default path).
+// ReadAt loads the pidfile at path ("" = default path). The default path
+// first relocates a pidfile left in the legacy home directory: reading the
+// old location keeps an upgraded install on the running daemon instead of
+// starting a second one.
 func ReadAt(path string) (*Info, error) {
 	if path == "" {
 		p, err := Path()
@@ -54,6 +61,7 @@ func ReadAt(path string) (*Info, error) {
 			return nil, err
 		}
 		path = p
+		migrateLegacy(path)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -67,6 +75,16 @@ func ReadAt(path string) (*Info, error) {
 		return nil, errors.New("invalid pidfile: pid/port missing")
 	}
 	return &info, nil
+}
+
+// migrateLegacy copies a pidfile from the pre-ADR-0012 home directory to
+// the state directory. Failures are not fatal: a missing legacy file is the
+// normal case.
+func migrateLegacy(dst string) {
+	if os.Getenv("EXCALI_BRIDGE_PIDFILE") != "" {
+		return
+	}
+	_, _ = paths.MigrateStateFile(filepath.Base(dst))
 }
 
 // Write atomically writes the pidfile (temp + rename).
