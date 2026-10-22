@@ -13,6 +13,10 @@ dist-ssr
 packages/local/dist
 packages/page/dist
 packages/bridge/bin/
+excali-skill-dist/
+# skills/excali-local/bin/ is deliberately NOT ignored: the skill:check gate must
+# see any binary reintroduced there (ADR 0012), and ignoring it would also keep it
+# out of `git rm --cached` visibility during the migration.
 
 # Editor directories and files
 .vscode/*
@@ -44,3 +48,6 @@ packages/bridge/bin/
 # .selfhost-keys.json carries the org signing seed and content key.
 .selfhost-keys.json
 .selfhost.vars
+
+# local agent tooling (not part of the product)
+.pig/

@@ -20,7 +20,7 @@
 | `pnpm sync:version` | Propagate root version to all `package.json`s.
 | `pnpm bridge:build` | `go build` the Go bridge daemon into `bridge/bin/` (gitignored).
 | `pnpm bridge:test` | `go test ./...` for the Go daemon. |
-| `pnpm skill:pack` | Cross-compile the daemon (4 static targets: darwin-arm64/amd64, linux-amd64, windows-amd64; CGO off, symbols stripped, reproducible via `-buildvcs=false`) + static-verify + refresh the committed `skills/excali-local/bin/` in place. |
+| `pnpm skill:pack` | Cross-compile the daemon (4 static targets: darwin-arm64/amd64, linux-amd64, windows-amd64; CGO off, symbols stripped, reproducible via `-buildvcs=false`) + static-verify + stage the release assets (binaries + `checksums.txt`); no longer writes into the repo (ADR 0012). |
 | `pnpm skill:check` | Zero-drift gate: the skill's documented commands == the wire contract. |
 
 > There is no `local:dev` script. For the editor UI use `page:dev`; for the full
@@ -39,8 +39,12 @@
 module downloads, so it builds offline). The daemon is NOT packaged into the extension —
 it is the agent-side binary, distributed as the **excali-local skill** (`skills/excali-local/`):
 `scripts/skill-pack.ts` cross-compiles 4 static targets (darwin-arm64/amd64, linux-amd64,
-windows-amd64; CGO disabled, symbols stripped) **in place into `skills/excali-local/bin/`**
-(the committed source skill IS the artifact) and emits the versioned release tarball.
+windows-amd64; CGO disabled, symbols stripped), static-verifies them, and stages them as
+**GitHub release assets** plus `checksums.txt` — no longer into the repo
+([ADR 0012](adr/0012-bridge-daemon-is-the-product-presence-is-its-face.md)). Users get the
+binary on demand at the one canonical path (`~/.local/bin/excali-bridge`); the skill
+tarball ships docs only. Editable state/config lives under the platform dirs
+([PEERING.md](PEERING.md) §State and switch), not in `~/.excali-local/`.
 Verify against the extension with the e2e drivers in
 `scripts/agent-bridge/` (`driver` / `driver-canvas` / `driver-gallery` / `driver-fonts` /
 `driver-skill` — each spawns the daemon lazily via the CLI).
@@ -75,12 +79,13 @@ Version bumps: set the root `package.json` `version`, then `pnpm sync:version` t
 propagate to all three packages. Keep all three versions in sync.
 
 The **excali-local skill** (`skills/excali-local/`) is a separate release artifact from the
-extension: pack it with `pnpm skill:pack` — binaries land in the committed
-`skills/excali-local/bin/` (the committed skill dir IS the artifact; scratch lives
-in the OS temp dir, no `.skill-dist/`). It is **not** wired
-into the tag-driven CI above yet — remote distribution
-(e.g. `skills.sh` → `.agents/skills/`) is a tracked follow-up. The skill bundles its own
-static multi-platform daemon binaries, so it has no runtime dependency on the extension build.
+extension: pack it with `pnpm skill:pack` — which stages the daemon binaries as release
+assets (never into the repo; scratch lives in the OS temp dir, no `.skill-dist/`). It is
+**not** wired into the tag-driven CI above yet — remote distribution
+(e.g. `skills.sh` → `.agents/skills/`) is a tracked follow-up. The skill ships docs plus a
+**preflight step** that downloads the platform daemon from the release assets and verifies
+its sha256 against `checksums.txt`; the skill tarball itself contains no binaries
+([ADR 0012](adr/0012-bridge-daemon-is-the-product-presence-is-its-face.md)).
 
 ## Known limitations
 

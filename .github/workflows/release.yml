@@ -37,8 +37,22 @@ jobs:
           pnpm run local:tar
           pnpm run local:zip
           pnpm run local:tar
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Stage daemon release assets
+        run: pnpm run skill:pack
+        env:
+          EXCALI_SKILL_DIST_DIR: ${{ runner.temp }}/excali-skill-dist
       - name: Pack skill
-        run: tar -czf skills-${{ github.ref_name }}.tar.gz -C skills/excali-local .
+        run: |
+          # The skill tarball carries docs only: ADR 0012 keeps build products out
+          # of git and out of the skill dir, so `--exclude` is a guard against a
+          # binary being reintroduced unnoticed (the skill:check gate is the
+          # primary tripwire).
+          tar -czf skills-${{ github.ref_name }}.tar.gz \
+            --exclude='bin/*' \
+            -C skills/excali-local .
       - name: Release
         env:
            GH_TOKEN: ${{ github.token }}
@@ -49,6 +63,7 @@ jobs:
             --draft \
             ./packages/local/.output/*.zip \
             ./packages/local/*.tar.gz \
-            ./skills-${{ github.ref_name }}.tar.gz
+            ./skills-${{ github.ref_name }}.tar.gz \
+            "$RUNNER_TEMP"/excali-skill-dist/*
       - run: echo "🍏 This job's status is ${{ job.status }}."
 

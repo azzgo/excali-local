@@ -13,12 +13,15 @@
  *   3. Every method is documented under exactly one gate group
  *      (daemon-local / activated / paired) and that gate matches the
  *      contract's routing classes.
+ *   4. No executable or binary may live under skills/excali-local/bin/
+ *      (ADR 0012: the daemon binaries are release assets, downloaded on
+ *      demand to the one canonical path — never committed here).
  *
  * Run: pnpm skill:check
  */
 
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { join, relative } from "node:path";
 import { hereDir } from "./_run";
 import {
   CANVAS_BOUND_METHODS,
@@ -121,6 +124,40 @@ if (gateMismatches === 0) {
   ok("every method is documented under exactly the gate the contract routes it to");
 }
 
+// ---- 4: no binaries in the skill dir (ADR 0012) ------------------------------
+// The daemon binaries are release assets: `pnpm skill:pack` stages them outside
+// the repository and the skill preflight downloads the platform binary on
+// demand to the one canonical path (`~/.local/bin/excali-bridge`, or
+// `%LOCALAPPDATA%\ExcaliLocal\bin\` on Windows). A binary under
+// skills/excali-local/bin/ means the pre-ADR-0012 "source-is-the-artifact"
+// layout came back.
+const SKILL_BIN_DIR = join(hereDir(import.meta.url), "../skills/excali-local/bin");
+const BIN_RE = /\.(exe|dll|dylib|so(\.\d+)*)$/i;
+const BIN_NAMES = /^excali-bridge(-.+)?$/;
+
+const skillBinOffenders: string[] = [];
+if (existsSync(SKILL_BIN_DIR)) {
+  for (const entry of readdirSync(SKILL_BIN_DIR, { withFileTypes: true })) {
+    const full = join(SKILL_BIN_DIR, entry.name);
+    const isBinary =
+      entry.isFile() &&
+      (BIN_NAMES.test(entry.name) || BIN_RE.test(entry.name) || !entry.name.includes("."));
+    if (isBinary) skillBinOffenders.push(full);
+  }
+}
+if (skillBinOffenders.length) {
+  fail(
+    `binaries found under skills/excali-local/bin/ (${skillBinOffenders
+      .map((p) => relative(hereDir(import.meta.url), p))
+      .join(", ")}) — ADR 0012 keeps build products out of git: the daemon binaries ` +
+      `ship as GitHub release assets and are downloaded on demand to the one canonical ` +
+      `path (~/.local/bin/excali-bridge, or %LOCALAPPDATA%\\ExcaliLocal\\bin\\ on Windows). ` +
+      `Run \`pnpm skill:pack\` to stage the release assets outside the repo, remove these ` +
+      `files from the skill dir, and \`git rm --cached skills/excali-local/bin/*\`.`,
+  );
+} else {
+  ok("no binaries under skills/excali-local/bin/ (ADR 0012)");
+}
 const total = failures === 0 ? documented.size : 0;
 console.log(
   failures === 0
