@@ -121,6 +121,7 @@ func New(cfg Config) *Server {
 	return &Server{
 		cfg:        cfg,
 		log:        cfg.Logger,
+		peering:    peering.NewHandler(transfer.NewRegistry(), nil, nil),
 		clients:    map[*ws.Conn]*client{},
 		controls:   map[string]*client{},
 		pending:    map[string]*pendingRPC{},
@@ -435,8 +436,6 @@ func (s *Server) StartLAN(ctx context.Context) error {
 	if !cfg.LANEnabled() {
 		return nil
 	}
-	registry := transfer.NewRegistry()
-	s.peering = peering.NewHandler(registry, nil, nil)
 	srv, err := lan.ListenAndServe(ctx, lan.Config{
 		LAN:     cfg,
 		Handler: s.peering,
@@ -536,8 +535,7 @@ func (s *Server) transferOffer(cl *client, id json.RawMessage, params json.RawMe
 		return
 	}
 	if handler == nil {
-		s.sendRPCError(cl, id, contract.JSONRPCErrorNotFound,
-			"the LAN listener is not open; run `excali-bridge lan on` and restart the daemon")
+		s.sendRPCError(cl, id, contract.JSONRPCErrorNotFound, "peering is unavailable in this daemon")
 		return
 	}
 
@@ -801,6 +799,13 @@ func (s *Server) keepalive(cl *client) {
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(s.healthPayload())
+}
+
+// healthPayload is the /health body: shared with the tests so a field added
+// here is covered without re-implementing the shape.
+func (s *Server) healthPayload() map[string]any {
 	s.mu.Lock()
 	active := s.active != nil
 	var activeIdentity any
@@ -820,8 +825,7 @@ func (s *Server) handleHealth(w http.ResponseWriter) {
 	}
 	controlPages := len(s.controls)
 	s.mu.Unlock()
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	return map[string]any{
 		"ok":                     true,
 		"pid":                    os.Getpid(),
 		"port":                   s.Port(),
@@ -833,7 +837,7 @@ func (s *Server) handleHealth(w http.ResponseWriter) {
 		"agentConnections":       agents,
 		"lan":                    s.LANState()["lan"],
 		"lanPort":                s.LANPort(),
-	})
+	}
 }
 
 // HealthOK reports whether a bridge daemon answers /health on the port.
