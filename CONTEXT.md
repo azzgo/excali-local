@@ -66,6 +66,52 @@ draft/Save staging on the Options page. Font-config changes persist at once and 
 effect in newly opened editor windows (the editor reads font config once at boot).
 _Avoid_: Save flow, deferred apply, draft state
 
+## Local presence
+
+**Bridge daemon**:
+The machine-local process that hosts the Agent Bridge on the user's own computer and is
+reachable only from that computer. Machine-wide and single-instance — a shared transport, not
+a session owned by any one agent.
+_Avoid_: broker, broker daemon, bridge server, agent server
+
+**Presence**:
+That the extension's local capabilities are visibly and continuously *there* on the user's
+machine — started without an agent asking, observable by the user, and switchable off by the
+user alone. A property of the product's boot experience, not a window, icon, or program.
+_Avoid_: tray app, workbench, desktop app, daemon UI, control panel
+
+**Presence host**:
+The user-installed local program whose job is Presence: it starts with the user's session and
+is where the user sees and switches the local capabilities. Deliberately replaceable — it
+carries no protocol of its own and no capability the daemon lacks.
+_Avoid_: the desktop version, GUI, companion app, launcher
+
+**Guest tab**:
+An editor page run outside the extension — a plain browser tab that loads the editor without any piece of the plugin. It can do what the webapp build can do and nothing more: it is never an Activated canvas and never drives the Agent Bridge.
+_Avoid_: webapp form (that is the build, not the participant), standalone editor, hosted editor
+
+## Peering
+
+**Peer device**:
+Another machine on the same network that runs a Bridge daemon and has made itself announceable. A peer is a *machine*, not a person and not a room member; it has no account, no session, and no standing in any collab room.
+_Avoid_: collaborator (that is a room member), remote, node, host
+
+**LAN listener**:
+The daemon's second, separately-switched listening surface, reachable from other machines. Distinct from the always-on local-only surface: it is off by default, is opened by an explicit user act, and carries only Canvas transfer.
+_Avoid_: server mode, sharing mode, open port, local relay
+
+**Canvas transfer**:
+A one-shot, explicitly initiated, receiver-confirmed move of one canvas's content from one machine to another's active canvas. It establishes no session, keeps no ongoing relationship, and is not synchronization.
+_Avoid_: handoff (that is local and seeds a room), room share, sync, push
+
+**Transfer offer**:
+The pre-acceptance description of an incoming Canvas transfer — what it is and where it came from — that the receiver sees and answers before any canvas content is read. Nothing about the sender's canvas leaves the sender until the offer is accepted.
+_Avoid_: request, invite (that is a collab room invite), preview
+
+**Device fingerprint**:
+The short stable identifier a peer device announces so others can tell it apart and avoid rediscovering themselves. It identifies, it does not authenticate — a peer claiming a fingerprint has proved nothing.
+_Avoid_: device id, device key, identity (implies proof)
+
 ## Collab
 
 **Display name**:
