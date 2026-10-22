@@ -220,3 +220,101 @@ is exactly what they would learn by joining, so there is no added disclosure.
 
 **What the code does**: the room probe gate (ADR 0005) keeps "This room is empty"
 truthful regardless; the name is short-lived room content that dies with the room.
+
+## Peering (cross-machine Canvas transfer)
+
+Design: [ADR 0013](adr/0013-cross-machine-canvas-transfer.md),
+[PEERING.md](PEERING.md). Each entry states the limitation, why it exists, and what
+the code does in response.
+
+### The transfer wire is plaintext and forgeable
+
+**What**: a Canvas transfer crosses the LAN unencrypted. Anyone on the same network
+can observe it and can forge one — there is no authentication of the sender at all,
+only a human confirmation on the receiving side.
+
+**Why**: encrypting requires either a PKI (rejected in ADR 0003 — self-asserted
+identity, no mini-CA, no per-member revocation) or a TLS story that a peer-running
+daemon cannot bootstrap without user-managed certificates. v1 chose a receiver
+confirmation over a cryptographic identity, and deferred confidentiality rather
+than faking it.
+
+**What the code does**: the offer carries descriptions only (alias, fingerprint,
+element count, bytes, canvas name) — no content, no thumbnail — and canvas bytes
+leave the sender only after acceptance. The Device fingerprint **identifies, it
+does not authenticate**; it exists so a machine can ignore its own announcement.
+This is the LocalSend failure mode taken seriously: that project's discovery MitM
+(GHSA-424h-5f6m-x63f, CVSS 9.3) is exactly "a spoofed announcement impersonating a
+known device", so nothing is treated as trusted on the strength of an announcement.
+
+**Re-verify when**: an anonymous, offer-scoped encryption scheme is added — that
+lifts the confidentiality half but not the impersonation half; only a real identity
+story does that, and it is out of scope.
+
+### The LAN listener is a second surface, off by default
+
+**What**: the daemon opens a second listening surface (`0.0.0.0`, ephemeral port,
+mDNS-advertised) that is reachable from other machines. It is off until switched
+on, and off again after a restart unless the user persisted it.
+
+**Why**: the loopback surface carries agent control with the two consent gates;
+widening it would silently widen agent control to the network. The two surfaces
+must not share a capability set.
+
+**What the code does**: the LAN listener carries **Canvas transfer only**. It does
+not use `originAllowed()` (which needs an `Origin` header — a Go peer sends none, so
+the check would reject every legitimate peer), exposes no scene read/write, no gallery, no fonts, and no agent methods.
+`excali-bridge lan on|off|status` is the single source of truth shared by the CLI,
+the tray, and the Options page.
+
+### There is no automatic discovery on any platform
+
+**What**: Peering has no zero-configuration discovery at all — not on macOS, not
+on Linux, not on Windows. A peer is reached by a **manually exchanged address**,
+and that is the only way.
+
+**Why**: this is a decision against mDNS/DNS-SD across the board, not a platform
+gap. Userland mDNS is not viable: on macOS `mDNSResponder` owns port 5353
+exclusively and the OS delivers a multicast packet to only one socket, so a
+library that opens the port itself receives nothing — and the common workaround
+(answering from an ephemeral port) violates RFC 6762 §11, so compliant peers
+discard it. Doing it correctly would mean a cgo binding to the system Bonjour API
+on macOS and Avahi on Linux — a per-platform dependency tree in exchange for a
+discovery that half of all real networks (guest Wi-Fi with client isolation,
+enterprise VLAN segmentation) block outright anyway.
+
+**What the code does**: the manual-address path is not a fallback but the feature.
+`excali-bridge peers` lists the peers the user has added, and the address
+exchange is a plain copy-paste. This also works on the networks where mDNS would
+have failed, so it is the more reliable half in practice, not the degraded one.
+The tray is never the only way to see or act on peers.
+
+**Re-verify when**: a cross-platform discovery story that does not require cgo or
+per-platform system APIs appears (e.g. a local-network permission-gated browser
+API). Until then, adding mDNS would trade a working copy-paste for a
+platform-dependent maybe.
+
+### An offer nobody answers expires; it does not queue
+
+**What**: if the receiving machine has no extension page connected, the offer waits
+out a 60s deadline and fails. There is no store-and-forward.
+
+**Why**: a LAN-open port that also accumulates unowned canvas content is a worse
+failure mode than a failed transfer.
+
+**What the code does**: the daemon keeps offer metadata in memory only, with a
+deadline, and stores no canvas content before acceptance. The sender sees a
+timeout — never a silent success and never a misreported rejection.
+
+### One binary per machine, downloaded on demand
+
+**What**: the CLI is no longer in the source tree. A fresh clone cannot `ping`
+without a download, and `~/.local/bin` is not on every user's `PATH`.
+
+**Why**: [ADR 0012](adr/0012-bridge-daemon-is-the-product-presence-is-its-face.md) —
+maintaining 28MB of cross-compiled binaries in git was worse than a download step.
+
+**What the code does**: `excali-bridge` resolves one canonical path, compares
+versions by asking the binary (`excali-bridge version`) rather than by filename,
+never falls back silently to a second copy, and the skill preflight **prints** the
+one-line `PATH` export instead of editing the user's shell rc files.
