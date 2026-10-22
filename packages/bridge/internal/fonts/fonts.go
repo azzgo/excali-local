@@ -213,8 +213,10 @@ func ttcBases(data []byte) []int {
 	return out
 }
 
-// woffTables parses a WOFF container's table directory, zlib-inflating tables
-// whose compressed length is smaller than the original length.
+// woffTables parses a WOFF container's table directory. Each table payload is
+// zlib-inflated whenever it is a zlib stream: the compressed/original length
+// pair is only a hint, because a producer may store a table compressed even
+// when the compressed form is not smaller than the original.
 func woffTables(data []byte) (map[string][]byte, error) {
 	if len(data) < 44 {
 		return nil, errors.New("woff too short")
@@ -235,18 +237,28 @@ func woffTables(data []byte) (map[string][]byte, error) {
 			continue
 		}
 		raw := data[toff : toff+compLen]
-		if compLen < origLen {
-			if zr, err := zlib.NewReader(bytes.NewReader(raw)); err == nil {
-				if inflated, err := io.ReadAll(zr); err == nil && len(inflated) == origLen {
-					tables[tag] = inflated
-				}
-			}
+		inflated, ok := zlibInflate(raw)
+		if ok && (len(inflated) == origLen || compLen < origLen) {
+			tables[tag] = inflated
 		} else {
 			tables[tag] = raw
 		}
 		off += 20
 	}
 	return tables, nil
+}
+
+func zlibInflate(raw []byte) ([]byte, bool) {
+	zr, err := zlib.NewReader(bytes.NewReader(raw))
+	if err != nil {
+		return nil, false
+	}
+	defer zr.Close()
+	out, err := io.ReadAll(zr)
+	if err != nil {
+		return nil, false
+	}
+	return out, true
 }
 
 // nameRecord is one 12-byte name-table record.

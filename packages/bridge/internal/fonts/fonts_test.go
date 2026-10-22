@@ -190,6 +190,31 @@ func TestParseNameTableWOFF(t *testing.T) {
 	}
 }
 
+func TestParseNameTableWOFFUncompressedTable(t *testing.T) {
+	recs := []namePair{
+		pair(nameRec(3, 1, "Raw Woff Family")),
+		pair(nameRec(3, 6, "RawWoffFamily-Regular")),
+	}
+	nameTable := buildNameTable(recs)
+	woff := make([]byte, 44+20)
+	copy(woff[0:4], "wOFF")
+	binary.BigEndian.PutUint32(woff[4:8], 0x00010000)
+	binary.BigEndian.PutUint32(woff[8:12], uint32(44+20+len(nameTable)))
+	binary.BigEndian.PutUint16(woff[12:14], 1)
+	copy(woff[44:48], "name")
+	binary.BigEndian.PutUint32(woff[48:52], 64)
+	binary.BigEndian.PutUint32(woff[52:56], uint32(len(nameTable)))
+	binary.BigEndian.PutUint32(woff[56:60], uint32(len(nameTable)))
+	woff = append(woff, nameTable...)
+	fonts, err := ParseNameTable(woff)
+	if err != nil {
+		t.Fatalf("ParseNameTable(woff raw): %v", err)
+	}
+	if len(fonts) != 1 || fonts[0].Family != "Raw Woff Family" || fonts[0].PostscriptName != "RawWoffFamily-Regular" {
+		t.Fatalf("got %+v", fonts)
+	}
+}
+
 func TestParseNameTableTTC(t *testing.T) {
 	fontA := buildSFNT(buildNameTable([]namePair{
 		pair(nameRec(3, 1, "Face A")),
