@@ -357,6 +357,150 @@ export const PAIRED_ONLY_METHODS = [
   "gallery.collections.delete",
 ] as const;
 
+// ---------------------------------------------------------------------------
+// Peering — cross-machine Canvas transfer (ADR 0013), LAN listener, autostart
+// ---------------------------------------------------------------------------
+
+/**
+ * The Peering method set (ADR 0013, docs/PEERING.md) — every one of them is
+ * DAEMON-LOCAL: the Bridge daemon owns discovery, the LAN listener and the
+ * transfer state, so answering them needs no page and reads no canvas.
+ *
+ * The peers.* methods are the loopback CONTROL surface of a Canvas transfer;
+ * the payloads they drive (offer/accept/reject/chunk) travel on the separate
+ * LAN listener surface — the two never share a capability set.
+ */
+export const PEERING_METHODS = [
+  "peers.list",
+  "peers.transferOffer",
+  "peers.transferStatus",
+  "peers.transferRespond",
+] as const;
+
+/**
+ * The LAN listener switch (daemon-local): the daemon's second, separately
+ * switched listening surface — off by default, opened by an explicit user act,
+ * carrying Canvas transfer only.
+ */
+export const LAN_METHODS = [
+  "lan.status",
+  "lan.on",
+  "lan.off",
+] as const;
+
+/**
+ * Autostart registration (daemon-local): the daemon owns the login item; the
+ * Presence host and the extension's Options page only act through it.
+ */
+export const AUTOSTART_METHODS = [
+  "autostart.status",
+  "autostart.on",
+  "autostart.off",
+] as const;
+
+/** IsPeeringMethod reports whether m is a Peering (Canvas transfer) method. */
+export function IsPeeringMethod(m: string): boolean {
+  return (PEERING_METHODS as readonly string[]).includes(m);
+}
+
+// ---------------------------------------------------------------------------
+// LAN surface — the peer ↔ peer wire types (never on the loopback surface)
+// ---------------------------------------------------------------------------
+
+/**
+ * A Peer device discovered on the LAN (mDNS announcement). The Device
+ * fingerprint IDENTIFIES a machine — so a machine can ignore its own
+ * announcement — and authenticates nothing.
+ */
+export interface PeerInfo {
+  /** The device's human-readable alias. */
+  alias: string;
+  /** The announced Device fingerprint (identification only, never auth). */
+  fingerprint: string;
+  /** The address the peer announced. */
+  address: string;
+  /** The peer's LAN listener port (system-assigned, ephemeral). */
+  port: number;
+  /** The peer's peering protocol version. */
+  protocolVersion: string;
+}
+
+/**
+ * A Transfer offer — the pre-acceptance DESCRIPTION of an incoming Canvas
+ * transfer.
+ *
+ * Boundary constraint (ADR 0013): the offer carries metadata ONLY. It has no
+ * element content and no thumbnail field, and none may be added — a thumbnail
+ * is content, and rendering one would read the canvas before acceptance.
+ */
+export interface TransferOffer {
+  transferId: string;
+  /** The sending device's alias. */
+  alias: string;
+  /** The sending device's Device fingerprint (identification only). */
+  fingerprint: string;
+  /** How many elements the canvas holds — a count, not the elements. */
+  elementCount: number;
+  /** The estimated scene size in bytes — an estimate, not the bytes. */
+  bytes: number;
+  /** The canvas's local name on the sending machine. */
+  canvasName: string;
+  /**
+   * Epoch milliseconds at which this offer stops being acceptable — the
+   * receiver's own deadline, not the sender's clock. The receiver displays the
+   * remaining time from this value and never computes its own: a page-side timer
+   * drifts from the daemon's, and the offer would be refused while the UI still
+   * showed time left.
+   */
+  expiresAt: number;
+}
+
+/**
+ * The receiver's acceptance: a per-transfer token bound to the source address
+ * and to a deadline.
+ */
+export interface TransferAccept {
+  transferId: string;
+  token: string;
+}
+
+/** The receiver's refusal — the sender's canvas is left untouched. */
+export interface TransferReject {
+  transferId: string;
+  reason: string;
+}
+
+/** One chunk of the opaque scene bytes (the daemon never parses the scene). */
+export interface TransferChunk {
+  transferId: string;
+  /** The chunk's position in the carry. */
+  seq: number;
+  /** How many chunks the carry carries in total. */
+  total: number;
+  /** The chunk payload, base64-encoded. */
+  dataBase64: string;
+}
+
+/** The end of a carry: the whole scene's sha256 (integrity is checked once). */
+export interface TransferDone {
+  transferId: string;
+  sha256: string;
+}
+
+/**
+ * Peering limits (docs/PEERING.md → Numbers): a 200KB chunk, a 64MB
+ * whole-scene cap, a 60s in-memory offer deadline.
+ */
+export const TRANSFER_CHUNK_BYTES = 200 * 1024;
+export const TRANSFER_SCENE_MAX_BYTES = 64 * 1024 * 1024;
+export const TRANSFER_OFFER_TTL_MS = 60_000;
+
+/** The peering protocol version a peer announces (mDNS TXT + PeerInfo). */
+export const PEERING_PROTOCOL_VERSION = "1";
+
+/** The mDNS/DNS-SD service type the LAN listener advertises. */
+export const LAN_MDNS_SERVICE = "_excali-bridge._tcp";
+
 /** Daemon-local JSON-RPC methods (no page involved). */
 export const DAEMON_LOCAL_METHODS = [
   "ping",
@@ -364,6 +508,9 @@ export const DAEMON_LOCAL_METHODS = [
   "protocol.version",
   "bridge.status",
   "bridge.stop",
+  ...PEERING_METHODS,
+  ...LAN_METHODS,
+  ...AUTOSTART_METHODS,
 ] as const;
 
 /**
@@ -429,3 +576,14 @@ export const JSON_RPC_ERROR_NOT_FOUND = -32006;
 /** bridge.* daemon-local method requires the single active-page role (045). */
 export const JSON_RPC_ERROR_REQUIRES_ACTIVE_PAGE = -32007;
 
+/** A Transfer offer passed its 60s in-memory deadline before it was answered. */
+export const JSON_RPC_ERROR_OFFER_EXPIRED = -32008;
+
+/** A transfer token was wrong, replayed, or bound to another source address. */
+export const JSON_RPC_ERROR_INVALID_TOKEN = -32009;
+
+/** The scene exceeds the 64MB whole-scene transfer cap. */
+export const JSON_RPC_ERROR_SCENE_TOO_LARGE = -32010;
+
+/** The peer device is not reachable (no announcement, or it went away). */
+export const JSON_RPC_ERROR_PEER_UNREACHABLE = -32011;

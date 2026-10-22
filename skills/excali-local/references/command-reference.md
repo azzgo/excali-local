@@ -41,7 +41,7 @@ requirement** for that method (see SKILL.md):
 
 | Gate | Requires | Methods |
 | --- | --- | --- |
-| **daemon-local** | the daemon itself (no page, no canvas, no pairing beyond connection auth) | `ping`, `commands.list`, `protocol.version`, `bridge.status`, `bridge.stop`, `fonts.system.list` |
+| **daemon-local** | the daemon itself (no page, no canvas, no pairing beyond connection auth) | `ping`, `commands.list`, `protocol.version`, `bridge.status`, `bridge.stop`, `fonts.system.list`, `peers.list`, `peers.transferOffer`, `peers.transferStatus`, `peers.transferRespond`, `lan.status`, `lan.on`, `lan.off`, `autostart.status`, `autostart.on`, `autostart.off` |
 | **activated (canvas-bound)** | an **activated canvas** (plus the paired connection) | all `canvas/*` draw/read methods + `gallery.load` + `gallery.save` |
 | **paired** | the **paired connection** (no canvas needed) | gallery metadata ops + font config ops |
 
@@ -68,6 +68,52 @@ Resolved by the daemon itself — no page, no canvas, no user confirmation.
   Go; no browser permission prompt, cross-browser, offline). No params.
   Result: `[ { "family": "SFNS-Regular", "postscriptName": "SFNS-Regular" }, … ]`.
 
+### Peering — cross-machine Canvas transfer
+
+The daemon owns discovery, the LAN listener and the transfer state, so these
+need no page and read no canvas. The LAN listener is a **second, separately
+switched** surface: off by default, opened by an explicit user act, and it
+carries Canvas transfer only. Peer-to-peer payloads (offer / accept / reject /
+chunk) travel on that surface — never on the loopback one.
+
+- `peers.list` — the discovered peer devices. No params. Result:
+  `[ { "alias", "fingerprint", "address", "port", "protocolVersion" }, … ]`.
+  The fingerprint **identifies** a machine (so a machine can ignore its own
+  announcement); it authenticates nothing.
+- `peers.transferOffer` — start a Canvas transfer to one peer. Params:
+  `{ "peer": "…" }` (the target peer identifier). Result:
+  `{ "transferId": "…", "state": "…", "token": "…" }`.
+  The offer the peer sees carries **metadata only** — alias, fingerprint,
+  element count, estimated bytes, canvas name: no elements, no thumbnail.
+  The scene exceeds the 64MB cap → `-32010`; the peer is gone → `-32011`.
+- `peers.transferStatus` — the state of an in-flight transfer. Params:
+  `{ "transferId": "…" }`. Result:
+  `{ "transferId": "…", "state": "…", "bytes": n, "sha256": "…" }`.
+  The offer's 60s in-memory deadline passed unanswered → `-32008`.
+- `peers.transferRespond` — answer an incoming offer (receiver side). Params:
+  `{ "transferId": "…", "accept": true|false, "reason"?: "…" }`. Result:
+  `{ "transferId": "…", "state": "…" }`. A wrong, replayed, or re-targeted
+  token → `-32009`.
+
+### LAN listener
+
+- `lan.status` — the LAN listener's state. No params. Result:
+  `{ "enabled": true|false, "address": "…", "port": n }` (the port is
+  system-assigned and ephemeral; it is advertised via mDNS, never fixed).
+- `lan.on` — open the LAN listener. No params. Result: the `lan.status`
+  shape. The listener is off again after a restart unless the user persisted
+  it.
+- `lan.off` — close the LAN listener. No params. Result: the `lan.status`
+  shape.
+
+### Autostart
+
+- `autostart.status` — the daemon's autostart registration. No params.
+  Result: `{ "enabled": true|false }`.
+- `autostart.on` — register the daemon to start with the user's session. No
+  params. Result: `{ "enabled": true }`.
+- `autostart.off` — remove that registration. No params. Result:
+  `{ "enabled": false }`.
 ## activated (canvas-bound)
 
 Require an **activated canvas**. Without one: error `-32001` *no active
@@ -220,13 +266,17 @@ Standard JSON-RPC + the bridge's custom range. Failures print
 | `-32005` | User cancelled (blocking confirmation declined) | Back off; do not retry. |
 | `-32006` | Not found (gallery id missing) | Re-list first. |
 | `-32007` | Requires active page (`bridge.stop` from any non-active peer) | Use the Options page's Stop daemon action. |
+| `-32008` | Offer expired (the 60s in-memory deadline passed unanswered) | Re-send the offer; ask the receiver to watch for it. |
+| `-32009` | Invalid transfer token (wrong, replayed, or bound to another address) | Re-negotiate: send a fresh offer. |
+| `-32010` | Scene too large (over the 64MB transfer cap) | Split the canvas; the cap is a whole-scene in-memory move. |
+| `-32011` | Peer unreachable (no announcement, or it went away) | Re-list the peers; check the LAN listener on both machines. |
 
 ## Full command index (machine-checked)
 
 The complete method set — every token below must exist in the wire contract
 and appear exactly once:
 
-daemon-local: `ping`, `commands.list`, `protocol.version`, `bridge.status`, `bridge.stop`, `fonts.system.list`
+daemon-local: `ping`, `commands.list`, `protocol.version`, `bridge.status`, `bridge.stop`, `fonts.system.list`, `peers.list`, `peers.transferOffer`, `peers.transferStatus`, `peers.transferRespond`, `lan.status`, `lan.on`, `lan.off`, `autostart.status`, `autostart.on`, `autostart.off`
 
 activated (canvas-bound): `scene.get`, `scene.elements`, `scene.state`, `scene.bounds`, `scene.exportPng`, `scene.exportSvg`, `scene.update`, `elements.add`, `elements.clear`, `scene.reset`, `files.add`, `tool.setActive`, `view.scrollTo`, `history.clear`, `gallery.load`, `gallery.save`
 

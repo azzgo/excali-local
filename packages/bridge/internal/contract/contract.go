@@ -80,12 +80,22 @@ var CanvasV1Methods = [...]string{
 
 // DaemonLocalMethods resolve locally (no page involved) — like ping.
 var DaemonLocalMethods = map[string]bool{
-	"ping":              true,
-	"commands.list":     true,
-	"protocol.version":  true,
-	"bridge.status":     true,
-	"bridge.stop":       true, // 045: active page stops the daemon
-	"fonts.system.list": true, // daemon-local (goal 4 refinement)
+	"ping":                  true,
+	"commands.list":         true,
+	"protocol.version":      true,
+	"bridge.status":         true,
+	"bridge.stop":           true, // 045: active page stops the daemon
+	"fonts.system.list":     true, // daemon-local (goal 4 refinement)
+	"peers.list":            true, // peering (ADR 0013)
+	"peers.transferOffer":   true,
+	"peers.transferStatus":  true,
+	"peers.transferRespond": true,
+	"lan.status":            true,
+	"lan.on":                true,
+	"lan.off":               true,
+	"autostart.status":      true,
+	"autostart.on":          true,
+	"autostart.off":         true,
 }
 
 // CanvasV1Protocol is the contract version string returned by protocol.version.
@@ -135,6 +145,53 @@ var FontsV1Methods = [...]string{
 // FontsV1Protocol is the fonts/v1 contract version string.
 const FontsV1Protocol = "fonts/v1"
 
+// PeeringMethods is the Peering method set (ADR 0013, docs/PEERING.md) — every
+// one of them is DAEMON-LOCAL: the daemon owns discovery, the LAN listener and
+// the transfer state, so answering them needs no page and reads no canvas.
+//
+// The peers.* methods are the loopback CONTROL surface of a Canvas transfer;
+// the payloads they drive (offer/accept/reject/chunk) travel on the separate
+// LAN listener surface — the two never share a capability set.
+var PeeringMethods = [...]string{
+	"peers.list",
+	"peers.transferOffer",
+	"peers.transferStatus",
+	"peers.transferRespond",
+}
+
+// LANMethods is the LAN listener switch (daemon-local): the daemon's second,
+// separately switched listening surface — off by default, opened by an explicit
+// user act, carrying Canvas transfer only.
+var LANMethods = [...]string{
+	"lan.status",
+	"lan.on",
+	"lan.off",
+}
+
+// AutostartMethods is the autostart registration (daemon-local): the daemon
+// owns the login item; the Presence host and the extension's Options page only
+// act through it.
+var AutostartMethods = [...]string{
+	"autostart.status",
+	"autostart.on",
+	"autostart.off",
+}
+
+// Peering limits (docs/PEERING.md → Numbers): a 200KB chunk, a 64MB
+// whole-scene cap, a 60s in-memory offer deadline.
+const (
+	TransferChunkBytes    = 200 * 1024
+	TransferSceneMaxBytes = 64 * 1024 * 1024
+	TransferOfferTTLms    = 60_000
+)
+
+// PeeringProtocolVersion is the peering protocol version a peer announces
+// (mDNS TXT + PeerInfo).
+const PeeringProtocolVersion = "1"
+
+// LANMDNSService is the mDNS/DNS-SD service type the LAN listener advertises.
+const LANMDNSService = "_excali-bridge._tcp"
+
 // JSON-RPC server error codes (custom range -32000..-32099 per spec).
 const (
 	JSONRPCErrorNoActiveCanvas   = -32001
@@ -147,6 +204,17 @@ const (
 	JSONRPCErrorUserCancelled = -32005
 	// JSONRPCErrorNotFound: gallery.get/load referenced a missing drawing id.
 	JSONRPCErrorNotFound = -32006
+	// JSONRPCErrorOfferExpired: a Transfer offer passed its 60s in-memory
+	// deadline before it was answered.
+	JSONRPCErrorOfferExpired = -32008
+	// JSONRPCErrorInvalidToken: a transfer token was wrong, replayed, or bound
+	// to another source address.
+	JSONRPCErrorInvalidToken = -32009
+	// JSONRPCErrorSceneTooLarge: the scene exceeds the 64MB transfer cap.
+	JSONRPCErrorSceneTooLarge = -32010
+	// JSONRPCErrorPeerUnreachable: the peer device is not reachable (no
+	// announcement, or it went away).
+	JSONRPCErrorPeerUnreachable = -32011
 )
 
 // JSONRPCErrorRequiresActivePage: a bridge.* daemon-local method (045:
@@ -190,6 +258,16 @@ func IsFontsPageMethod(m string) bool {
 	return IsFontsV1Method(m) && m != "fonts.system.list"
 }
 
+// IsPeeringMethod reports whether m is a Peering (Canvas transfer) method.
+func IsPeeringMethod(m string) bool {
+	for _, method := range PeeringMethods {
+		if method == m {
+			return true
+		}
+	}
+	return false
+}
+
 // IsCanvasBoundMethod reports whether m routes to the ACTIVE slot only: the
 // canvas/v1 set plus gallery.load/save (014 gates). No active canvas → -32001.
 func IsCanvasBoundMethod(m string) bool {
@@ -223,6 +301,15 @@ func AllMethods() []string {
 		add(m)
 	}
 	for _, m := range FontsV1Methods {
+		add(m)
+	}
+	for _, m := range PeeringMethods {
+		add(m)
+	}
+	for _, m := range LANMethods {
+		add(m)
+	}
+	for _, m := range AutostartMethods {
 		add(m)
 	}
 	for m := range DaemonLocalMethods {
