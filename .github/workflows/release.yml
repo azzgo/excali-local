@@ -44,6 +44,10 @@ jobs:
         run: pnpm run skill:pack
         env:
           EXCALI_SKILL_DIST_DIR: ${{ runner.temp }}/excali-skill-dist
+          # Presence (the Rust tray) is built by the `Presence-Actions` matrix
+          # job below — one native runner per target — and its assets are added
+          # to the release in `Release-Actions`.
+          EXCALI_SKIP_PRESENCE: '1'
       - name: Pack skill
         run: |
           # The skill tarball carries docs only: ADR 0012 keeps build products out
@@ -53,17 +57,102 @@ jobs:
           tar -czf skills-${{ github.ref_name }}.tar.gz \
             --exclude='bin/*' \
             -C skills/excali-local .
+      - name: Upload daemon assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: excali-bridge-assets
+          path: ${{ runner.temp }}/excali-skill-dist/*
+      - name: Upload extension + skill archives
+        uses: actions/upload-artifact@v4
+        with:
+          name: excali-packages
+          path: |
+            ./packages/local/.output/*.zip
+            ./packages/local/*.tar.gz
+            ./skills-${{ github.ref_name }}.tar.gz
+      - run: echo "🍏 This job's status is ${{ job.status }}."
+
+  # ADR 0014 build matrix: macOS (aarch64 + x86_64) and Linux (x86_64).
+  # Windows is deliberately absent:
+  # TODO(windows): add excali-presence-windows target — welcome PR (no maintainer Windows machine)
+  Presence-Actions:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            target: aarch64-apple-darwin
+            asset: excali-presence-macos-aarch64
+          - runner: macos-14
+            target: x86_64-apple-darwin
+            asset: excali-presence-macos-x86_64
+          - runner: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            asset: excali-presence-linux-x86_64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.target }}
+      - name: Build presence asset
+        run: pnpm run presence:pack --target ${{ matrix.target }} --strict
+        env:
+          EXCALI_SKILL_DIST_DIR: ${{ runner.temp }}/excali-presence-dist
+      - name: Upload presence asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: excali-presence-${{ matrix.target }}
+          path: ${{ runner.temp }}/excali-presence-dist/${{ matrix.asset }}
+
+  Release-Actions:
+    needs:
+      - Pack-Actions
+      - Presence-Actions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download daemon assets
+        uses: actions/download-artifact@v4
+        with:
+          name: excali-bridge-assets
+          path: dist
+      - name: Download extension + skill archives
+        uses: actions/download-artifact@v4
+        with:
+          name: excali-packages
+          path: dist
+      - name: Download presence assets
+        uses: actions/download-artifact@v4
+        pattern: excali-presence-*
+        path: dist
+        merge-multiple: true
+      - name: Re-checksum all assets
+        run: |
+          find dist -type f ! -name checksums.txt -print0 \
+            | xargs -0 sha256sum \
+            | awk '{n=$2; sub(/.*\//, "", n); print $1"  "n}' \
+            | sort -k2 > dist/checksums.txt
+          cat dist/checksums.txt
       - name: Release
         env:
            GH_TOKEN: ${{ github.token }}
         run: |
+          # Release assets, side by side:
+          #   excali-bridge-{darwin-arm64,darwin-amd64,linux-amd64,windows-amd64.exe}
+          #   excali-presence-{macos-aarch64,macos-x86_64,linux-x86_64}
+          # TODO(windows): add excali-presence-windows target — welcome PR (no maintainer Windows machine)
           gh release create ${{ github.ref_name }} \
             --title "🎉 Excali Local ${{ github.ref_name }}" \
             --generate-notes \
             --draft \
-            ./packages/local/.output/*.zip \
-            ./packages/local/*.tar.gz \
-            ./skills-${{ github.ref_name }}.tar.gz \
-            "$RUNNER_TEMP"/excali-skill-dist/*
+            ./dist/*
       - run: echo "🍏 This job's status is ${{ job.status }}."
-

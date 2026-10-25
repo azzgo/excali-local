@@ -21,6 +21,7 @@
     "typecheck": "pnpm typecheck:shared && pnpm typecheck:page && pnpm typecheck:local && pnpm typecheck:collab",
     "skill:pack": "tsx scripts/skill-pack.ts",
     "skill:check": "tsx scripts/check-skill-commands.ts",
+    "presence:pack": "tsx scripts/presence-pack.ts",
     "sync:version": "bash ./scripts/sync-version.sh",
     "bridge:build": "cd packages/bridge && go build -buildvcs=false -o bin/excali-bridge .",
     "bridge:test": "cd packages/bridge && go test ./...",

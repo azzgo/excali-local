@@ -41,12 +41,21 @@
  * lives in the OS temp dir and is cleaned up on exit, so a gate failure never
  * leaves a partial binary behind.
  *
+ * Presence assets: after the Go binaries are staged, this script also invokes
+ * `scripts/presence-pack.ts` (ADR 0014) so the tray binaries land in the SAME
+ * staging dir and the SAME `checksums.txt`. A presence target that cannot be
+ * built on the current machine is a WARN, not a pack failure — CI builds each
+ * target on its native runner (`presence-pack --target <triple> --strict`).
+ * Set `EXCALI_SKIP_PRESENCE=1` to stage Go assets only (the release workflow
+ * does this: presence has its own per-runner matrix job).
+ *
  * Run: pnpm skill:pack
  */
 
 import { createHash } from "node:crypto";
 import {
   chmodSync,
+  existsSync,
   copyFileSync,
   mkdirSync,
   mkdtempSync,
@@ -103,6 +112,9 @@ const binName = (t: Target) => `excali-bridge-${t.os}-${t.arch}${t.exe}`;
 
 const run = (cmd: string[], cwd: string, env: Record<string, string>) =>
   runCmd(cmd, { cwd, env: { ...(process.env as Record<string, string>), ...env } });
+
+const tsx = join(ROOT, "node_modules/.bin/tsx");
+const tsxOrNode = existsSync(tsx) ? tsx : process.execPath;
 
 const sha256Of = (path: string) => createHash("sha256").update(readFileSync(path)).digest("hex");
 
@@ -246,6 +258,24 @@ try {
       );
     }
     console.log(`  checksums.txt  ${checksums}`);
+    const skipPresence = process.env.EXCALI_SKIP_PRESENCE?.trim() === "1";
+    if (skipPresence) {
+      console.log("[skill-pack] presence assets skipped (EXCALI_SKIP_PRESENCE=1)");
+    } else {
+      const presence = run(
+        [tsxOrNode, join(ROOT, "scripts/presence-pack.ts")],
+        ROOT,
+        { EXCALI_SKILL_DIST_DIR: distDir },
+      );
+      process.stdout.write(presence.out);
+      if (presence.code !== 0) {
+        console.warn(
+          "[skill-pack] WARN — presence assets were not staged (ADR 0014 matrix is buildable on its " +
+            "native runners; Windows is welcome-PR); the Go daemon assets are unaffected.",
+        );
+      }
+    }
+
     console.log(
       `[skill-pack] PASS — excali-local v${VERSION} binaries staged outside the repo (ADR 0012) ✔`,
     );

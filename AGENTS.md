@@ -62,7 +62,8 @@ detail, read the doc relevant to your task (links below).
 | `pnpm sync:version` | Sync version across all packages.
 | `pnpm bridge:build` | `go build` the Go bridge daemon into `bridge/bin/` (gitignored).
 | `pnpm bridge:test` | `go test ./...` for the Go daemon (ws codec, pidfile, server).
-| `pnpm skill:pack` | Cross-compile the daemon for 4 static targets and stage its release assets (needs Go). |
+| `pnpm skill:pack` | Cross-compile the daemon for 4 static targets and stage its release assets (needs Go), then run `presence:pack` into the same staging dir. |
+| `pnpm presence:pack` | Build the Rust tray for the ADR 0014 matrix (macos-aarch64/x86_64, linux-x86_64) and stage `excali-presence-*` assets; `--target <triple> --strict` for one target. Windows = welcome PR. |
 | `pnpm skill:check` | Zero-drift gate: skill docs == wire contract. |
 | `pnpm relay:dev` / `relay:dev:https` | One-command collab-relay dev loop: idempotent seed, `.dev.vars` + invite print, `wrangler dev` (optional mkcert TLS). |
 | `pnpm relay:keygen` | Production org keypair + server invite generator (`--org` / `--relay`). |

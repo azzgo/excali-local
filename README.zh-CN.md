@@ -164,6 +164,19 @@ pnpm bridge:build   # 构建守护进程（go build）
 cd packages/presence && cargo build --release   # 构建托盘
 ```
 
+### 发布资产（守护进程 + 托盘）
+
+`pnpm skill:pack` 会交叉编译 Go 守护进程的四个 target，把二进制与 `checksums.txt`
+暂存到仓库之外（ADR 0012）；随后它会调用 `pnpm presence:pack`，按 ADR 0014 的矩阵构建
+Rust 托盘 —— `excali-presence-macos-aarch64`、`excali-presence-macos-x86_64`、
+`excali-presence-linux-x86_64` —— 放进同一个暂存目录、同一个 `checksums.txt`。
+本机无法交叉构建的托盘 target 会打印 `WARN` 后跳过（请在它的原生 runner 上构建；
+发布 workflow 每个 target 一个 job）。`pnpm presence:pack --target <triple> --strict`
+只构建单个 target，且无法构建时直接失败而不是跳过。
+
+Windows 目前是占位：`excali-presence-windows` 尚不存在 —— **欢迎 PR**
+（维护者没有 Windows 机器）。
+
 ---
 
 *截图来自 [unDraw](https://undraw.co/) — 面向所有人的免费插图。*

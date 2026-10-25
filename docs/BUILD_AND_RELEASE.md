@@ -20,7 +20,8 @@
 | `pnpm sync:version` | Propagate root version to all `package.json`s.
 | `pnpm bridge:build` | `go build` the Go bridge daemon into `bridge/bin/` (gitignored).
 | `pnpm bridge:test` | `go test ./...` for the Go daemon. |
-| `pnpm skill:pack` | Cross-compile the daemon (4 static targets: darwin-arm64/amd64, linux-amd64, windows-amd64; CGO off, symbols stripped, reproducible via `-buildvcs=false`) + static-verify + stage the release assets (binaries + `checksums.txt`); no longer writes into the repo (ADR 0012). |
+| `pnpm skill:pack` | Cross-compile the daemon (4 static targets: darwin-arm64/amd64, linux-amd64, windows-amd64; CGO off, symbols stripped, reproducible via `-buildvcs=false`) + static-verify + stage the release assets (binaries + `checksums.txt`); then runs `presence:pack` into the same staging dir. No longer writes into the repo (ADR 0012). |
+| `pnpm presence:pack` | Build the Rust tray (ADR 0014 matrix: macos-aarch64, macos-x86_64, linux-x86_64) with `cargo build --release --target <triple>` and stage `excali-presence-*` next to the daemon assets (same `checksums.txt`). Unbuildable targets are skipped with a `WARN`; `--target <triple> --strict` builds one target and fails instead. Windows is a welcome-PR placeholder. |
 | `pnpm skill:check` | Zero-drift gate: the skill's documented commands == the wire contract. |
 
 > There is no `local:dev` script. For the editor UI use `page:dev`; for the full
@@ -45,6 +46,13 @@ windows-amd64; CGO disabled, symbols stripped), static-verifies them, and stages
 binary on demand at the one canonical path (`~/.local/bin/excali-bridge`); the skill
 tarball ships docs only. Editable state/config lives under the platform dirs
 ([PEERING.md](PEERING.md) §State and switch), not in `~/.excali-local/`.
+
+**Presence tray** (`packages/presence`, Rust, NOT a pnpm workspace): `scripts/presence-pack.ts`
+builds the ADR 0014 matrix (macos-aarch64, macos-x86_64, linux-x86_64) and stages
+`excali-presence-<os>-<arch>` into the same release-asset dir as the daemon. Targets
+that cannot be cross-built locally are skipped with a `WARN` (the release workflow runs
+one native runner per target, `--strict`); Windows is an explicit placeholder —
+welcome PR (no maintainer Windows machine). No signing/notarization, no dmg/app bundle.
 Verify against the extension with the e2e drivers in
 `scripts/agent-bridge/` (`driver` / `driver-canvas` / `driver-gallery` / `driver-fonts` /
 `driver-skill` — each spawns the daemon lazily via the CLI).

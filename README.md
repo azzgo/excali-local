@@ -171,6 +171,21 @@ pnpm bridge:build   # go build the daemon
 cd packages/presence && cargo build --release   # build the tray
 ```
 
+### Release assets (daemon + tray)
+
+`pnpm skill:pack` cross-compiles the Go daemon for all four targets and stages
+the binaries plus `checksums.txt` outside the repo (ADR 0012); it then runs
+`pnpm presence:pack`, which builds the Rust tray for the ADR 0014 matrix —
+`excali-presence-macos-aarch64`, `excali-presence-macos-x86_64`,
+`excali-presence-linux-x86_64` — into the same staging dir and the same
+`checksums.txt`. A tray target that cannot be cross-built on your machine is
+skipped with a `WARN` (build it on its native runner; the release workflow runs
+one job per target). `pnpm presence:pack --target <triple> --strict` builds a
+single target and fails instead of skipping.
+
+Windows is a placeholder: `excali-presence-windows` does not exist yet —
+**welcome PR** (no maintainer with a Windows machine).
+
 ---
 
 *Screenshots from [unDraw](https://undraw.co/) — free illustrations for everyone.*
