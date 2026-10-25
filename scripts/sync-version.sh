@@ -29,4 +29,21 @@ for WS_PATH in "${WORKSPACE_DIRS[@]}"; do
   fi
 done
 
+# The Go daemon carries its own semver literal (packages/bridge/main.go) because
+# `excali-bridge version` is what the Presence host compares its bundled sidecar
+# against (ADR 0014 decision 3). It is not a workspace member, so the loop above
+# never sees it — keep it in step here or the shipped binary drifts silently.
+BRIDGE_MAIN="$ROOT_DIR/packages/bridge/main.go"
+if [[ -f "$BRIDGE_MAIN" ]]; then
+  CURRENT_GO_VERSION=$(sed -n 's/^const Version = "\(.*\)"$/\1/p' "$BRIDGE_MAIN")
+  if [[ "$CURRENT_GO_VERSION" != "$ROOT_VERSION" ]]; then
+    sed -i.bak "s/^const Version = \".*\"$/const Version = \"$ROOT_VERSION\"/" "$BRIDGE_MAIN" && rm -f "${BRIDGE_MAIN}.bak"
+    echo "Synchronized version in packages/bridge/main.go to $ROOT_VERSION"
+  else
+    echo "Version in packages/bridge/main.go is already synchronized"
+  fi
+else
+  echo "Bridge main.go not found at $BRIDGE_MAIN" >&2
+fi
+
 pnpm install
