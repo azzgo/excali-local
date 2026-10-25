@@ -193,7 +193,9 @@ const (
 // (mDNS TXT + PeerInfo).
 const PeeringProtocolVersion = "1"
 
-// LANMDNSService is the mDNS/DNS-SD service type the LAN listener advertises.
+// LANMDNSService is the mDNS/DNS-SD service type, reserved for a future
+// discovery story. Peering v1 has no discovery on any platform (ADR 0013 as
+// amended): addresses are exchanged by hand.
 const LANMDNSService = "_excali-bridge._tcp"
 
 // JSON-RPC server error codes (custom range -32000..-32099 per spec).

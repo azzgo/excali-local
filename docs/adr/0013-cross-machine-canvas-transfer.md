@@ -26,9 +26,10 @@ origin allow-list plus the two consent gates. The **LAN listener** is:
 
 - **off by default**, opened by an explicit user act (`excali-bridge lan on`),
   and re-closed on the next start unless the user persisted it;
-- bound to `0.0.0.0` on a **system-assigned ephemeral port**, advertised via mDNS
-  (public port in the TXT record) — fixed ports lose on multi-homed machines and
-  port conflicts, and no user ever types the port;
+- bound to `0.0.0.0` on a **system-assigned ephemeral port** — fixed ports lose
+  on multi-homed machines and port conflicts. The port changes on every restart
+  by design; the receiver's current address is exchanged by hand (a copy-paste
+  of `IP:lanPort` from its `/health`), never assumed;
 - **carrying only transfer**: offer / accept / reject / chunk-carry. It must not
   reuse `originAllowed()` — that function *rejects* an empty `Origin`
   (`packages/bridge/internal/server/server.go:207`), and a Go peer sends no
@@ -37,11 +38,15 @@ origin allow-list plus the two consent gates. The **LAN listener** is:
   widening of the loopback surface; it is a different surface with a different,
   smaller capability set.
 
-**3. Discovery is the daemon's, not the tray's.** mDNS/DNS-SD advertising and
-browsing live in the daemon (pure Go, no cgo — the skill's static-link gates stay
-intact). A peer is a **machine**; it has no account, no membership, and no
-standing anywhere. Where discovery is unavailable, the loopback-confirmed manual
-address is the fallback. `excali-bridge peers` lists peers with no GUI present.
+**3. Discovery is deliberately absent, on every platform.** The review settled
+on manual addresses, not mDNS: userland mDNS is not viable (macOS
+`mDNSResponder` owns port 5353 and the OS delivers a multicast packet to one
+socket; the common workaround violates RFC 6762 §11), doing it correctly needs
+per-platform system APIs, and half of real networks block multicast anyway. A
+peer is a **machine** with no account and no membership; its address is
+exchanged by hand, and `excali-bridge peers` lists the peers the user added with
+no GUI present. (An earlier draft of this ADR placed mDNS in the daemon; that
+was dropped before implementation.)
 
 **4. Trust: none proven, receiver decides.** Same-network parties are not
 authenticated. A **Device fingerprint** identifies (so a machine can ignore its

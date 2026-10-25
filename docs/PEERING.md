@@ -21,7 +21,7 @@ loopback surface              LAN listener
   paired connection +           Canvas transfer only
     activated canvas gates      no scene read/write, no gallery, no fonts
   origin allow-list             no origin allow-list (peers send no Origin)
-    chrome-extension://…          peer identity is an mDNS announcement
+    chrome-extension://…          peer identity is a manually exchanged address
 ```
 
 Adding a Peering method to the loopback surface is a mistake: an agent driving a
@@ -42,8 +42,14 @@ XDG_STATE_HOME/excali-local/bridge.pid, bridge.log
 
 `excali-bridge lan on|off|status` is the single source of truth. The tray menu and
 the extension's Options page act through it; neither keeps its own copy, and
-neither writes a second login item. `EXCALI_BRIDGE_BIN` overrides the binary path
-for development only — there is no silent fallback to a second copy.
+neither writes a second login item. `EXCALI_BRIDGE_BIN` overrides the binary
+candidates for development only — there is no silent fallback to a second copy.
+
+> Shipping status: the switch, the CLI and the extension's Options surface are
+> implemented; the tray (Presence host) is designed (ADR 0012) but not built,
+> and `autostart` detects the login item without writing one. `lan on` persists
+> the switch only — a running daemon must be restarted before the listener
+> opens, because runtime start/stop would fight the Shutdown lifecycle.
 
 ## The exchange
 
@@ -75,17 +81,22 @@ Excalidraw versions.
 
 ## Acceptance
 
-The offer surfaces on B's extension page when one is connected. The daemon keeps
-offer metadata **in memory, with a deadline**, and stores no canvas content before
-acceptance; with no page present the transfer expires rather than accumulating an
-unowned content cache behind an open LAN port. A tray notification is a
-convenience, never the only path — the tray must stay non-load-bearing.
+The offer surfaces on B's extension page as a toast in the top-right — never a
+modal, never a banner that reflows the editor — with a countdown reading
+`expiresAt` from the protocol. The page answers through
+`peers.transferRespond`; the daemon's pageDecider never decides on the user's
+behalf, and a late answer for an expired or already-answered offer is refused.
+The daemon keeps offer metadata **in memory, with a deadline**, and stores no
+canvas content before acceptance; with no page present the transfer expires
+rather than accumulating an unowned content cache behind an open LAN port. A
+tray notification is a convenience, never the only path — the tray must stay
+non-load-bearing.
 
 ## Numbers
 
 | Quantity | Value | Why this one |
 | --- | --- | --- |
-| chunk size | 200KB | same constant as `collab-core/src/chunk.ts`; wire frame cap is 1MB (`ws.go:37`) |
+| chunk size | 200KB | same constant as `collab-core/src/chunk.ts`; the loopback WS default frame cap is 1MB, and the page/agent connections are raised to 256MB because a scene read is not control traffic |
 | scene cap | 64MB | an in-memory move; a canvas with embedded images realistically exceeds 20MB |
 | integrity | whole-scene sha256 | per-chunk verification adds cost without adding anything on a plaintext wire |
 | offer TTL | 60s, in-memory | long enough to notice a prompt, short enough that nothing idles on a LAN-open port |
@@ -123,11 +134,13 @@ sha256 mismatch           → receiver discards the staged scene, keeps its canv
 
 ## Discovery
 
-mDNS/DNS-SD advertising and browsing live in the daemon (pure Go, cgo-free, so
-the skill's static-link gates stay intact). The mDNS TXT record carries the
-ephemeral port — never assume a fixed one. Networks that block multicast have no
-discovery; the manual address is the fallback and `excali-bridge peers` remains
-the GUI-free way to inspect the list.
+There is none, on any platform, by decision (ADR 0013 decision 3 as amended in
+review; see KNOWN_LIMITATIONS → "no automatic discovery"). The LAN port is a
+system-assigned ephemeral that changes on every daemon restart, so the address
+is exchanged by hand — a copy-paste of the receiver's `IP:lanPort`, read from
+its `/health` or `lan.status`. `excali-bridge peers` lists the peers the user
+added this way and stays the GUI-free view; the tray, when it exists, is never
+the only way to see or act on them.
 
 ## Migration notes (one release cycle)
 

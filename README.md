@@ -10,6 +10,10 @@
 
 Excali Local is a browser extension that brings **Excalidraw fully offline**: screenshot annotation, a complete local editor, a private gallery, and presentation mode — with no backend, no account, no uploads. Every drawing stays in your browser.
 
+## New in v1.9.0 (unreleased)
+
+- **Cross-machine canvas transfer (Peering)** — hand a canvas to another machine on the same network: the receiver gets a top-right toast with a countdown, accepts, and the canvas lands — no file, no room, no relay. Manual address exchange by design (no discovery, no mDNS); plaintext wire, receiver-confirmed. → [Peering](docs/PEERING.md) · [Testing Guide](docs/PEERING-TESTING.md) · [ADR 0013](docs/adr/0013-cross-machine-canvas-transfer.md)
+
 ## New in v1.8.0
 
 - **Realtime collaboration** — hostless, end-to-end-encrypted rooms over a relay you deploy yourself (a ~150-line partyserver reference on Cloudflare Workers; no Excali Local backend — the relay forwards ciphertext only). Team rooms are E2E to your org, private rooms E2E per room; file sync included. → [Collaboration Guide](docs/COLLAB.md) · [ADR 0003](docs/adr/0003-byo-relay-realtime-collab.md)

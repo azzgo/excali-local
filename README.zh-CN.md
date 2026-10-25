@@ -10,6 +10,10 @@
 
 Excali Local 是一个浏览器扩展，让 **Excalidraw 完全离线可用**：截图标注、完整的本地编辑器、私有图库和演示模式——没有后端、没有账号、没有上传。每张绘图都留在你的浏览器里。
 
+## v1.9.0 新特性（未发布）
+
+- **跨机画布传输（Peering）** — 把画布交给同一局域网内的另一台机器：接收方右上角弹出带倒计时的浮层，点接受，画布即落地——无需文件、无需房间、无需中继。按设计采用手工地址交换（无发现、无 mDNS）；传输为明文，由接收方确认。→ [Peering](docs/PEERING.md) · [测试指南](docs/PEERING-TESTING.md) · [ADR 0013](docs/adr/0013-cross-machine-canvas-transfer.md)
+
 ## v1.8.0 新特性
 
 - **实时协作** — 无宿主、端到端加密的房间，跑在你自行部署的中继之上（约 150 行的 partyserver 参考实现，Cloudflare Workers；没有 Excali Local 后端——中继只转发密文）。团队房间对组织端到端加密，私有房间按房间端到端加密；包含文件同步。→ [协作指南](docs/COLLAB.zh-CN.md) · [ADR 0003](docs/adr/0003-byo-relay-realtime-collab.md)
