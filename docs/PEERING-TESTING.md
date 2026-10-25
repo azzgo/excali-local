@@ -167,9 +167,8 @@ excali-bridge peers.transferOffer '{"address":"<ip>:<port>"}'
   ├─ 端口不对？                            → 以接收方 /health 的 lanPort 为准，不要猜。
   │                                          ⚠️ LAN 端口每次重启都会变（系统随机分配），
   │                                          旧端口必然失败——两轮测试都栽在这
-  ├─ 防火墙拦了？                          → macOS MDM 托管机器无法用命令行放行，
-  │                                          入站会被静默丢弃（i/o timeout 而非 refused）。
-  │                                          变通：让被防火墙锁的那台当发送方（纯出站）
+  ├─ 接收方 daemon 重启过？                 → 端口变了，旧端口无人监听，表现恰是
+  │                                          i/o timeout 而非 refused——先重读 /health
   └─ 不同网段？                            → 局域网传输要求 IP 直达，组播无关（C1）
 
 接收方立即拒绝
