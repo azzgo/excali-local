@@ -83,8 +83,10 @@ _Avoid_: tray app, workbench, desktop app, daemon UI, control panel
 **Presence host**:
 The user-installed local program whose job is Presence: it starts with the user's session and
 is where the user sees and switches the local capabilities. Deliberately replaceable — it
-carries no protocol of its own and no capability the daemon lacks.
-_Avoid_: the desktop version, GUI, companion app, launcher
+carries no protocol of its own and no capability the daemon lacks. Its surface is the
+bridge itself — status and switches only; anything that lives in the browser (the editor,
+the transfer offer's answer) is out of its reach by construction.
+_Avoid_: the desktop version, GUI, companion app, launcher, control panel
 
 **Guest tab**:
 An editor page run outside the extension — a plain browser tab that loads the editor without any piece of the plugin. It can do what the webapp build can do and nothing more: it is never an Activated canvas and never drives the Agent Bridge.
