@@ -121,6 +121,31 @@ export const WS_PING = "ping";
 export const WS_PONG = "pong";
 /** Server → page: this page's active slot was taken by a newer activation (016/017). */
 export const WS_DISPLACED = "displaced";
+/**
+ * Server → page: a peer device is offering a canvas (Peering, ADR 0013). The
+ * payload is a TransferOffer — a DESCRIPTION only, never scene content — and the
+ * page answers with the `peers.transferRespond` request. The daemon never
+ * decides on its own: with no page connected the offer waits out expiresAt and
+ * the sender is told the peer did not answer.
+ */
+export const WS_TRANSFER_OFFER = "transfer_offer";
+
+/**
+ * The transfer offer a page sees pushed from the daemon (WS_TRANSFER_OFFER).
+ * The same fields ride the LAN wire, but a page never sees the wire — it sees
+ * this projection, with the receiver's own deadline in expiresAt.
+ */
+export interface TransferOfferNotice {
+  type: string;
+  transferId: string;
+  alias: string;
+  fingerprint: string;
+  elementCount: number;
+  bytes: number;
+  canvasName: string;
+  /** Epoch ms; the countdown displays the remaining time from this value. */
+  expiresAt: number;
+}
 
 /**
  * Handshake connection role. The page client does NOT send this (absent = "page").

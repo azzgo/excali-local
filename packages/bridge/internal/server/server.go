@@ -109,6 +109,7 @@ type Server struct {
 	pending    map[string]*pendingRPC // key: JSON-RPC id (raw bytes as string)
 	rpcTimeout time.Duration
 	peering    *peering.Handler
+	offers     map[string]chan peering.Decision
 	lanSrv     atomic.Pointer[lan.Server]
 	lanPort    atomic.Int32
 	peerAddrs  atomic.Pointer[[]string]
@@ -125,15 +126,17 @@ func New(cfg Config) *Server {
 	if cfg.RPCTimeout <= 0 {
 		cfg.RPCTimeout = defaultRPCTimeout
 	}
-	return &Server{
+	s := &Server{
 		cfg:        cfg,
 		log:        cfg.Logger,
-		peering:    peering.NewHandler(transfer.NewRegistry(), nil, nil),
+		offers:     map[string]chan peering.Decision{},
 		clients:    map[*ws.Conn]*client{},
 		controls:   map[string]*client{},
 		pending:    map[string]*pendingRPC{},
 		rpcTimeout: cfg.RPCTimeout,
 	}
+	s.peering = peering.NewHandler(transfer.NewRegistry(), pageDecider{srv: s}, nil)
+	return s
 }
 
 // Port returns the bound port (valid after ListenAndServe has started).
@@ -708,8 +711,7 @@ func (s *Server) handleLocalMethod(cl *client, id json.RawMessage, method string
 	case "peers.transferStatus":
 		s.sendRPCResult(cl, id, map[string]any{"inFlight": 0})
 	case "peers.transferRespond":
-		s.sendRPCError(cl, id, contract.JSONRPCErrorNotFound,
-			"a transfer offer is answered on the receiving editor page, not over loopback")
+		s.transferRespond(cl, id, params)
 	case "peers.list":
 		peers := []string{}
 		if addrs := s.peerAddrs.Load(); addrs != nil {

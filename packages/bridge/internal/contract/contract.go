@@ -17,6 +17,10 @@ const (
 	WSPing           = "ping"
 	WSPong           = "pong"
 	WSDisplaced      = "displaced"
+	// WSTransferOffer is server → page: a peer is offering a canvas (Peering,
+	// ADR 0013). The payload is a TransferOffer — a description only — and the
+	// page answers with the peers.transferRespond request.
+	WSTransferOffer = "transfer_offer"
 )
 
 // Handshake connection role. The page client does NOT send a role (absent =

@@ -17,6 +17,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import TransferOfferToastBody from "@/features/editor/components/transfer-offer-toast";
 import {
   currentLoadedDrawingIdAtom,
   galleryRevisionAtom,
@@ -37,6 +38,7 @@ import {
 	AGENT_BRIDGE_HEARTBEAT_MS,
 	PROFILE_ID_STORAGE_KEY,
 	WS_DISPLACED,
+	WS_TRANSFER_OFFER,
 	WS_ROLE_CONTROL_PAGE,
 	AB_BRIDGE_STOP_REQUEST,
 	BRIDGE_STOP_METHOD,
@@ -222,6 +224,14 @@ export interface UseAgentBridgeResult {
    */
   displaced: boolean;
   /**
+   * A peer device is offering a canvas (Peering, ADR 0013). null = no pending
+   * offer. The countdown displays the remaining time from expiresAt — the
+   * receiver's own deadline, never a page-side timer.
+   */
+  transferOffer: TransferOfferNotice | null;
+  /** Answer the pending transfer offer. Only the active page may answer. */
+  respondTransfer(accept: boolean): void;
+  /**
    * BLOCKING gallery confirm (013/014): a global destructive op is waiting on
    * the user. null = no pending confirm. key bumps per request.
    */
@@ -313,6 +323,7 @@ export function useAgentBridge({
   const [swRestartOffer, setSwRestartOffer] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [displacedNotice, setDisplacedNotice] = useState(false);
+  const [transferOffer, setTransferOffer] = useState<TransferOfferNotice | null>(null);
   // --- gallery BLOCKING confirm (013/014) ----------------------------------
   const [galleryConfirm, setGalleryConfirm] = useState<GalleryConfirmInfo | null>(null);
 
@@ -326,6 +337,7 @@ export function useAgentBridge({
   // The LIVE active-slot session (created inside the WS effect) — the SW
   // relay for bridge.stop (045) needs it from the runtime-message listener.
   const activeSessionRef = useRef<AgentBridgeSession | null>(null);
+  const respondTransferRef = useRef<(accept: boolean) => void>(() => {});
   // Per-canvas first-time consent (034 R1): keyed by drawing id ("unsaved"
   // for a blank canvas); cleared on unpair/re-pair so a NEW connection asks again.
   const confirmShownRef = useRef<Record<string, boolean>>({});
@@ -713,6 +725,25 @@ export function useAgentBridge({
     );
   }, []);
 
+  const respondTransfer = useCallback(
+    (accept: boolean) => {
+      const offer = transferOffer;
+      if (!offer) return;
+      setTransferOffer(null);
+      void activeSessionRef.current
+        ?.request("peers.transferRespond", {
+          transferId: offer.transferId,
+          accept,
+          reason: accept ? "" : "declined on this device",
+        })
+        .then((res) => {
+          if (!res.ok) toast.error(t("AgentTransferRespondFailed", { reason: res.reason }));
+        });
+    },
+    [transferOffer, t],
+  );
+  respondTransferRef.current = respondTransfer;
+
   const cancelGallery = useCallback(() => {
     const item = confirmQueueRef.current.shift();
     item?.resolve(false);
@@ -813,6 +844,23 @@ export function useAgentBridge({
     let portRef: number | null = null;
 
     const onInbound = (session: AgentBridgeSession, msg: Record<string, unknown>) => {
+      if ((msg as { type?: string })?.type === WS_TRANSFER_OFFER) {
+        const notice = msg as unknown as TransferOfferNotice;
+        setTransferOffer(notice);
+        toast.custom(
+          (toastId) => (
+            <TransferOfferToastBody
+              offer={notice}
+              onAnswer={(accept) => {
+                toast.dismiss(toastId);
+                respondTransferRef.current(accept);
+              }}
+            />
+          ),
+          { duration: 60_000 },
+        );
+        return;
+      }
       if ((msg as { type?: string })?.type === WS_DISPLACED) {
         // The daemon displaced THIS connection (active-slot takeover, or a
         // newer same-profile control dial). Stop the session BEFORE the
@@ -1017,6 +1065,8 @@ export function useAgentBridge({
     controlConnection,
     swRestartOffer,
     displaced: displacedNotice,
+    transferOffer,
+    respondTransfer,
     galleryConfirm,
     confirmGallery,
     cancelGallery,
