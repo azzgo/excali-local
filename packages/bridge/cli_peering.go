@@ -152,14 +152,34 @@ func cmdAutostart(args []string) int {
 	switch args[0] {
 	case "status":
 		return cmdAutostartStatus(args[1:])
-	case "on", "off":
-		fmt.Fprintf(os.Stderr,
-			"excali-bridge autostart %s: not implemented — the daemon owns the login item (ADR 0012 decision 2); the write side is still undecided\n",
-			args[0])
-		return 2
+	case "on":
+		return cmdAutostartSet(args[1:], true)
+	case "off":
+		return cmdAutostartSet(args[1:], false)
 	}
 	fmt.Fprintf(os.Stderr, "excali-bridge autostart: unknown subcommand %q (want status|on|off)\n", args[0])
 	return 2
+}
+
+func cmdAutostartSet(args []string, enable bool) int {
+	o := autostart.Options{
+		GOOS:     runtime.GOOS,
+		Home:     os.Getenv("HOME"),
+		Binaries: autostart.CandidateBinaries(),
+	}
+
+	action := "off"
+	err := autostart.Disable(o)
+	if enable {
+		action = "on"
+		err = autostart.Enable(o)
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "excali-bridge autostart %s: %v\n", action, err)
+		return 1
+	}
+
+	return cmdAutostartStatus(args)
 }
 
 func cmdAutostartStatus(args []string) int {

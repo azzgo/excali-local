@@ -106,7 +106,8 @@ Usage:
   excali-bridge peers        list the discovered peer devices (needs a running daemon);
   excali-bridge autostart status
                              report the OS login item that starts the daemon
-                             (autostart on|off: not implemented yet — see ADR 0012 decision 2)
+  excali-bridge autostart on|off
+                             create/remove the daemon's login item (ADR 0012 decision 2)
   excali-bridge help         this help
                              add --json to lan status | lan on | lan off | peers | autostart status
 

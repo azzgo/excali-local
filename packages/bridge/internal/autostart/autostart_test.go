@@ -1,6 +1,8 @@
 package autostart
 
 import (
+	"encoding/xml"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -221,6 +223,179 @@ HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run
 
 func TestDetectUnsupportedPlatform(t *testing.T) {
 	if _, err := Detect(Options{GOOS: "plan9"}); err == nil {
+		t.Fatal("an unsupported platform must report an error")
+	}
+}
+
+// --- Enable / Disable (write side, ADR 0012 decision 2) ---------------------
+
+func TestEnableMacWritesLaunchAgent(t *testing.T) {
+	home := t.TempDir()
+	binary := filepath.Join(home, ".local", "bin", "excali-bridge")
+
+	if err := Enable(Options{GOOS: "darwin", Home: home, Binaries: []string{binary}}); err != nil {
+		t.Fatal(err)
+	}
+
+	file := filepath.Join(home, "Library", "LaunchAgents", LaunchAgentLabel+".plist")
+	data, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatalf("the launch agent must exist: %v", err)
+	}
+	var plist launchAgentPlist
+	if err := xml.Unmarshal(data, &plist); err != nil {
+		t.Fatalf("the launch agent must be parseable XML: %v", err)
+	}
+	if len(plist.Dict.ProgramArguments.Items) != 1 || plist.Dict.ProgramArguments.Items[0] != binary {
+		t.Fatalf("ProgramArguments = %v, want [%s]", plist.Dict.ProgramArguments.Items, binary)
+	}
+	if !strings.Contains(string(data), "<key>RunAtLoad</key>") {
+		t.Fatal("the launch agent must start at login")
+	}
+
+	// The write side must be idempotent.
+	if err := Enable(Options{GOOS: "darwin", Home: home, Binaries: []string{binary}}); err != nil {
+		t.Fatalf("a second Enable must succeed: %v", err)
+	}
+
+	// And the entry must be detected by the read side.
+	status, err := Detect(Options{GOOS: "darwin", Home: home, Binaries: []string{binary}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status.Enabled {
+		t.Fatal("Enable then Detect must report Enabled")
+	}
+}
+
+func TestDisableMacRemovesLaunchAgent(t *testing.T) {
+	home := t.TempDir()
+	binary := filepath.Join(home, ".local", "bin", "excali-bridge")
+	o := Options{GOOS: "darwin", Home: home, Binaries: []string{binary}}
+
+	if err := Enable(o); err != nil {
+		t.Fatal(err)
+	}
+	if err := Disable(o); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(home, "Library", "LaunchAgents", LaunchAgentLabel+".plist")); !os.IsNotExist(err) {
+		t.Fatalf("the launch agent must be removed, stat err = %v", err)
+	}
+	// Disable of a missing entry is not an error.
+	if err := Disable(o); err != nil {
+		t.Fatalf("Disable must be idempotent: %v", err)
+	}
+}
+
+func TestEnableLinuxWritesDesktopEntry(t *testing.T) {
+	home := t.TempDir()
+	binary := filepath.Join(home, ".local", "bin", "excali-bridge")
+
+	if err := Enable(Options{GOOS: "linux", Home: home, Binaries: []string{binary}}); err != nil {
+		t.Fatal(err)
+	}
+
+	file := filepath.Join(home, ".config", "autostart", DesktopEntryName)
+	data, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatalf("the desktop entry must exist: %v", err)
+	}
+	if !strings.Contains(string(data), "[Desktop Entry]") {
+		t.Fatal("the desktop entry must have a [Desktop Entry] section")
+	}
+	if !strings.Contains(string(data), binary) {
+		t.Fatalf("Exec must point at %s, got:\n%s", binary, data)
+	}
+
+	status, err := Detect(Options{GOOS: "linux", Home: home, Binaries: []string{binary}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !status.Enabled {
+		t.Fatal("Enable then Detect must report Enabled")
+	}
+}
+
+func TestEnableLinuxHonoursXDGConfigHome(t *testing.T) {
+	home := t.TempDir()
+	xdg := t.TempDir()
+	binary := filepath.Join(home, ".local", "bin", "excali-bridge")
+	o := Options{GOOS: "linux", Home: home, XDGConfigHome: xdg, Binaries: []string{binary}}
+
+	if err := Enable(o); err != nil {
+		t.Fatal(err)
+	}
+	file := filepath.Join(xdg, "autostart", DesktopEntryName)
+	if _, err := os.Stat(file); err != nil {
+		t.Fatalf("the desktop entry must land under XDG_CONFIG_HOME: %v", err)
+	}
+	if err := Disable(o); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(file); !os.IsNotExist(err) {
+		t.Fatalf("the desktop entry must be removed, stat err = %v", err)
+	}
+}
+
+func TestEnableWindowsAddsRunValue(t *testing.T) {
+	var calls [][]string
+	run := func(name string, args ...string) error {
+		calls = append(calls, append([]string{name}, args...))
+		return nil
+	}
+	binary := `C:\Users\dev\.local\bin\excali-bridge.exe`
+
+	if err := Enable(Options{GOOS: "windows", Binaries: []string{binary}, Run: run}); err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("calls = %v, want 1", calls)
+	}
+	got := strings.Join(calls[0], " ")
+	for _, want := range []string{"reg add", RunKeyPath, "/v " + RunValueName, "REG_SZ", binary, "/f"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("reg add args %q must contain %q", got, want)
+		}
+	}
+
+	calls = nil
+	if err := Disable(Options{GOOS: "windows", Binaries: []string{binary}, Run: run}); err != nil {
+		t.Fatal(err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("calls = %v, want 1", calls)
+	}
+	got = strings.Join(calls[0], " ")
+	for _, want := range []string{"reg delete", RunKeyPath, "/v " + RunValueName, "/f"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("reg delete args %q must contain %q", got, want)
+		}
+	}
+}
+
+func TestDisableWindowsMissingEntryIsNotAnError(t *testing.T) {
+	run := func(name string, args ...string) error {
+		return errors.New("reg delete HKCU\\...: exit status 1 (ERROR: The system was unable to find the specified registry key or value.)")
+	}
+	if err := Disable(Options{GOOS: "windows", Binaries: []string{"x.exe"}, Run: run}); err != nil {
+		t.Fatalf("a missing registry entry must not be an error: %v", err)
+	}
+}
+
+func TestEnableWithoutBinaryFails(t *testing.T) {
+	// An explicit empty candidate list must not silently fall back to the
+	// running binary — Enable has nothing to point the login item at.
+	if err := Enable(Options{GOOS: "darwin", Home: t.TempDir(), Binaries: []string{""}}); err == nil {
+		t.Fatal("Enable without a binary path must fail")
+	}
+}
+
+func TestEnableUnsupportedPlatform(t *testing.T) {
+	if err := Enable(Options{GOOS: "plan9", Binaries: []string{"/bin/x"}}); err == nil {
+		t.Fatal("an unsupported platform must report an error")
+	}
+	if err := Disable(Options{GOOS: "plan9"}); err == nil {
 		t.Fatal("an unsupported platform must report an error")
 	}
 }

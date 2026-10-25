@@ -1,7 +1,6 @@
-// Package autostart detects the operating system's login items that start the
-// Bridge daemon. It detects only: ADR 0012 decision 2 makes the daemon the
-// owner of the login item, and the write side (autostart on|off) is still
-// undecided, so nothing here creates or removes an entry.
+// Package autostart owns the operating system's login items that start the
+// Bridge daemon: it detects an existing item and creates or removes the one
+// the daemon manages (ADR 0012 decision 2 — the daemon owns the login item).
 package autostart
 
 import (
@@ -17,8 +16,16 @@ import (
 	"strings"
 )
 
-// RunKeyPath is the Windows per-user Run key a login item lives in.
-const RunKeyPath = `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
+const (
+	// RunKeyPath is the Windows per-user Run key a login item lives in.
+	RunKeyPath = `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
+	// RunValueName is the value name of the daemon's Windows login item.
+	RunValueName = "ExcaliLocalBridge"
+	// LaunchAgentLabel is the macOS launch-agent label and plist base name.
+	LaunchAgentLabel = "com.excali-local.bridge"
+	// DesktopEntryName is the XDG autostart desktop-entry file name.
+	DesktopEntryName = "excali-local-bridge.desktop"
+)
 
 // RegistryValue is one value of the Windows Run key.
 type RegistryValue struct {
@@ -26,8 +33,9 @@ type RegistryValue struct {
 	Value string
 }
 
-// Options selects what Detect inspects. The zero value detects the current
-// platform, the current user's home directory and the running binary.
+// Options selects what Detect inspects and what Enable/Disable writes. The zero
+// value targets the current platform, the current user's home directory and the
+// running binary.
 type Options struct {
 	GOOS          string
 	Home          string
@@ -36,6 +44,9 @@ type Options struct {
 	// RegistryValues reads the Windows Run key. Defaults to the `reg` command;
 	// tests inject their own lister.
 	RegistryValues func() ([]RegistryValue, error)
+	// Run executes a system command for the Windows login-item write side.
+	// Defaults to running the command; tests inject their own runner.
+	Run func(name string, args ...string) error
 }
 
 // Status is the outcome of a detection pass.
@@ -84,7 +95,171 @@ func (o Options) withDefaults() Options {
 	if len(o.Binaries) == 0 {
 		o.Binaries = CandidateBinaries()
 	}
+	if o.Run == nil {
+		o.Run = runCommand
+	}
 	return o
+}
+
+// Enable creates the login item that starts the daemon at login. It points at
+// the running binary and is idempotent: a second call overwrites the same entry.
+func Enable(o Options) error {
+	o = o.withDefaults()
+	binary, err := targetBinary(o)
+	if err != nil {
+		return err
+	}
+	switch o.GOOS {
+	case "darwin":
+		return writeLaunchAgent(o.Home, binary)
+	case "linux":
+		return writeDesktopEntry(o.Home, o.XDGConfigHome, binary)
+	case "windows":
+		return addRunValue(o.Run, binary)
+	default:
+		return fmt.Errorf("autostart is not supported on %s", o.GOOS)
+	}
+}
+
+// Disable removes the login item the daemon owns. It is idempotent: removing an
+// entry that does not exist succeeds.
+func Disable(o Options) error {
+	o = o.withDefaults()
+	switch o.GOOS {
+	case "darwin":
+		return removeFile(launchAgentFile(o.Home))
+	case "linux":
+		return removeFile(desktopEntryFile(o.Home, o.XDGConfigHome))
+	case "windows":
+		return deleteRunValue(o.Run)
+	default:
+		return fmt.Errorf("autostart is not supported on %s", o.GOOS)
+	}
+}
+
+func targetBinary(o Options) (string, error) {
+	for _, binary := range o.Binaries {
+		if strings.TrimSpace(binary) == "" {
+			continue
+		}
+		if o.GOOS == "windows" {
+			return binary, nil
+		}
+		abs, err := filepath.Abs(binary)
+		if err != nil {
+			return "", fmt.Errorf("resolve bridge binary %q: %w", binary, err)
+		}
+		return abs, nil
+	}
+	return "", errors.New("no bridge binary path to install as a login item")
+}
+
+func launchAgentFile(home string) string {
+	return filepath.Join(home, "Library", "LaunchAgents", LaunchAgentLabel+".plist")
+}
+
+func writeLaunchAgent(home, binary string) error {
+	file := launchAgentFile(home)
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		return fmt.Errorf("create launch agents dir: %w", err)
+	}
+	plist := `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>` + LaunchAgentLabel + `</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>` + xmlEscape(binary) + `</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+</dict>
+</plist>
+`
+	if err := os.WriteFile(file, []byte(plist), 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", file, err)
+	}
+	return nil
+}
+
+func desktopEntryFile(home, xdgConfigHome string) string {
+	base := xdgConfigHome
+	if base == "" {
+		base = filepath.Join(home, ".config")
+	}
+	return filepath.Join(base, "autostart", DesktopEntryName)
+}
+
+func writeDesktopEntry(home, xdgConfigHome, binary string) error {
+	file := desktopEntryFile(home, xdgConfigHome)
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		return fmt.Errorf("create autostart dir: %w", err)
+	}
+	desktop := "[Desktop Entry]\n" +
+		"Type=Application\n" +
+		"Name=Excali Bridge\n" +
+		"Comment=Start the Excali Local Agent Bridge daemon at login\n" +
+		"Exec=\"" + binary + "\"\n" +
+		"Terminal=false\n" +
+		"X-GNOME-Autostart-enabled=true\n"
+	if err := os.WriteFile(file, []byte(desktop), 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", file, err)
+	}
+	return nil
+}
+
+func addRunValue(run func(string, ...string) error, binary string) error {
+	if err := run("reg", "add", RunKeyPath, "/v", RunValueName, "/t", "REG_SZ", "/d", quoteWindows(binary), "/f"); err != nil {
+		return fmt.Errorf("reg add %s: %w", RunKeyPath, err)
+	}
+	return nil
+}
+
+func deleteRunValue(run func(string, ...string) error) error {
+	if err := run("reg", "delete", RunKeyPath, "/v", RunValueName, "/f"); err != nil {
+		if isMissingRegistryEntry(err) {
+			return nil
+		}
+		return fmt.Errorf("reg delete %s: %w", RunKeyPath, err)
+	}
+	return nil
+}
+
+func runCommand(name string, args ...string) error {
+	out, err := exec.Command(name, args...).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s %s: %w (%s)", name, strings.Join(args, " "), err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+func isMissingRegistryEntry(err error) bool {
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "unable to find") || strings.Contains(message, "not found")
+}
+
+func quoteWindows(p string) string {
+	if strings.HasPrefix(p, `"`) && strings.HasSuffix(p, `"`) {
+		return p
+	}
+	return `"` + p + `"`
+}
+
+func xmlEscape(s string) string {
+	var buf bytes.Buffer
+	if err := xml.EscapeText(&buf, []byte(s)); err != nil {
+		return s
+	}
+	return buf.String()
+}
+
+func removeFile(file string) error {
+	if err := os.Remove(file); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("remove %s: %w", file, err)
+	}
+	return nil
 }
 
 // CandidateBinaries returns the paths a login item may point at: the running

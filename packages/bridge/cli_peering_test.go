@@ -143,23 +143,53 @@ func TestAutostartStatusReportsDisabledWithNoEntries(t *testing.T) {
 	}
 }
 
-func TestAutostartOnAndOffAreNotImplemented(t *testing.T) {
-	_, _ = withTempConfigAndHome(t)
+func TestAutostartOnAndOffRoundTrip(t *testing.T) {
+	_, home := withTempConfigAndHome(t)
+	binary := filepath.Join(home, "bin", "excali-bridge")
+	t.Setenv("EXCALI_BRIDGE_BIN", binary)
 
-	for _, sub := range []string{"on", "off"} {
-		code := 0
-		stderr := captureStderr(t, func() {
-			code = run([]string{"autostart", sub})
-		})
-		if code != 2 {
-			t.Fatalf("autostart %s exit = %d, want 2", sub, code)
+	// on: creates the login item and reports it enabled.
+	out := captureStdout(t, func() {
+		if code := run([]string{"autostart", "on", "--json"}); code != 0 {
+			t.Fatalf("autostart on exit != 0")
 		}
-		if !strings.Contains(stderr, "not implemented") {
-			t.Fatalf("autostart %s stderr %q must say it is not implemented", sub, stderr)
+	})
+	var on struct {
+		Enabled bool     `json:"enabled"`
+		Entries []string `json:"entries"`
+	}
+	if err := json.Unmarshal([]byte(out), &on); err != nil {
+		t.Fatalf("autostart on --json is not valid JSON (%q): %v", out, err)
+	}
+	if !on.Enabled || len(on.Entries) == 0 {
+		t.Fatalf("autostart on must report an enabled login item, got %v", on)
+	}
+	if _, err := os.Stat(on.Entries[0]); err != nil {
+		t.Fatalf("the login item %s must exist on disk: %v", on.Entries[0], err)
+	}
+
+	// off: removes it again.
+	out = captureStdout(t, func() {
+		if code := run([]string{"autostart", "off", "--json"}); code != 0 {
+			t.Fatalf("autostart off exit != 0")
 		}
-		if !strings.Contains(stderr, "ADR 0012") {
-			t.Fatalf("autostart %s stderr %q must point at ADR 0012 decision 2", sub, stderr)
-		}
+	})
+	var off struct {
+		Enabled bool `json:"enabled"`
+	}
+	if err := json.Unmarshal([]byte(out), &off); err != nil {
+		t.Fatalf("autostart off --json is not valid JSON (%q): %v", out, err)
+	}
+	if off.Enabled {
+		t.Fatalf("autostart off must report a disabled login item, got %v", off)
+	}
+	if _, err := os.Stat(on.Entries[0]); !os.IsNotExist(err) {
+		t.Fatalf("the login item %s must be gone, stat err = %v", on.Entries[0], err)
+	}
+
+	// off again: idempotent, still exit 0.
+	if code := run([]string{"autostart", "off"}); code != 0 {
+		t.Fatalf("a second autostart off exit = %d, want 0", code)
 	}
 }
 
