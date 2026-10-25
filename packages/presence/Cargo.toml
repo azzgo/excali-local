@@ -6,6 +6,7 @@ description = "Excali Local menu-bar host: a bridge-only tray over the excali-br
 publish = false
 
 [dependencies]
+libc = "0.2"
 muda = "0.21"
 serde_json = "1"
 tray-icon = "0.26"

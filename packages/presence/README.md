@@ -23,6 +23,21 @@ loop for the tray to appear at all). State refreshes on a 2s timer through an
 
 If neither exists every item reads `not installed` and clicks are no-ops.
 
+## Sidecar alignment
+
+On start (before the menu is built) the tray compares its bundled sidecar's
+`version` output against the canonical path's (ADR 0014 decision 3):
+
+- equal → nothing happens;
+- different (or missing) → the canonical file is overwritten by
+  write-temp-then-rename (the running daemon keeps its old inode), then a
+  running daemon is SIGTERMed (SIGKILL after 5s) and `serve` is respawned
+  detached from the new binary;
+- `EXCALI_BRIDGE_BIN` set → alignment is skipped entirely (dev override).
+
+Failures are logged to stderr and `$STATE_DIR/presence.log`; the tray keeps
+running — Presence never degrades capability, only visibility.
+
 ## Build
 
 ```bash

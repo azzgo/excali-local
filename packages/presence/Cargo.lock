@@ -415,6 +415,7 @@ dependencies = [
 name = "excali-presence"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "muda",
  "serde_json",
  "tray-icon",

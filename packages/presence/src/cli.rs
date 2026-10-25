@@ -39,6 +39,15 @@ pub fn resolve_bin() -> Option<PathBuf> {
     canonical_bin_path().filter(|path| path.is_file())
 }
 
+pub fn version(bin: &Path, timeout: Duration) -> Option<String> {
+    let outcome = run_bounded(bin, &["version"], timeout)?;
+    if !outcome.success {
+        return None;
+    }
+    let version = outcome.stdout.trim().to_string();
+    (!version.is_empty()).then_some(version)
+}
+
 pub fn parse_status(text: &str) -> DaemonStatus {
     let port = text.split("port=").nth(1).and_then(|rest| {
         let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();

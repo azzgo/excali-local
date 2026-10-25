@@ -1,6 +1,8 @@
 mod cli;
 mod menu;
+mod sidecar;
 
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 use muda::MenuEvent;
@@ -165,7 +167,54 @@ fn placeholder_icon() -> Icon {
     Icon::from_rgba(rgba, ICON_SIZE, ICON_SIZE).expect("placeholder icon")
 }
 
+fn align_sidecar() {
+    let Some(bundled) = sidecar::bundled_bin_path() else {
+        return;
+    };
+    let Some(canonical) = cli::canonical_bin_path() else {
+        return;
+    };
+    report_alignment(
+        &bundled,
+        &canonical,
+        sidecar::ensure_aligned(&bundled, &canonical),
+    );
+}
+
+fn report_alignment(bundled: &Path, canonical: &Path, outcome: sidecar::Alignment) {
+    match outcome {
+        sidecar::Alignment::Skipped => {
+            sidecar::log("sidecar alignment skipped (EXCALI_BRIDGE_BIN set)");
+        }
+        sidecar::Alignment::Aligned { version } => {
+            sidecar::log(&format!(
+                "sidecar aligned at {} (version {version})",
+                canonical.display()
+            ));
+        }
+        sidecar::Alignment::Overwrote {
+            from,
+            to,
+            restarted,
+        } => {
+            sidecar::log(&format!(
+                "sidecar realigned {} → {to} (was {}), daemon restarted: {restarted}",
+                canonical.display(),
+                from.as_deref().unwrap_or("absent"),
+            ));
+        }
+        sidecar::Alignment::Failed(reason) => {
+            sidecar::log(&format!(
+                "sidecar alignment failed (bundled {}, canonical {}): {reason}",
+                bundled.display(),
+                canonical.display()
+            ));
+        }
+    }
+}
+
 fn main() {
+    align_sidecar();
     let mut builder = EventLoop::<UserEvent>::with_user_event();
     #[cfg(target_os = "macos")]
     {
