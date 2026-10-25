@@ -10,6 +10,7 @@
 //	excali-bridge ping     Leg-A JSON-RPC `ping` round-trip (subcommand ==
 //	                       method); spawns the daemon if not running; exit 0
 //	excali-bridge status   report whether the daemon is up
+//	excali-bridge version  print this binary's semver (bare, one line)
 //	excali-bridge help     usage
 package main
 
@@ -44,6 +45,8 @@ func run(args []string) int {
 		return cmdServe()
 	case "status":
 		return cmdStatus()
+	case "version":
+		return cmdVersion()
 	case "lan":
 		return cmdLAN(args[1:])
 	case "peers":
@@ -96,6 +99,7 @@ Usage:
                              fonts.clear
                              args = optional params JSON (e.g. '{"elements":[...]}')
   excali-bridge status       report daemon status from pidfile + /health
+  excali-bridge version      print this binary's semver (bare, one line)
   excali-bridge lan status   report the LAN listener switch (the single source of truth);
   excali-bridge lan on      persist "LAN listener open" (takes effect on the next daemon start);
   excali-bridge lan off     persist "LAN listener closed"
@@ -181,6 +185,15 @@ func cmdCall(method, paramsJSON string) int {
 	} else {
 		fmt.Println(string(result))
 	}
+	return 0
+}
+
+// Version is this binary's semver — the single source the Presence host tray
+// compares against its expected sidecar (ADR 0014 decision 3).
+const Version = "1.9.0"
+
+func cmdVersion() int {
+	fmt.Println(Version)
 	return 0
 }
 
