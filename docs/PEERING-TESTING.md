@@ -162,19 +162,49 @@ excali-bridge peers.transferOffer '{"address":"<ip>:<port>"}'
 ### B5. 失败排查
 
 ```text
-连不上
-  ├─ 接收方 lan.status 是 off/unset？     → excali-bridge lan on 后需重启 daemon
-  ├─ 端口不对？                            → 以 lan.status 的 lanPort 为准，不要猜
-  ├─ 防火墙拦了？                          → 两台机器上放行该端口
-  └─ 不同网段？                            → 局域网传输要求 IP 直达
+连不上 / 拨号失败
+  ├─ 接收方 lan.status 是 off/unset？     → excali-bridge lan on 后必须重启 daemon
+  ├─ 端口不对？                            → 以接收方 /health 的 lanPort 为准，不要猜。
+  │                                          ⚠️ LAN 端口每次重启都会变（系统随机分配），
+  │                                          旧端口必然失败——两轮测试都栽在这
+  ├─ 防火墙拦了？                          → macOS MDM 托管机器无法用命令行放行，
+  │                                          入站会被静默丢弃（i/o timeout 而非 refused）。
+  │                                          变通：让被防火墙锁的那台当发送方（纯出站）
+  └─ 不同网段？                            → 局域网传输要求 IP 直达，组播无关（C1）
 
-连上但没弹确认
-  ├─ 接收方扩展页面没开？                  → 开一个编辑器页面
-  └─ 页面开着但没反应？                    → 看 daemon 日志有没有 offer 到达
+接收方立即拒绝
+  ├─ -32011 "no decider is wired"          → 接收方 daemon 是旧构建（decider 接线前）。
+  │                                          重新构建并重启，核对 git HEAD 一致
+  └─ -32006 "no active canvas page is
+      connected to answer the offer"       → 接收方编辑器 tab 没有激活画布（Gate 2 未过）。
+                                             判据：/health 出现 "active":true,"pageConnections":1
 
-超时
-  └─ 60 秒内没人点接受                     → 这是设计行为（C4），不是 bug
+场景读取失败
+  ├─ -32003 "page disconnected"            → daemon 构建早于 48364ec：1MB WS 帧上限
+  │                                          装不下场景回复（实测 5.4MB 画布必触发）。
+  │                                          升级后重建
+  └─ -32002 60s 超时 "did not return
+      its scene in time"                   → 同上（48364ec 前 sceneReadKey 无引号，
+                                             页面回包永远匹配不上）。升级后重建
+
+浮层 / 确认
+  ├─ 浮层不出现，但 offer 已送达           → 接收方扩展加载的 editor 构建不含新 UI：
+  │                                          grep -rl transfer_offer
+  │                                          packages/local/.output/chrome-mv3/editor
+  │                                          （注意别装成 chrome-mv3-dev —— 那是旧产物）
+  └─ 60 秒内没人点接受                     → 这是设计行为（C4），不是 bug。
+                                             实测有 59.9s 压线接受的案例，倒计时
+                                             真实生效；嫌紧可调 transfer.OfferTTL
 ```
+
+### B6. 双机实测沉淀（2026-10，两端 3c926ae）
+
+两台真实机器（macOS arm64 ↔ Linux x86_64，同一 Wi-Fi，无组播依赖）完整走通：
+offer → toast → 人工接受 → 200KB 分片 carry → 整场景 sha256 校验 → 画布落地。
+两次传输成功（3.1s 正常接受；59.9s 压线接受），sha256 一致。
+
+两侧构建必须同源：git HEAD 相同 + 各自 `pnpm page:build` + 各自 `go build`。
+验收顺序：先 `git rev-parse --short HEAD` 两侧一致，再开测。
 
 ---
 
