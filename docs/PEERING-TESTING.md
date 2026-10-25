@@ -86,6 +86,16 @@ excali-bridge lan on      # 持久化开关
 excali-bridge serve       # 启动 daemon；日志会打印 LAN 监听端口
 ```
 
+> ⚠️ **`lan on` 只写配置，不动态起 listener。** 如果 daemon 已经在跑，必须先
+> 重启它，否则 `/health` 里 `lanPort` 会是 `0`（配置写了、端口没开）。这是刻意
+> 的取舍：运行期动态起停会与 Shutdown 生命周期打架。
+>
+> ```bash
+> pkill -f "excali-bridge serve"; sleep 1
+> excali-bridge serve
+> ```
+> 
+
 日志中出现：
 
 ```text
@@ -127,6 +137,19 @@ excali-bridge peers.transferOffer '{"address":"<ip>:<port>"}'
 非 banner），带**倒计时**——倒计时读的是协议里的 `expiresAt`，由 daemon 给出。
 
 ### B4. 期望结果
+
+> ⚠️ **当前能测到哪里（2026-10 实测）。** 后端链路已完整验证：Mac 读取 5.4MB
+> 场景 → 拨号对端 → 投递 offer → 对端解码并作答。唯一缺的是**接收端的人工确认
+> UI**（`peering.Decider` 还没有扩展页面实现），所以接受动作无法完成。
+>
+> 因此现在跑到最后会看到：
+>
+> ```text
+> rpc error -32011: peering: the peer rejected the offer: no decider is wired
+> ```
+>
+> 这**不是传输失败**，而是接收端还没有问「要不要接受」的那个界面。看到这一行
+> 说明 transport、offer 编码、跨机连通性全部正常。
 
 | 场景 | 期望 |
 | --- | --- |
