@@ -1,0 +1,16 @@
+[package]
+name = "excali-presence"
+version = "0.1.0"
+edition = "2021"
+description = "Excali Local menu-bar host: a bridge-only tray over the excali-bridge CLI"
+publish = false
+
+[dependencies]
+muda = "0.21"
+serde_json = "1"
+tray-icon = "0.26"
+winit = "0.30"
+
+[[bin]]
+name = "excali-presence"
+path = "src/main.rs"

@@ -10,6 +10,9 @@ member — it builds with `go build`):
 - `packages/local` — WXT **extension shell** (manifest, background, content, crop, popup, options).
 - `packages/page` — React 19 + Vite **editor app** (the Excalidraw UI).
 - `packages/shared` — font-config DB + the **agent-bridge wire contract** (`agent-bridge.ts` — the source of truth the Go daemon mirrors) + shared utils/types.
+- `packages/presence` — **Rust menu-bar tray** (NOT a pnpm workspace, `cargo build`):
+  `tray-icon` + `muda` on a winit event loop; a bridge-only five-item menu that
+  reads status and switches LAN / autostart by exec'ing `excali-bridge` (ADR 0014).
 - `packages/bridge` — **Go daemon** (NOT a pnpm workspace): the Agent Bridge
   (Tickets 009/016/017) — a 127.0.0.1-only WS server (Leg B: the activated editor
   page dials out) + agent CLI (Leg A: versioned minimal JSON-RPC). Cross-profile

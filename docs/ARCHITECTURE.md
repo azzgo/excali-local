@@ -17,6 +17,7 @@ pnpm workspaces, three packages (plus a Go package that is NOT a workspace membe
 | `packages/page` | **Editor app** (React 19 + Vite 5). The Excalidraw UI — editor, gallery, presentation, marker. Ships as a standalone web app and as the extension's editor. |
 | `packages/shared` | **Shared layer**. Font-config IndexedDB (`excali-fonts`) + the **agent-bridge wire contract** (`agent-bridge.ts` — method sets, ports, WS types, token rules; the source of truth the Go daemon mirrors) + pure utils/types (`cn`, `getBrowser`, `getLang`). Imported via the `excali-shared` workspace alias. |
 | `packages/bridge` | **Go daemon** (Go, not a workspace member). The Agent Bridge: a 127.0.0.1-only WS server + agent CLI. Cross-profile single-active-canvas arbiter. See the bridge section below. |
+| `packages/presence` | **Presence tray** (Rust, not a workspace member). A macOS menu-bar app (`tray-icon` + `muda`, winit event loop) whose bridge-only menu reads status and switches LAN / autostart by exec'ing the `excali-bridge` CLI. See [ADR 0014](adr/0014-presence-host-tray.md). |
 
 ## Repository layout
 
@@ -46,6 +47,10 @@ packages/
   bridge/           # Go daemon (NOT a pnpm workspace): go.mod + main.go +
     internal/              #   contract (wire mirror), pidfile, ws (RFC 6455), fonts,
     bin/                   #   server (daemon), client (Leg-A CLI); bin/ gitignored
+  presence/         # Rust menu-bar tray (NOT a pnpm workspace): tray-icon + muda,
+    src/main.rs            #   winit event loop + tray; cli.rs execs excali-bridge;
+    src/menu.rs            #   menu.rs is the fixed five-item bridge-only menu
+    target/                #   cargo output, gitignored
 skills/excali-local/        # agent-agnostic drawing skill (SKILL.md + references/) —
                            #   bundled daemon built at pack time; NOT a pnpm workspace
 scripts/                   # build/clean/tar/zip, sync-version.sh, skill-pack.ts,

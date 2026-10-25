@@ -154,6 +154,16 @@ pnpm local:build    # 构建扩展（然后以解压方式加载 .output/chrome-
 pnpm local:tar      # 归档构建产物
 ```
 
+包列表：`local`（扩展外壳）、`page`（编辑器应用）、`shared`（字体库 + 通信契约）、
+`bridge`（Go 守护进程 + 智能体 CLI）、`presence`（Rust 菜单栏托盘，通过 exec
+`excali-bridge` 驱动守护进程），以及 `collab-core` / `collab-relay`（协作）。`bridge`
+与 `presence` 不走 pnpm 构建：
+
+```bash
+pnpm bridge:build   # 构建守护进程（go build）
+cd packages/presence && cargo build --release   # 构建托盘
+```
+
 ---
 
 *截图来自 [unDraw](https://undraw.co/) — 面向所有人的免费插图。*

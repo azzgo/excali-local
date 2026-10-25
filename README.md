@@ -161,6 +161,16 @@ pnpm local:build    # build the extension (then load .output/chrome-mv3 unpacked
 pnpm local:tar      # archive build assets
 ```
 
+Packages: `local` (extension shell), `page` (editor app), `shared` (fonts DB + wire
+contract), `bridge` (Go daemon + agent CLI), `presence` (Rust menu-bar tray that
+drives the daemon by exec'ing `excali-bridge`), plus `collab-core` / `collab-relay`
+(collaboration). `bridge` and `presence` build outside pnpm:
+
+```bash
+pnpm bridge:build   # go build the daemon
+cd packages/presence && cargo build --release   # build the tray
+```
+
 ---
 
 *Screenshots from [unDraw](https://undraw.co/) — free illustrations for everyone.*
