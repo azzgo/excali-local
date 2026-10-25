@@ -46,6 +46,13 @@ import (
 // deadline, so idle-but-alive connections never drop.
 const keepaliveInterval = 30 * time.Second
 
+// pageMessageLimit caps one inbound page frame. A scene read (scene.get)
+// returns every element, the app state and the file table — a real board with
+// embedded images is far past the 1MB control-traffic default, and refusing it
+// as a protocol error tears the connection down, surfacing to the agent as
+// "page disconnected" instead of a scene.
+const pageMessageLimit = 256 << 20
+
 // readTimeout is the per-frame read deadline (90s): comfortably above
 // background-tab timer throttling (~60s) for the page's 20s heartbeat.
 const readTimeout = 90 * time.Second
@@ -208,6 +215,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "agent bridge — WebSocket or GET /health\n", http.StatusBadRequest)
 		return
 	}
+	c.SetMaxMessage(pageMessageLimit)
 	cl := &client{conn: c, role: "unknown"}
 	s.mu.Lock()
 	s.clients[c] = cl
@@ -585,8 +593,8 @@ func (s *Server) readScene(active *client) ([]byte, error) {
 	p := &pendingRPC{page: active, id: json.RawMessage(`"` + sceneReadID + `"`), done: done}
 	p.timer = time.AfterFunc(s.rpcTimeout, func() {
 		s.rpcMu.Lock()
-		if s.pending[sceneReadID] == p {
-			delete(s.pending, sceneReadID)
+		if s.pending[sceneReadKey] == p {
+			delete(s.pending, sceneReadKey)
 			s.rpcMu.Unlock()
 			done <- nil
 			return
@@ -594,11 +602,11 @@ func (s *Server) readScene(active *client) ([]byte, error) {
 		s.rpcMu.Unlock()
 	})
 	s.rpcMu.Lock()
-	s.pending[sceneReadID] = p
+	s.pending[sceneReadKey] = p
 	s.rpcMu.Unlock()
 
 	if err := active.conn.WriteText(payload); err != nil {
-		s.failPendingKey(sceneReadID, contract.JSONRPCErrorPageDisconnected, "page unavailable")
+		s.failPendingKey(sceneReadKey, contract.JSONRPCErrorPageDisconnected, "page unavailable")
 		<-done
 		return nil, errors.New("the active page is unavailable")
 	}
@@ -624,6 +632,12 @@ func (s *Server) readScene(active *client) ([]byte, error) {
 // sceneReadID is the JSON-RPC id of the daemon's own scene read. It never
 // collides with an agent request: agents send numeric ids, this one is a string.
 const sceneReadID = "excali-daemon-scene-read"
+
+// sceneReadKey is the pending-map key for that request. The map is keyed by the
+// raw id bytes as they appear on the wire (quotes included — see rpcIDKey), so a
+// bare unquoted string would never match the page's echoed response and the
+// daemon would wait out the full timeout.
+var sceneReadKey = `"` + sceneReadID + `"`
 
 func (s *Server) deviceAlias() string {
 	if cfg, err := config.Load(); err == nil && cfg.Alias != "" {

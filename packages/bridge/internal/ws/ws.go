@@ -34,8 +34,13 @@ const (
 	opPong         = 0xA
 )
 
-// maxMessage caps an accepted data message (plenty for JSON control traffic).
+// maxMessage is the default cap on an accepted data message. It is a floor,
+// not a ceiling for every caller: a scene read (scene.get) or a gallery drawing
+// legitimately exceeds it, so a Conn may raise its own cap at construction.
 const maxMessage = 1 << 20
+
+// DefaultMaxMessage is the cap a Conn gets when its caller names none.
+const DefaultMaxMessage = maxMessage
 
 var (
 	// ErrClosed is returned by ReadMessage after a close handshake.
@@ -59,13 +64,42 @@ type Conn struct {
 	br          *bufio.Reader
 	writeMask   bool // true = client mode (mask outgoing frames)
 	readTimeout time.Duration
+	maxMessage  uint64
 
 	writeMu   sync.Mutex
 	closeSent atomic.Bool
 }
 
 func newConn(conn net.Conn, br *bufio.Reader, writeMask bool, readTimeout time.Duration) *Conn {
-	return &Conn{conn: conn, br: br, writeMask: writeMask, readTimeout: readTimeout}
+	return &Conn{conn: conn, br: br, writeMask: writeMask, readTimeout: readTimeout, maxMessage: maxMessage}
+}
+
+// SetMaxMessage raises the per-connection cap on an accepted data message. A
+// scene read carries every element, the app state and the file table, so the
+// control-traffic default is too small for it; refusing the frame as a protocol
+// error would tear the connection down and fail the caller with "page
+// disconnected" instead of returning the scene.
+func (c *Conn) SetMaxMessage(limit uint64) {
+	if limit > 0 {
+		c.maxMessage = limit
+	}
+}
+
+// limit reports the cap this connection accepts.
+func (c *Conn) limit() uint64 {
+	if c.maxMessage == 0 {
+		return maxMessage
+	}
+	return c.maxMessage
+}
+
+// SetReadTimeout replaces the per-frame read deadline. A caller waiting on a
+// human (a Canvas transfer offer waits out its 60s deadline) needs more room
+// than the 10s transport default.
+func (c *Conn) SetReadTimeout(d time.Duration) {
+	if d > 0 {
+		c.readTimeout = d
+	}
 }
 
 // SetReadDeadline forwards to the underlying connection.
@@ -123,7 +157,7 @@ func (c *Conn) readFragmented(first []byte) ([]byte, error) {
 		}
 		switch opcode {
 		case opContinuation:
-			if len(msg)+len(payload) > maxMessage {
+			if uint64(len(msg)+len(payload)) > c.limit() {
 				return nil, ErrProtocol
 			}
 			msg = append(msg, payload...)
@@ -211,7 +245,7 @@ func (c *Conn) readFrame() (opcode byte, payload []byte, fin bool, err error) {
 		}
 		length = binary.BigEndian.Uint64(b[:])
 	}
-	if length > maxMessage {
+	if length > c.limit() {
 		return 0, nil, false, ErrProtocol
 	}
 	if opcode >= 0x8 && length > 125 {
@@ -399,4 +433,15 @@ func Dial(ctx context.Context, addr, origin string, timeout time.Duration) (*Con
 		return nil, errors.New("bad sec-websocket-accept")
 	}
 	return newConn(conn, br, true, timeout), nil
+}
+
+// DialLimited dials like Dial and raises the accepted-message cap, so a caller
+// that reads a scene (not just control traffic) is not torn down by ErrProtocol.
+func DialLimited(ctx context.Context, addr, origin string, timeout time.Duration, limit uint64) (*Conn, error) {
+	c, err := Dial(ctx, addr, origin, timeout)
+	if err != nil {
+		return nil, err
+	}
+	c.SetMaxMessage(limit)
+	return c, nil
 }

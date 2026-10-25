@@ -176,3 +176,29 @@ func TestServerRejectsUnmaskedClientFrame(t *testing.T) {
 		t.Fatalf("got %v, want ErrProtocol", err)
 	}
 }
+
+func TestMaxMessageDefaultRejectsAOversizedFrame(t *testing.T) {
+	if DefaultMaxMessage != maxMessage {
+		t.Fatalf("DefaultMaxMessage = %d, want the control-traffic default %d", DefaultMaxMessage, maxMessage)
+	}
+	c := &Conn{}
+	if got := c.limit(); got != maxMessage {
+		t.Fatalf("limit() = %d, want %d", got, maxMessage)
+	}
+}
+
+func TestSetMaxMessageRaisesTheLimit(t *testing.T) {
+	c := &Conn{}
+	c.SetMaxMessage(256 << 20)
+	if got := c.limit(); got != 256<<20 {
+		t.Fatalf("limit() = %d, want the raised cap", got)
+	}
+}
+
+func TestSetMaxMessageIgnoresNonPositive(t *testing.T) {
+	c := &Conn{maxMessage: maxMessage}
+	c.SetMaxMessage(0)
+	if got := c.limit(); got != maxMessage {
+		t.Fatalf("limit() = %d, want the default kept", got)
+	}
+}

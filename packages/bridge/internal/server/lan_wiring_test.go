@@ -132,3 +132,25 @@ func isolateConfig(t *testing.T) {
 	t.Setenv("EXCALI_BRIDGE_CONFIG_DIR", t.TempDir())
 	t.Setenv("EXCALI_BRIDGE_STATE_DIR", t.TempDir())
 }
+
+// A scene read legitimately exceeds the 1MB control-traffic frame cap: every
+// element, the app state and the file table ride in one reply. Refusing it as a
+// protocol error tore the page connection down and surfaced to the agent as
+// "page disconnected" instead of a scene, so the page connection carries a much
+// larger cap.
+func TestPageConnectionAcceptsASceneSizedFrame(t *testing.T) {
+	if pageMessageLimit <= 1<<20 {
+		t.Fatalf("pageMessageLimit = %d, must exceed the 1MB control-traffic default", pageMessageLimit)
+	}
+}
+
+// The pending map is keyed by the raw id bytes as they appear on the wire
+// (quotes included). An internal scene read that used a bare unquoted key never
+// matched the page's echoed response, so every Canvas transfer stalled until its
+// timeout and the sender saw -32002.
+func TestSceneReadKeyMatchesTheWireForm(t *testing.T) {
+	raw := []byte(`{"jsonrpc":"2.0","id":"` + sceneReadID + `","result":{}}`)
+	if got := rpcIDKey(raw); got != sceneReadKey {
+		t.Fatalf("rpcIDKey(echoed response) = %q, want %q", got, sceneReadKey)
+	}
+}

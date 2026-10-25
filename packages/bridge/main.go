@@ -22,6 +22,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/excali-local/excali-bridge/internal/client"
 	"github.com/excali-local/excali-bridge/internal/contract"
@@ -163,7 +164,13 @@ func cmdCall(method, paramsJSON string) int {
 	} else {
 		params = map[string]any{}
 	}
-	result, err := client.Call(context.Background(), client.Options{}, method, params)
+	opts := client.Options{}
+	if method == "peers.transferOffer" {
+		// The sender waits out the receiver's offer deadline (60s) plus the
+		// carry, so the transport default of 10s would abort a healthy transfer.
+		opts.CallTimeout = 120 * time.Second
+	}
+	result, err := client.Call(context.Background(), opts, method, params)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "excali-bridge %s: %v\n", method, err)
 		return 1

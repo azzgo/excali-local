@@ -31,6 +31,12 @@ import (
 // and activation are the human consent gates, not this header).
 const Origin = "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
+// sceneMessageLimit caps one inbound frame on the agent connection. A scene
+// read carries every element, the app state and the file table; the 1MB
+// control-traffic default would refuse it as a protocol error and the caller
+// would see a bare "websocket: protocol error" instead of its scene.
+const sceneMessageLimit = 256 << 20
+
 // ErrDaemonNotRunning is returned when a call needs a running daemon and none
 // is up (and the lazy spawn is disabled).
 var ErrDaemonNotRunning = errors.New("no bridge daemon is running")
@@ -46,6 +52,11 @@ type Options struct {
 	Timeout time.Duration
 	// SpawnTimeout bounds waiting for a lazily-spawned daemon to come up.
 	SpawnTimeout time.Duration
+	// CallTimeout bounds one JSON-RPC response wait. A method that waits on a
+	// human (peers.transferOffer waits out the 60s offer deadline) needs more
+	// room than the 10s transport default, or the sender gives up before the
+	// receiver's own deadline can answer.
+	CallTimeout time.Duration
 	// Stdout/Stderr receive CLI output (default os.Stdout/os.Stderr).
 	Stdout io.Writer
 	Stderr io.Writer
@@ -58,6 +69,9 @@ type Options struct {
 func (o *Options) fill() {
 	if o.Timeout <= 0 {
 		o.Timeout = 10 * time.Second
+	}
+	if o.CallTimeout <= 0 {
+		o.CallTimeout = o.Timeout
 	}
 	if o.SpawnTimeout <= 0 {
 		o.SpawnTimeout = 5 * time.Second
@@ -234,10 +248,11 @@ func connect(ctx context.Context, opts Options) (*ws.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	c, err := ws.Dial(ctx, fmt.Sprintf("127.0.0.1:%d", port), Origin, opts.Timeout)
+	c, err := ws.DialLimited(ctx, fmt.Sprintf("127.0.0.1:%d", port), Origin, opts.Timeout, sceneMessageLimit)
 	if err != nil {
 		return nil, fmt.Errorf("connect: %w", err)
 	}
+	c.SetReadTimeout(opts.CallTimeout)
 
 	token, err := mintToken() // per-invocation, never logged
 	if err != nil {
