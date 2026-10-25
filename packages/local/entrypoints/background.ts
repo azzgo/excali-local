@@ -106,9 +106,9 @@ const isEditorTabUrl = (url: string | undefined): boolean => {
   if (!url) return false;
   try {
     const u = new URL(url);
-    return (
-      u.protocol === "chrome-extension:" && u.pathname.endsWith("/editor/index.html")
-    );
+    const isExtensionProto =
+      u.protocol === "chrome-extension:" || u.protocol === "moz-extension:";
+    return isExtensionProto && u.pathname.endsWith("/editor/index.html");
   } catch {
     return false;
   }

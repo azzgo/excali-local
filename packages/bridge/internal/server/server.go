@@ -61,12 +61,14 @@ const readTimeout = 90 * time.Second
 // owns the pidfile (the caller should exit 0 and reuse it).
 var ErrAlreadyRunning = errors.New("bridge daemon already running")
 
-// defaultOriginRE mirrors the stub's allow-list: any chrome-extension page
-// (ids are 32 chars [a-p]). Any profile/install shares the id for a store
+// defaultOriginRE mirrors the stub's allow-list: any extension page — a
+// chrome-extension://<id> (32 chars of [a-p]) or a Firefox moz-extension://<uuid>.
+// Any profile/install shares the id for a store
 // listing, so this naturally accepts every profile — intended: it is what
 // makes cross-profile reachable (Ticket 016); the daemon arbitrates
 // regardless of which profile.
-var defaultOriginRE = regexp.MustCompile(`^chrome-extension://[a-p]{32}$`)
+var defaultOriginRE = regexp.MustCompile(
+	`^(chrome-extension://[a-p]{32}|moz-extension://[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$`)
 
 type client struct {
 	conn     *ws.Conn

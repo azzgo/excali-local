@@ -28,7 +28,9 @@ import (
 // the same chrome-extension://<id> shape (32 chars of [a-p]) the browser
 // pages present — a same-user local process spoofing it is exactly Ticket
 // 011's layer-5 residual (accepted for a personal local-first tool; pairing
-// and activation are the human consent gates, not this header).
+// and activation are the human consent gates, not this header). The shape is
+// accepted for Firefox moz-extension origins too (see server defaultOriginRE);
+// the daemon's loopback + token gates are what actually guard it.
 const Origin = "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 // sceneMessageLimit caps one inbound frame on the agent connection. A scene
