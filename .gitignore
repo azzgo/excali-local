@@ -13,6 +13,7 @@ dist-ssr
 packages/local/dist
 packages/page/dist
 packages/bridge/bin/
+packages/bridge/excali-bridge
 excali-skill-dist/
 # skills/excali-local/bin/ is deliberately NOT ignored: the skill:check gate must
 # see any binary reintroduced there (ADR 0012), and ignoring it would also keep it
