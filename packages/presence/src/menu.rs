@@ -15,8 +15,8 @@ impl MenuState {
     pub fn new() -> Self {
         let daemon = MenuItem::new("daemon: unknown", false, None);
         let canvas = MenuItem::new("active canvas: none", false, None);
-        let lan = MenuItem::new("LAN: unknown", false, None);
-        let autostart = MenuItem::new("start at login: ✗", false, None);
+        let lan = MenuItem::new("LAN: unknown", true, None);
+        let autostart = MenuItem::new("start at login: ✗", true, None);
         let quit = MenuItem::new("Quit", true, None);
         let menu = Menu::new();
         menu.append_items(&[
@@ -39,6 +39,9 @@ impl MenuState {
     }
 
     pub fn render(&self, snapshot: &Snapshot) {
+        let toggles = toggles_enabled(snapshot.installed);
+        self.lan.set_enabled(toggles);
+        self.autostart.set_enabled(toggles);
         if !snapshot.installed {
             self.daemon.set_text("daemon: not installed");
             self.canvas.set_text("active canvas: not installed");
@@ -65,6 +68,13 @@ impl MenuState {
     }
 }
 
+/// The two actionable items (LAN, start at login) stay clickable exactly while
+/// the CLI is installed; muda items default to disabled and must be re-enabled
+/// explicitly, otherwise macOS greys them out forever.
+pub fn toggles_enabled(installed: bool) -> bool {
+    installed
+}
+
 pub enum MenuAction {
     ToggleLan,
     ToggleAutostart,
@@ -82,5 +92,16 @@ pub fn classify(state: &MenuState, event: &MenuEvent) -> MenuAction {
         MenuAction::ToggleAutostart
     } else {
         MenuAction::Ignore
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn toggles_are_enabled_only_when_cli_is_installed() {
+        assert!(toggles_enabled(true));
+        assert!(!toggles_enabled(false));
     }
 }
