@@ -46,10 +46,12 @@ neither writes a second login item. `EXCALI_BRIDGE_BIN` overrides the binary
 candidates for development only — there is no silent fallback to a second copy.
 
 > Shipping status: the switch, the CLI and the extension's Options surface are
-> implemented; the tray (Presence host) is designed (ADR 0012) but not built,
-> and `autostart` detects the login item without writing one. `lan on` persists
-> the switch only — a running daemon must be restarted before the listener
-> opens, because runtime start/stop would fight the Shutdown lifecycle.
+> implemented; the tray shipped in 1.9.0 (macOS menu bar, `packages/presence`, ADR 0014)
+> and can start/stop the daemon, toggle the LAN switch and toggle autostart.
+> `autostart on|off` writes or deletes the login item — on macOS via `launchctl
+> bootstrap`/`bootout` — rather than merely detecting it. `lan on|off` applies
+> immediately to a running daemon: the runtime listener is opened or closed in
+> place, without a restart.
 
 ## The exchange
 
@@ -89,7 +91,7 @@ behalf, and a late answer for an expired or already-answered offer is refused.
 The daemon keeps offer metadata **in memory, with a deadline**, and stores no
 canvas content before acceptance; with no page present the transfer expires
 rather than accumulating an unowned content cache behind an open LAN port. A
-tray notification is a convenience, never the only path — the tray must stay
+tray notification is a convenience, never the only path — the tray stays
 non-load-bearing.
 
 ## Numbers
@@ -139,8 +141,8 @@ review; see KNOWN_LIMITATIONS → "no automatic discovery"). The LAN port is a
 system-assigned ephemeral that changes on every daemon restart, so the address
 is exchanged by hand — a copy-paste of the receiver's `IP:lanPort`, read from
 its `/health` or `lan.status`. `excali-bridge peers` lists the peers the user
-added this way and stays the GUI-free view; the tray, when it exists, is never
-the only way to see or act on them.
+added this way and stays the GUI-free view; the tray is an optional front end over the same switch and is never
+the only way to see or act on them — the CLI stays fully usable without it.
 
 ## Migration notes (one release cycle)
 
