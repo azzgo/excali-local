@@ -17,6 +17,13 @@ pub struct DaemonStatus {
 pub struct BridgeStatus {
     pub active_canvas: Option<String>,
     pub lan_on: bool,
+    pub lan_port: u16,
+}
+
+impl BridgeStatus {
+    pub fn lan_listening(&self) -> bool {
+        self.lan_port != 0
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -75,9 +82,15 @@ pub fn parse_bridge_status(text: &str) -> BridgeStatus {
         .and_then(|id| id.as_str())
         .map(str::to_string);
     let lan_on = value.get("lan").and_then(|lan| lan.as_str()) == Some("on");
+    let lan_port = value
+        .get("lanPort")
+        .and_then(|port| port.as_u64())
+        .and_then(|port| u16::try_from(port).ok())
+        .unwrap_or(0);
     BridgeStatus {
         active_canvas,
         lan_on,
+        lan_port,
     }
 }
 
@@ -327,6 +340,20 @@ mod tests {
         let status = cli.bridge_status();
         assert_eq!(status.active_canvas.as_deref(), Some("profile-abc"));
         assert!(status.lan_on);
+        assert!(status.lan_listening());
+    }
+
+    #[test]
+    fn bridge_status_lan_port_zero_is_not_listening() {
+        let status = parse_bridge_status("{\"lan\":\"on\",\"lanPort\":0}");
+        assert_eq!(status.lan_port, 0);
+        assert!(!status.lan_listening());
+    }
+
+    #[test]
+    fn bridge_status_lan_port_parses() {
+        let status = parse_bridge_status("{\"lan\":\"on\",\"lanPort\":12345}");
+        assert!(status.lan_listening());
     }
 
     #[test]

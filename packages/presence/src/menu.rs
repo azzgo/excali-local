@@ -122,7 +122,16 @@ impl MenuState {
         } else {
             "none"
         };
-        let lan_value = if snapshot.bridge.lan_on { "on" } else { "off" };
+        // LAN shows the *live* listener: "on" only when the daemon actually
+        // holds a LAN port. The persisted switch still matters — "pending"
+        // means it is on but the listener is not up yet (≤7 chars each).
+        let lan_value = if snapshot.bridge.lan_listening() {
+            "on"
+        } else if snapshot.bridge.lan_on {
+            "pending"
+        } else {
+            "off"
+        };
         let autostart_value = if snapshot.autostart_enabled { "on" } else { "off" };
         let column_x = columns::column_x([
             (daemon_label.as_str(), daemon_value),
@@ -222,9 +231,11 @@ mod tests {
     fn every_value_is_one_short_token() {
         // The value column is 96pt wide; anything longer would be truncated by
         // AppKit rather than wrapped.
-        for value in ["active", "none", "on", "off", PLAY, STOP, "…"] {
+        // "pending" is 7 chars: it names the "switch on, listener not yet up"
+        // state of the LAN row.
+        for value in ["active", "none", "on", "off", "pending", PLAY, STOP, "…"] {
             assert!(
-                value.chars().count() <= 6,
+                value.chars().count() <= 7,
                 "{value} is too wide for the value column"
             );
         }
