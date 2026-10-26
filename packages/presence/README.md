@@ -46,4 +46,16 @@ cargo test              # status/JSON parsing against fake CLI scripts
 cargo clippy -- -D warnings
 ```
 
+To assemble the double-clickable menu-bar bundle (requires
+`packages/bridge/bin/excali-bridge`, built with `pnpm bridge:build`):
+
+```bash
+pnpm presence:app       # → packages/presence/target/Excali Presence.app
+```
+
+The bundle carries the cargo binary plus its `excali-bridge` sidecar in
+`Contents/MacOS/`, an `Info.plist` with `LSUIElement` (no Dock icon), and an
+ad-hoc signature. Not signed with a certificate and not notarized (ADR 0014).
+
+
 Not a pnpm workspace member, same treatment as `packages/bridge`.

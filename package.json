@@ -22,6 +22,7 @@
     "skill:pack": "tsx scripts/skill-pack.ts",
     "skill:check": "tsx scripts/check-skill-commands.ts",
     "presence:pack": "tsx scripts/presence-pack.ts",
+    "presence:app": "bash packages/presence/build-app.sh",
     "sync:version": "bash ./scripts/sync-version.sh",
     "bridge:build": "cd packages/bridge && go build -buildvcs=false -o bin/excali-bridge .",
     "bridge:test": "cd packages/bridge && go test ./...",
