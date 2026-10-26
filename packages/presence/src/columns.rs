@@ -153,8 +153,18 @@ pub fn padded_plain(label: &str, value: &str, target_width: f64) -> String {
 }
 
 #[cfg(not(target_os = "macos"))]
-pub fn padded_plain(label: &str, value: &str, _attributed_width: f64) -> String {
-    row_text(label, value)
+pub fn padded_plain(label: &str, value: &str, column_x: f64) -> String {
+    // No NSAttributedString to measure against: pad the label to a character
+    // column that approximates the measured pt width (a menu glyph is roughly
+    // 7pt wide in the default Linux menu font). Exact alignment was never
+    // promised here — the tab stop does that on macOS.
+    let want = (column_x / 7.0).ceil() as usize;
+    let text = row_text(label, value);
+    let label_chars = label.chars().count();
+    if label_chars >= want {
+        return text;
+    }
+    format!("{}{}{value}", label, " ".repeat(want - label_chars))
 }
 
 #[cfg(not(target_os = "macos"))]

@@ -57,15 +57,24 @@ impl<'a> Row<'a> {
 /// text — tab included — makes it measure at least as wide as the attributed
 /// one, so the menu grows instead of wrapping.
 fn paint(item: &MenuItem, row: &Row<'_>, column_x: f64) {
-    match columns::two_columns(row.label, &row.value, column_x) {
-        Some(title) => {
-            // Right-aligned stop ⇒ every row measures exactly `column_x` wide, so
-            // the plain title is padded to that same width.
-            item.set_text(columns::padded_plain(row.label, &row.value, column_x));
-            item.set_attributed_title(Some(&title));
+    // Attributed titles are an AppKit channel; muda's GTK backend has no
+    // equivalent, so Linux renders the padded plain text alone. The padding
+    // still aligns the columns there — proportional fonts just make it
+    // approximate instead of exact.
+    #[cfg(target_os = "macos")]
+    {
+        match columns::two_columns(row.label, &row.value, column_x) {
+            Some(title) => {
+                // Right-aligned stop ⇒ every row measures exactly `column_x`
+                // wide, so the plain title is padded to that same width.
+                item.set_text(columns::padded_plain(row.label, &row.value, column_x));
+                item.set_attributed_title(Some(&title));
+            }
+            None => item.set_text(columns::row_text(row.label, &row.value)),
         }
-        None => item.set_text(columns::row_text(row.label, &row.value)),
     }
+    #[cfg(not(target_os = "macos"))]
+    item.set_text(columns::padded_plain(row.label, &row.value, column_x));
 }
 
 impl MenuState {

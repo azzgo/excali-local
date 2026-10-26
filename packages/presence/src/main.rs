@@ -138,12 +138,16 @@ impl ApplicationHandler<UserEvent> for App {
         if self.tray.is_some() {
             return;
         }
-        let tray = TrayIconBuilder::new()
+        let builder = TrayIconBuilder::new()
             .with_menu(Box::new(self.menu.menu.clone()))
-            .with_tooltip("Excali Local")
-            .with_icon_templated(tray_icon())
-            .build()
-            .expect("build the tray icon");
+            .with_tooltip("Excali Local");
+        // Template rendering is an AppKit concept; on Linux the icon ships as-is
+        // and the desktop theme handles tinting.
+        #[cfg(target_os = "macos")]
+        let builder = builder.with_icon_templated(tray_icon());
+        #[cfg(not(target_os = "macos"))]
+        let builder = builder.with_icon(tray_icon());
+        let tray = builder.build().expect("build the tray icon");
         self.tray = Some(tray);
         self.menu.render(&self.snapshot, self.busy);
         // First contact with the CLI is slow (a cold status + bridge.status run),
