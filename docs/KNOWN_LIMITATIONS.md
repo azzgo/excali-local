@@ -306,6 +306,24 @@ failure mode than a failed transfer.
 deadline, and stores no canvas content before acceptance. The sender sees a
 timeout — never a silent success and never a misreported rejection.
 
+### The tray's "Canvas" row lags a deactivation
+
+**What**: turning a canvas off in the editor can take a few seconds to reach the
+Presence tray's `Canvas` row, which keeps reading `active` while the editor
+button already reads `Activate`.
+
+**Why**: the tray refreshes on a 2-second timer, and the daemon's active-canvas
+slot is cleared when the page's data socket closes. Deactivation now closes that
+socket immediately, but the two polling cycles between them still leave a window.
+Removing it entirely needs a push channel (the daemon announcing a state change)
+instead of more frequent polling — polling faster would just spend more CPU to
+hide the same race.
+
+**What the code does**: `toggleActivation` stops the session synchronously, so the
+daemon sees the socket close in the same turn as the UI change. The tray still
+learns about it on its next 2-second tick. Left as-is for 1.9.0; a push channel is
+the follow-up.
+
 ### One binary per machine, downloaded on demand
 
 **What**: the CLI is no longer in the source tree. A fresh clone cannot `ping`
