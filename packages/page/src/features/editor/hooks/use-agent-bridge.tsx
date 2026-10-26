@@ -603,6 +603,14 @@ export function useAgentBridge({
       sessionActiveRef.current = false;
       wasActiveRef.current = false;
       setIsActive(false);
+      // Close the data session BEFORE telling the SW. The daemon learns a canvas
+      // is no longer active from the socket closing (cleanup clears s.active),
+      // so leaving it open meant the Presence tray kept showing the old canvas
+      // until the 20s heartbeat expired. The isActive state change unmounts the
+      // dialing effect and stop()s the session, but that runs a render later —
+      // stop it here so the teardown is immediate and ordered.
+      activeSessionRef.current?.stop();
+      activeSessionRef.current = null;
       void sendToSW({ type: AB_DEACTIVATE });
       return;
     }
