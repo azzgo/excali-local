@@ -86,15 +86,10 @@ excali-bridge lan on      # 持久化开关
 excali-bridge serve       # 启动 daemon；日志会打印 LAN 监听端口
 ```
 
-> ⚠️ **`lan on` 只写配置，不动态起 listener。** 如果 daemon 已经在跑，必须先
-> 重启它，否则 `/health` 里 `lanPort` 会是 `0`（配置写了、端口没开）。这是刻意
-> 的取舍：运行期动态起停会与 Shutdown 生命周期打架。
+> **`lan on` 立即生效**（v1.9.0 起）：daemon 在跑就直接开 listener，不用重启；
+> daemon 没跑就只是持久化开关，下次启动时打开。`lan off` 同理——**会立刻关闭端口**，
+> 这是安全相关的行为，别指望它要等重启。
 >
-> ```bash
-> pkill -f "excali-bridge serve"; sleep 1
-> excali-bridge serve
-> ```
-> 
 
 日志中出现：
 
@@ -138,18 +133,13 @@ excali-bridge peers.transferOffer '{"address":"<ip>:<port>"}'
 
 ### B4. 期望结果
 
-> ⚠️ **当前能测到哪里（2026-10 实测）。** 后端链路已完整验证：Mac 读取 5.4MB
-> 场景 → 拨号对端 → 投递 offer → 对端解码并作答。唯一缺的是**接收端的人工确认
-> UI**（`peering.Decider` 还没有扩展页面实现），所以接受动作无法完成。
+> **全线可用（v1.9.0）。** 接收端的确认 UI 已就位：`internal/server` 把
+> `peering.Decider` 接到了 `pageDecider`，页面侧是
+> `transfer-offer-toast.tsx`（右上角非模态浮层，倒计时读协议的 `expiresAt`）。
+> 2026-10 的双机实测（B6）已完整走通接受路径。
 >
-> 因此现在跑到最后会看到：
->
-> ```text
-> rpc error -32011: peering: the peer rejected the offer: no decider is wired
-> ```
->
-> 这**不是传输失败**，而是接收端还没有问「要不要接受」的那个界面。看到这一行
-> 说明 transport、offer 编码、跨机连通性全部正常。
+> 仍会看到 `-32011 ... no decider is wired` 的唯一情况是：**接收方的 daemon 是
+> 旧构建**，或者**接收方没有已激活的画布页**（那种情况应报 `-32006`）。
 
 | 场景 | 期望 |
 | --- | --- |
@@ -163,7 +153,7 @@ excali-bridge peers.transferOffer '{"address":"<ip>:<port>"}'
 
 ```text
 连不上 / 拨号失败
-  ├─ 接收方 lan.status 是 off/unset？     → excali-bridge lan on 后必须重启 daemon
+  ├─ 接收方 lan.status 是 off/unset？     → excali-bridge lan on（v1.9.0 起立即生效）
   ├─ 端口不对？                            → 以接收方 /health 的 lanPort 为准，不要猜。
   │                                          ⚠️ LAN 端口每次重启都会变（系统随机分配），
   │                                          旧端口必然失败——两轮测试都栽在这
@@ -244,13 +234,14 @@ Device fingerprint **只用于识别，不用于认证**。见 ADR 0013 决定 4
 
 ### C5. 局域网监听默认关闭，重启后恢复关闭
 
-除非显式 `lan on` 持久化。运行期 `lan.on/off` 只写配置并返回
-`takesEffectOnRestart: true`——**不会**动态起停 listener（避免与 Shutdown 生命周期打架）。
+除非显式 `lan on` 持久化。运行期 `lan.on/off` **立即**起停 listener（v1.9.0 起），
+并返回 `live: true`。`lan off` 立刻关闭端口是有意为之：用户关掉它就该立刻不再对外暴露。
 
 ### C6. `autostart` 只有检测
 
-`autostart.status` 能报告登录项状态；`autostart.on/off` 返回"未实现"。写入职责待定
-（ADR 0012 决定 2：daemon 拥有登录项，托盘只是调用方），且要避免出现两条登录项。
+`autostart.status` 报告登录项状态；`autostart.on/off` **已实现**（v1.9.0 起）：
+macOS 上写 plist 后 `launchctl bootstrap`、移除时先 `bootout` 再删文件；Linux 用
+`~/.config/autostart` 的 desktop entry；Windows 用 Run 键。
 
 ---
 
@@ -263,7 +254,7 @@ Device fingerprint **只用于识别，不用于认证**。见 ADR 0013 决定 4
   packages/bridge/internal/lan        LAN listener（第二个监听面，仅 transfer）
   packages/bridge/internal/transfer   三段式状态机 + 200KB 分片 + 整场景 sha256
   packages/bridge/internal/peering    LAN ← transfer 接线（Decider/Deliverer 注入点）
-  packages/bridge/internal/autostart  登录项检测（只读）
+  packages/bridge/internal/autostart  登录项检测 + 写入（三平台）
   packages/bridge/cli_peering.go      lan / peers / autostart 子命令
 
 修改
@@ -276,5 +267,8 @@ Device fingerprint **只用于识别，不用于认证**。见 ADR 0013 决定 4
   packages/shared/src/agent-bridge.ts 契约真源（含 TransferOffer.expiresAt）
 ```
 
-**尚未实现**（后续）：扩展页面的通知中心浮层（`Decider` 的 UI 侧）、
-Presence host（系统托盘）、`autostart` 写入、以及容器化双机 e2e 脚本。
+**v1.9.0 已补齐**：Presence host（macOS/Linux 菜单栏托盘，`packages/presence`）、
+`autostart` 写入（三平台）、`lan on/off` 运行期立即生效。
+
+**尚未实现**（后续）：扩展页面的通知中心浮层（`Decider` 的 UI 侧）——接收提醒目前
+只走编辑器的右上角 toast；以及容器化双机 e2e 脚本。
