@@ -1,6 +1,6 @@
 [package]
 name = "excali-presence"
-version = "0.1.0"
+version = "1.9.0"
 edition = "2021"
 description = "Excali Local menu-bar host: a bridge-only tray over the excali-bridge CLI"
 publish = false

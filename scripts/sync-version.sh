@@ -46,4 +46,21 @@ else
   echo "Bridge main.go not found at $BRIDGE_MAIN" >&2
 fi
 
+# The Rust tray (packages/presence) is not a workspace member either; its
+# Cargo.toml [package] version must track the root or release archives mislabel
+# the presence binary. Only the [package] version line is touched — [dependencies]
+# entries carry their own version pins and must stay untouched.
+PRESENCE_CARGO="$ROOT_DIR/packages/presence/Cargo.toml"
+if [[ -f "$PRESENCE_CARGO" ]]; then
+  CURRENT_CARGO_VERSION=$(sed -n '/^\[package\]/,/^\[/s/^version = "\(.*\)"$/\1/p' "$PRESENCE_CARGO")
+  if [[ "$CURRENT_CARGO_VERSION" != "$ROOT_VERSION" ]]; then
+    sed -i.bak "/^\[package\]/,/^\[/s/^version = \".*\"$/version = \"$ROOT_VERSION\"/" "$PRESENCE_CARGO" && rm -f "${PRESENCE_CARGO}.bak"
+    echo "Synchronized version in packages/presence/Cargo.toml to $ROOT_VERSION"
+  else
+    echo "Version in packages/presence/Cargo.toml is already synchronized"
+  fi
+else
+  echo "Presence Cargo.toml not found at $PRESENCE_CARGO" >&2
+fi
+
 pnpm install
