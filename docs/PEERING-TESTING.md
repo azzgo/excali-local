@@ -86,9 +86,12 @@ excali-bridge lan on      # 持久化开关
 excali-bridge serve       # 启动 daemon；日志会打印 LAN 监听端口
 ```
 
-> **`lan on` 立即生效**（v1.9.0 起）：daemon 在跑就直接开 listener，不用重启；
-> daemon 没跑就只是持久化开关，下次启动时打开。`lan off` 同理——**会立刻关闭端口**，
-> 这是安全相关的行为，别指望它要等重启。
+> **`lan on|off` 立即作用于运行中的 daemon**（v1.9.0 起）：不需要重启，也不要把
+> 「改配置后重启 daemon」当成常规步骤——那样每次都会换一个随机端口，反而更容易测错。
+>
+> **唯一需要重启 daemon 的情形是更换可见端口**：LAN 端口由系统随机分配，daemon 每次
+> 重启都会得到新端口。所以只要 daemon 重启过，就必须重新读 `/health` 拿 `lanPort`，
+> 旧的 `IP:port` 必然连不上（表现为 i/o timeout，不是 connection refused）。
 >
 
 日志中出现：
