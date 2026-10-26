@@ -44,9 +44,13 @@ type Options struct {
 	// RegistryValues reads the Windows Run key. Defaults to the `reg` command;
 	// tests inject their own lister.
 	RegistryValues func() ([]RegistryValue, error)
-	// Run executes a system command for the Windows login-item write side.
-	// Defaults to running the command; tests inject their own runner.
+	// Run executes a system command for the write side (the Windows Run key and
+	// the macOS launchd registration). Defaults to running the command; tests
+	// inject their own runner.
 	Run func(name string, args ...string) error
+	// UID is the login session's user id, used to address the launchd domain
+	// (gui/<uid>) on macOS. Defaults to os.Getuid(); tests inject a fixed value.
+	UID int
 }
 
 // Status is the outcome of a detection pass.
@@ -98,6 +102,9 @@ func (o Options) withDefaults() Options {
 	if o.Run == nil {
 		o.Run = runCommand
 	}
+	if o.UID == 0 {
+		o.UID = os.Getuid()
+	}
 	return o
 }
 
@@ -111,7 +118,10 @@ func Enable(o Options) error {
 	}
 	switch o.GOOS {
 	case "darwin":
-		return writeLaunchAgent(o.Home, binary)
+		if err := writeLaunchAgent(o.Home, binary); err != nil {
+			return err
+		}
+		return bootstrapLaunchAgent(o)
 	case "linux":
 		return writeDesktopEntry(o.Home, o.XDGConfigHome, binary)
 	case "windows":
@@ -127,6 +137,7 @@ func Disable(o Options) error {
 	o = o.withDefaults()
 	switch o.GOOS {
 	case "darwin":
+		bootoutLaunchAgent(o)
 		return removeFile(launchAgentFile(o.Home))
 	case "linux":
 		return removeFile(desktopEntryFile(o.Home, o.XDGConfigHome))
@@ -163,6 +174,13 @@ func writeLaunchAgent(home, binary string) error {
 	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
 		return fmt.Errorf("create launch agents dir: %w", err)
 	}
+	// `serve` explicitly rather than relying on the no-argument default: the
+	// login item is read by anyone debugging it, and StandardErrorPath keeps the
+	// daemon's own log lines out of launchd's bit bucket.
+	logFile := filepath.Join(home, "Library", "Logs", "excali-bridge.log")
+	if err := os.MkdirAll(filepath.Dir(logFile), 0o755); err != nil {
+		return fmt.Errorf("create log dir: %w", err)
+	}
 	plist := `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -172,9 +190,12 @@ func writeLaunchAgent(home, binary string) error {
   <key>ProgramArguments</key>
   <array>
     <string>` + xmlEscape(binary) + `</string>
+    <string>serve</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
+  <key>StandardErrorPath</key>
+  <string>` + xmlEscape(logFile) + `</string>
 </dict>
 </plist>
 `
@@ -182,6 +203,36 @@ func writeLaunchAgent(home, binary string) error {
 		return fmt.Errorf("write %s: %w", file, err)
 	}
 	return nil
+}
+
+// bootstrapLaunchAgent loads the launch agent into the user's GUI session.
+//
+// Writing the plist alone is not enough: launchd does not notice a new file in
+// ~/Library/LaunchAgents until the next login, so `autostart on` would look like
+// it did nothing (no Login Items entry, no background item) for the rest of the
+// session. `launchctl bootstrap` is the explicit load.
+func bootstrapLaunchAgent(o Options) error {
+	file := launchAgentFile(o.Home)
+	if err := o.Run("launchctl", "bootstrap", launchdDomain(o.UID), file); err != nil {
+		// Already loaded is a success for an idempotent enable: bootstrapping a
+		// second time is a caller-visible no-op, not a failure.
+		if strings.Contains(strings.ToLower(err.Error()), "already bootstrapped") ||
+			strings.Contains(strings.ToLower(err.Error()), "service already loaded") {
+			return nil
+		}
+		return fmt.Errorf("launchctl bootstrap %s: %w", file, err)
+	}
+	return nil
+}
+
+// bootoutLaunchAgent unloads the agent. Best effort: it runs before the plist is
+// removed, and a service that was never loaded is not an error.
+func bootoutLaunchAgent(o Options) {
+	_ = o.Run("launchctl", "bootout", launchdDomain(o.UID)+"/"+LaunchAgentLabel)
+}
+
+func launchdDomain(uid int) string {
+	return fmt.Sprintf("gui/%d", uid)
 }
 
 func desktopEntryFile(home, xdgConfigHome string) string {

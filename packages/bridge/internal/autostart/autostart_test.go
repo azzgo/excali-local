@@ -232,8 +232,10 @@ func TestDetectUnsupportedPlatform(t *testing.T) {
 func TestEnableMacWritesLaunchAgent(t *testing.T) {
 	home := t.TempDir()
 	binary := filepath.Join(home, ".local", "bin", "excali-bridge")
+	runner := &recordingRunner{}
 
-	if err := Enable(Options{GOOS: "darwin", Home: home, Binaries: []string{binary}}); err != nil {
+	o := Options{GOOS: "darwin", Home: home, Binaries: []string{binary}, Run: runner.run, UID: 501}
+	if err := Enable(o); err != nil {
 		t.Fatal(err)
 	}
 
@@ -246,15 +248,31 @@ func TestEnableMacWritesLaunchAgent(t *testing.T) {
 	if err := xml.Unmarshal(data, &plist); err != nil {
 		t.Fatalf("the launch agent must be parseable XML: %v", err)
 	}
-	if len(plist.Dict.ProgramArguments.Items) != 1 || plist.Dict.ProgramArguments.Items[0] != binary {
-		t.Fatalf("ProgramArguments = %v, want [%s]", plist.Dict.ProgramArguments.Items, binary)
+	want := []string{binary, "serve"}
+	if len(plist.Dict.ProgramArguments.Items) != len(want) ||
+		plist.Dict.ProgramArguments.Items[0] != want[0] ||
+		plist.Dict.ProgramArguments.Items[1] != want[1] {
+		t.Fatalf("ProgramArguments = %v, want %v", plist.Dict.ProgramArguments.Items, want)
 	}
 	if !strings.Contains(string(data), "<key>RunAtLoad</key>") {
 		t.Fatal("the launch agent must start at login")
 	}
+	if !strings.Contains(string(data), "<key>StandardErrorPath</key>") {
+		t.Fatal("the launch agent must route the daemon's stderr somewhere readable")
+	}
+
+	// Writing the plist is not enough on its own — launchd only notices a new
+	// agent at the next login, so Enable must load it into the GUI session.
+	if len(runner.calls) != 1 {
+		t.Fatalf("calls = %v, want exactly one launchctl bootstrap", runner.calls)
+	}
+	got := strings.Join(runner.calls[0], " ")
+	if !strings.HasPrefix(got, "launchctl bootstrap gui/501 ") || !strings.Contains(got, file) {
+		t.Fatalf("calls[0] = %q, want a bootstrap of %s into gui/501", got, file)
+	}
 
 	// The write side must be idempotent.
-	if err := Enable(Options{GOOS: "darwin", Home: home, Binaries: []string{binary}}); err != nil {
+	if err := Enable(o); err != nil {
 		t.Fatalf("a second Enable must succeed: %v", err)
 	}
 
@@ -268,10 +286,51 @@ func TestEnableMacWritesLaunchAgent(t *testing.T) {
 	}
 }
 
+func TestEnableMacTreatsAlreadyLoadedAsSuccess(t *testing.T) {
+	home := t.TempDir()
+	binary := filepath.Join(home, ".local", "bin", "excali-bridge")
+	runner := &recordingRunner{
+		err: errors.New("launchctl bootstrap gui/501 x: exit status 5 (Bootstrap failed: 5: Input/output error)"),
+	}
+	o := Options{GOOS: "darwin", Home: home, Binaries: []string{binary}, Run: runner.run, UID: 501}
+	// The generic failure still surfaces (it is not silently swallowed)...
+	if err := Enable(o); err == nil {
+		t.Fatal("an unrecognised bootstrap failure must be reported")
+	}
+	runner.err = errors.New("Bootstrap failed: 37: Operation already in progress (service already loaded)")
+	if err := Enable(o); err != nil {
+		t.Fatalf("already-loaded must be treated as success: %v", err)
+	}
+}
+
+func TestDisableMacBootsOutBeforeRemovingThePlist(t *testing.T) {
+	home := t.TempDir()
+	binary := filepath.Join(home, ".local", "bin", "excali-bridge")
+	runner := &recordingRunner{}
+	o := Options{GOOS: "darwin", Home: home, Binaries: []string{binary}, Run: runner.run, UID: 501}
+
+	if err := Enable(o); err != nil {
+		t.Fatal(err)
+	}
+	runner.calls = nil
+	if err := Disable(o); err != nil {
+		t.Fatal(err)
+	}
+	if len(runner.calls) != 1 {
+		t.Fatalf("calls = %v, want one launchctl bootout", runner.calls)
+	}
+	if got := strings.Join(runner.calls[0], " "); got != "launchctl bootout gui/501/"+LaunchAgentLabel {
+		t.Fatalf("calls[0] = %q", got)
+	}
+}
+
 func TestDisableMacRemovesLaunchAgent(t *testing.T) {
 	home := t.TempDir()
 	binary := filepath.Join(home, ".local", "bin", "excali-bridge")
-	o := Options{GOOS: "darwin", Home: home, Binaries: []string{binary}}
+	o := Options{
+		GOOS: "darwin", Home: home, Binaries: []string{binary},
+		Run: (&recordingRunner{}).run, UID: 501,
+	}
 
 	if err := Enable(o); err != nil {
 		t.Fatal(err)
@@ -398,4 +457,16 @@ func TestEnableUnsupportedPlatform(t *testing.T) {
 	if err := Disable(Options{GOOS: "plan9"}); err == nil {
 		t.Fatal("an unsupported platform must report an error")
 	}
+}
+
+// recordingRunner captures every command the write side would execute, so the
+// launchd/Run-key calls can be asserted without touching the real system.
+type recordingRunner struct {
+	calls [][]string
+	err   error
+}
+
+func (r *recordingRunner) run(name string, args ...string) error {
+	r.calls = append(r.calls, append([]string{name}, args...))
+	return r.err
 }
