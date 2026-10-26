@@ -403,3 +403,69 @@ func TestBridgeStopFlushesResponseBeforeClose(t *testing.T) {
 		t.Fatal("page socket should have been closed by the daemon shutdown")
 	}
 }
+
+// TestHealthSendsAllowOriginForExtensionPages guards the Firefox regression:
+// the editor page discovers the daemon port by reading /health from a
+// cross-origin world, and Firefox enforces CORS on extension pages strictly —
+// a readable body is a prerequisite for the WebSocket dial ever happening.
+func TestHealthSendsAllowOriginForExtensionPages(t *testing.T) {
+	s := startServer(t)
+
+	for _, origin := range []string{
+		testOrigin, // chrome-extension://
+		"moz-extension://8ec34d6a-33bd-44f3-9add-55284975c5f9",
+	} {
+		req, err := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/health", s.Port()), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Origin", origin)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("health with origin %s: %v", origin, err)
+		}
+		if got := resp.Header.Get("Access-Control-Allow-Origin"); got != origin {
+			resp.Body.Close()
+			t.Fatalf("Access-Control-Allow-Origin = %q, want %q", got, origin)
+		}
+		if got := resp.Header.Get("Vary"); !strings.Contains(got, "Origin") {
+			resp.Body.Close()
+			t.Fatalf("Vary = %q, want it to name Origin", got)
+		}
+		var h map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&h); err != nil {
+			resp.Body.Close()
+			t.Fatalf("health body must stay readable: %v", err)
+		}
+		resp.Body.Close()
+		if h["ok"] != true {
+			t.Fatalf("health ok = %v, want true", h["ok"])
+		}
+	}
+}
+
+// TestHealthOmitsAllowOriginForForeignPages keeps /health from becoming a
+// readable endpoint for arbitrary web pages: an origin outside the allow-list
+// gets the body but no permission to read it cross-origin.
+func TestHealthOmitsAllowOriginForForeignPages(t *testing.T) {
+	s := startServer(t)
+
+	for _, origin := range []string{"https://example.com", "null", ""} {
+		req, err := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d/health", s.Port()), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if origin != "" {
+			req.Header.Set("Origin", origin)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("health with origin %q: %v", origin, err)
+		}
+		got := resp.Header.Get("Access-Control-Allow-Origin")
+		resp.Body.Close()
+		if got != "" {
+			t.Fatalf("origin %q: Access-Control-Allow-Origin = %q, want none", origin, got)
+		}
+	}
+}

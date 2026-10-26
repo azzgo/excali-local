@@ -207,7 +207,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 // ServeHTTP dispatches /health and WS upgrades.
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path == "/health" {
-		s.handleHealth(w)
+		s.handleHealth(w, r)
 		return
 	}
 	origin := r.Header.Get("Origin")
@@ -816,7 +816,20 @@ func (s *Server) keepalive(cl *client) {
 	}
 }
 
-func (s *Server) handleHealth(w http.ResponseWriter) {
+// handleHealth answers GET /health. The extension's page reads it from a
+// cross-origin world (chrome-extension:// or moz-extension://) to discover the
+// daemon's port BEFORE dialing the WebSocket, so the response MUST carry an
+// allow-origin header: Firefox enforces CORS on extension pages strictly and
+// fails the whole dial when the body is unreadable (Chrome's extension host
+// permissions paper over the same omission, which is why this only ever broke
+// in Firefox). The origin is echoed only when it passes the same allow-list the
+// WebSocket upgrade uses — /health is not a widening of reach, just a readable
+// body for the pages that were already allowed to connect.
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	if origin := r.Header.Get("Origin"); s.originAllowed(origin) {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Set("Vary", "Origin")
+	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(s.healthPayload())
 }
