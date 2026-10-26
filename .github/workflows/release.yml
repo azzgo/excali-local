@@ -62,14 +62,23 @@ jobs:
         with:
           name: excali-bridge-assets
           path: ${{ runner.temp }}/excali-skill-dist/*
+      # upload-artifact keeps paths relative to the least common ancestor, so a
+      # multi-path glob that mixes depths (packages/local/.output vs the repo
+      # root) recreates dist/packages/local/... on download — and `gh release
+      # create dist/*` then tries to upload the directory. Stage everything
+      # flat instead.
+      - name: Flatten extension + skill archives
+        run: |
+          mkdir -p release-flat
+          cp ./packages/local/.output/*.zip release-flat/
+          cp ./packages/local/*.tar.gz release-flat/
+          cp ./skills-${{ github.ref_name }}.tar.gz release-flat/
+          ls -la release-flat/
       - name: Upload extension + skill archives
         uses: actions/upload-artifact@v4
         with:
           name: excali-packages
-          path: |
-            ./packages/local/.output/*.zip
-            ./packages/local/*.tar.gz
-            ./skills-${{ github.ref_name }}.tar.gz
+          path: release-flat/*
       - run: echo "🍏 This job's status is ${{ job.status }}."
 
   # ADR 0014 build matrix: macOS (aarch64 + x86_64) and Linux (x86_64).
