@@ -38,6 +38,23 @@ On start (before the menu is built) the tray compares its bundled sidecar's
 Failures are logged to stderr and `$STATE_DIR/presence.log`; the tray keeps
 running — Presence never degrades capability, only visibility.
 
+## Install
+
+macOS assets ship as `excali-presence-macos-<arch>.app.zip` containing
+`Excali Presence.app`:
+
+1. Download the zip for your arch (Apple Silicon → `aarch64`, Intel → `x86_64`) and unzip it.
+2. Drag `Excali Presence.app` into `/Applications`.
+3. First launch: the bundle is ad-hoc signed only (ADR 0014 — no certificate, no
+   notarization), so Gatekeeper will flag it. Clear the quarantine bit once:
+
+   ```bash
+   xattr -d com.apple.quarantine "/Applications/Excali Presence.app"
+   ```
+
+Linux ships as a bare `excali-presence-linux-x86_64` binary — drop it anywhere
+on your `PATH` (or run it directly); there is no `.desktop` packaging.
+
 ## Build
 
 ```bash

@@ -7,13 +7,22 @@
 # before falling back to Contents/Resources.
 #
 # Usage: pnpm presence:app
+# Env overrides (used by scripts/presence-pack.ts):
+#   EXCALI_PRESENCE_TARGET      cargo --target triple (optional)
+#   EXCALI_PRESENCE_RELEASE_BIN prebuilt excali-presence binary (skips cargo lookup)
+#   EXCALI_PRESENCE_APP_OUT     output dir for the .app (default: packages/presence/target)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PRESENCE_DIR="$ROOT/packages/presence"
-BIN="$PRESENCE_DIR/target/release/excali-presence"
+TRIPLE="${EXCALI_PRESENCE_TARGET:-}"
+RELEASE_DIR="packages/presence/target/release"
+if [ -n "$TRIPLE" ]; then
+  RELEASE_DIR="packages/presence/target/$TRIPLE/release"
+fi
+BIN="${EXCALI_PRESENCE_RELEASE_BIN:-$ROOT/$RELEASE_DIR/excali-presence}"
 SIDECAR="$ROOT/packages/bridge/bin/excali-bridge"
-APP="$PRESENCE_DIR/target/Excali Presence.app"
+APP="${EXCALI_PRESENCE_APP_OUT:-$PRESENCE_DIR/target}/Excali Presence.app"
 CONTENTS="$APP/Contents"
 
 fail() {
@@ -29,7 +38,6 @@ VERSION="$(node -p "require('$ROOT/package.json').version")"
 
 rm -rf "$APP"
 mkdir -p "$CONTENTS/MacOS" "$CONTENTS/Resources"
-
 cp "$BIN" "$CONTENTS/MacOS/excali-presence"
 cp "$SIDECAR" "$CONTENTS/MacOS/excali-bridge"
 chmod +x "$CONTENTS/MacOS/excali-presence" "$CONTENTS/MacOS/excali-bridge"

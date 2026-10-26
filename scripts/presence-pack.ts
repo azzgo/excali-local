@@ -11,8 +11,11 @@
  *
  *   - `$EXCALI_SKILL_DIST_DIR` when set, else `<os temp dir>/excali-skill-dist`
  *
- * Asset names: `excali-presence-<os>-<arch>` (`.exe` for the Windows placeholder
- * once it exists). Version comparison is never by filename (ADR 0012 decision 4),
+ * Asset names: `excali-presence-macos-<arch>.app.zip` (a ditto zip of
+ * `Excali Presence.app`, built by `packages/presence/build-app.sh` — ditto, not
+ * `zip`, so the `Contents/MacOS` exec bits and symlink semantics survive) and
+ * `excali-presence-linux-x86_64` (bare binary). Windows stays a bare `.exe`
+ * placeholder once it exists. Version comparison is never by filename (ADR 0012 decision 4),
  * so the name only has to be stable, not semver-stamped.
  *
  * Targets that cannot be built on the current machine (macOS cannot cross-build
@@ -51,6 +54,8 @@ const TARGETS: Target[] = [
   { os: "linux", arch: "x86_64", triple: "x86_64-unknown-linux-gnu", exe: "" },
 ];
 
+const isMacosHost = process.platform === "darwin";
+
 const args = process.argv.slice(2);
 const strict = args.includes("--strict");
 const only = (() => {
@@ -64,7 +69,8 @@ if (only && selected.length === 0) {
   process.exit(1);
 }
 
-const binName = (t: Target) => `excali-presence-${t.os}-${t.arch}${t.exe}`;
+const binName = (t: Target) =>
+  t.os === "macos" ? `excali-presence-macos-${t.arch}.app.zip` : `excali-presence-${t.os}-${t.arch}${t.exe}`;
 const sha256Of = (path: string) => createHash("sha256").update(readFileSync(path)).digest("hex");
 
 const run = (cmd: string[], cwd: string, env: Record<string, string> = {}) =>
@@ -80,6 +86,25 @@ const expectedFile = (t: Target): RegExp =>
     : /ELF 64-bit LSB.*x86-64/;
 
 const verifyBinary = (t: Target, path: string): string | undefined => {
+  if (t.os === "macos") {
+    const inner = "Excali Presence.app/Contents/MacOS/excali-presence";
+    const extracted = join(scratch, `verify-${t.triple}`);
+    const unzipped = run(
+      ["bash", "-c", `unzip -p "$1" "$2" > "$3"`, "unzip-sh", path, inner, extracted],
+      ROOT,
+    );
+    if (unzipped.code !== 0 || !existsSync(extracted)) {
+      return `unzip -p could not extract ${inner}: ${unzipped.out.trim()}`;
+    }
+    try {
+      const file = run(["file", extracted], ROOT);
+      if (file.code !== 0) return `file(1) unavailable: ${file.out.trim()}`;
+      if (!expectedFile(t).test(file.out)) return `unexpected bundle executable type: ${file.out.trim()}`;
+    } finally {
+      rmSync(extracted, { force: true });
+    }
+    return undefined;
+  }
   const file = run(["file", path], ROOT);
   if (file.code !== 0) return `file(1) unavailable: ${file.out.trim()}`;
   if (!expectedFile(t).test(file.out)) return `unexpected binary type: ${file.out.trim()}`;
@@ -130,7 +155,6 @@ console.log(`[presence-pack] building ${selected.length} target(s) — staging d
 
 try {
   for (const t of selected) {
-    const name = binName(t);
     const targetDir = join(scratch, t.triple);
 
     const build = run(
@@ -148,15 +172,65 @@ try {
       skipped.push({ target: t, reason });
       continue;
     }
-    ok(`cargo build ${t.triple} → ${name}`);
+    ok(`cargo build ${t.triple} → ${t.os === "macos" ? "(bundle)" : name}`);
 
-    const outPath = join(targetDir, t.triple, "release", `excali-presence${t.exe}`);
-    if (!existsSync(outPath)) {
-      const reason = `cargo reported success but ${outPath} is missing`;
+    const rawPath = join(targetDir, t.triple, "release", `excali-presence${t.exe}`);
+    if (!existsSync(rawPath)) {
+      const reason = `cargo reported success but ${rawPath} is missing`;
       if (strict) fail(reason);
       else warn(`${reason} — skipping ${t.triple}`);
       skipped.push({ target: t, reason });
       continue;
+    }
+
+    let outPath = rawPath;
+    if (t.os === "macos") {
+      if (!isMacosHost) {
+        const reason = `${t.triple}: .app bundling requires a macOS host (ditto/codesign) — cannot cross-build`;
+        if (strict) fail(reason);
+        else warn(`${reason} — skipping`);
+        skipped.push({ target: t, reason });
+        continue;
+      }
+      const app = run(
+        ["bash", join(PRESENCE_DIR, "build-app.sh")],
+        PRESENCE_DIR,
+        {
+          CARGO_TARGET_DIR: targetDir,
+          EXCALI_PRESENCE_TARGET: t.triple,
+          EXCALI_PRESENCE_RELEASE_BIN: rawPath,
+          EXCALI_PRESENCE_APP_OUT: join(scratch, t.triple, "app"),
+        },
+      );
+      if (app.code !== 0) {
+        const reason = `build-app.sh ${t.triple} failed:\n${app.out}`;
+        if (strict) fail(reason);
+        else warn(`${reason.split("\n").slice(-5).join("\n")} — skipping ${t.triple}`);
+        skipped.push({ target: t, reason });
+        continue;
+      }
+      const appPath = join(scratch, t.triple, "app", "Excali Presence.app");
+      if (!existsSync(appPath)) {
+        const reason = `build-app.sh reported success but ${appPath} is missing`;
+        if (strict) fail(reason);
+        else warn(`${reason} — skipping ${t.triple}`);
+        skipped.push({ target: t, reason });
+        continue;
+      }
+      const zipPath = join(scratch, t.triple, binName(t));
+      const zip = run(
+        ["ditto", "-c", "-k", "--sequesterRsrc", "--keepParent", "Excali Presence.app", zipPath],
+        join(scratch, t.triple, "app"),
+      );
+      if (zip.code !== 0 || !existsSync(zipPath)) {
+        const reason = `ditto zip ${t.triple} failed: ${zip.out.trim()}`;
+        if (strict) fail(reason);
+        else warn(`${reason} — skipping ${t.triple}`);
+        skipped.push({ target: t, reason });
+        continue;
+      }
+      ok(`ditto zip ${t.triple} → ${binName(t)}`);
+      outPath = zipPath;
     }
 
     const bad = verifyBinary(t, outPath);
@@ -178,7 +252,7 @@ try {
       const dest = join(distDir, binName(b.target));
       rmSync(dest, { force: true });
       copyFileSync(b.path, dest);
-      chmodSync(dest, 0o755);
+      if (b.target.os !== "macos") chmodSync(dest, 0o755);
     }
     const checksums = writeChecksums(
       distDir,

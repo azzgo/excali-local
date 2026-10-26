@@ -82,10 +82,10 @@ jobs:
         include:
           - runner: macos-14
             target: aarch64-apple-darwin
-            asset: excali-presence-macos-aarch64
+            asset: excali-presence-macos-aarch64.app.zip
           - runner: macos-14
             target: x86_64-apple-darwin
-            asset: excali-presence-macos-x86_64
+            asset: excali-presence-macos-x86_64.app.zip
           - runner: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             asset: excali-presence-linux-x86_64
@@ -149,7 +149,7 @@ jobs:
         run: |
           # Release assets, side by side:
           #   excali-bridge-{darwin-arm64,darwin-amd64,linux-amd64,windows-amd64.exe}
-          #   excali-presence-{macos-aarch64,macos-x86_64,linux-x86_64}
+          #   excali-presence-{macos-aarch64,macos-x86_64}.app.zip + excali-presence-linux-x86_64
           # TODO(windows): add excali-presence-windows target — welcome PR (no maintainer Windows machine)
           gh release create ${{ github.ref_name }} \
             --title "🎉 Excali Local ${{ github.ref_name }}" \
