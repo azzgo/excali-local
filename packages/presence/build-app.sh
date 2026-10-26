@@ -47,6 +47,9 @@ plutil -insert LSUIElement -bool true "$PLIST"
 plutil -insert NSHighResolutionCapable -bool true "$PLIST"
 plutil -insert LSMinimumSystemVersion -string "13.0" "$PLIST"
 
+"$PRESENCE_DIR/make-icon.sh" "$CONTENTS/Resources/AppIcon.icns"
+plutil -insert CFBundleIconFile -string "AppIcon" "$PLIST"
+
 codesign --force --sign - --timestamp=none "$CONTENTS/MacOS/excali-bridge"
 codesign --force --sign - --timestamp=none "$CONTENTS/MacOS/excali-presence"
 codesign --force --sign - --timestamp=none "$APP"
