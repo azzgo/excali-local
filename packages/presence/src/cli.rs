@@ -10,6 +10,7 @@ pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(2);
 pub struct DaemonStatus {
     pub running: bool,
     pub port: Option<u16>,
+    pub pid: Option<u32>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -49,13 +50,18 @@ pub fn version(bin: &Path, timeout: Duration) -> Option<String> {
 }
 
 pub fn parse_status(text: &str) -> DaemonStatus {
-    let port = text.split("port=").nth(1).and_then(|rest| {
-        let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
-        digits.parse::<u16>().ok()
-    });
+    let number_after = |marker: &str| {
+        text.split(marker).nth(1).and_then(|rest| {
+            let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+            digits.parse::<u64>().ok()
+        })
+    };
+    let port = number_after("port=").and_then(|n| u16::try_from(n).ok());
+    let pid = number_after("pid=").and_then(|n| u32::try_from(n).ok());
     DaemonStatus {
         running: port.is_some() && text.contains("running"),
         port,
+        pid,
     }
 }
 
@@ -193,6 +199,33 @@ impl BridgeCli {
         let _ = self.run(&["autostart", if on { "on" } else { "off" }]);
     }
 
+    /// SIGTERM the running daemon (its signal handler shuts it down cleanly).
+    /// The pid comes from the same `status` read the menu row renders from, so
+    /// the target can never be a daemon this tray didn't observe.
+    pub fn stop_daemon(&self) {
+        if let Some(pid) = self.status().pid {
+            let _ = run_bounded(
+                std::path::Path::new("kill"),
+                &["-TERM", &pid.to_string()],
+                self.timeout,
+            );
+        }
+    }
+
+    /// Spawn `excali-bridge serve` detached: own process group, output dropped.
+    /// The pidfile single-instance protocol makes a second serve a no-op, so a
+    /// race with an external spawner is safe.
+    pub fn start_daemon(&self) {
+        let Some(bin) = self.bin.as_deref() else {
+            return;
+        };
+        let _ = std::process::Command::new(bin)
+            .arg("serve")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn();
+    }
+
     pub fn snapshot(&self) -> Snapshot {
         Snapshot {
             installed: self.installed(),
@@ -249,6 +282,7 @@ mod tests {
             DaemonStatus {
                 running: true,
                 port: Some(17331),
+                pid: Some(1),
             }
         );
     }

@@ -1,4 +1,5 @@
 mod cli;
+mod columns;
 mod menu;
 mod sidecar;
 
@@ -15,7 +16,7 @@ use cli::{BridgeCli, Snapshot};
 use menu::{MenuAction, MenuState};
 
 const REFRESH_INTERVAL: Duration = Duration::from_secs(2);
-const ICON_SIZE: u32 = 32;
+const ICON_SIZE: u32 = 64;
 
 enum UserEvent {
     Snapshot(Snapshot),
@@ -30,6 +31,7 @@ struct App {
     snapshot: Snapshot,
     refreshing: bool,
     should_exit: bool,
+    busy: Option<menu::Busy>,
 }
 
 impl App {
@@ -42,6 +44,7 @@ impl App {
             snapshot: Snapshot::default(),
             refreshing: false,
             should_exit: false,
+            busy: None,
         }
     }
 
@@ -58,8 +61,9 @@ impl App {
     }
 
     fn apply(&mut self, snapshot: Snapshot) {
-        self.menu.render(&snapshot);
         self.snapshot = snapshot;
+        self.busy = None;
+        self.menu.render(&self.snapshot, None);
         self.refreshing = false;
     }
 
@@ -68,16 +72,36 @@ impl App {
             MenuAction::Quit => {
                 self.should_exit = true;
             }
+            MenuAction::ToggleDaemon => {
+                let running = self.snapshot.daemon.running;
+                self.mark_busy(menu::Busy::Daemon);
+                self.spawn_toggle(move |cli| {
+                    if running {
+                        cli.stop_daemon();
+                    } else {
+                        cli.start_daemon();
+                    }
+                });
+            }
             MenuAction::ToggleLan => {
                 let target = !self.snapshot.bridge.lan_on;
+                self.mark_busy(menu::Busy::Lan);
                 self.spawn_toggle(move |cli| cli.set_lan(target));
             }
             MenuAction::ToggleAutostart => {
                 let target = !self.snapshot.autostart_enabled;
+                self.mark_busy(menu::Busy::Autostart);
                 self.spawn_toggle(move |cli| cli.set_autostart(target));
             }
             MenuAction::Ignore => {}
         }
+    }
+
+    /// Show the in-flight state on the clicked row before the work happens, so
+    /// a slow CLI call never looks like an ignored click.
+    fn mark_busy(&mut self, busy: menu::Busy) {
+        self.busy = Some(busy);
+        self.menu.render(&self.snapshot, self.busy);
     }
 
     fn spawn_toggle<F>(&mut self, act: F)
@@ -104,11 +128,13 @@ impl ApplicationHandler<UserEvent> for App {
         let tray = TrayIconBuilder::new()
             .with_menu(Box::new(self.menu.menu.clone()))
             .with_tooltip("Excali Local")
-            .with_icon(placeholder_icon())
+            .with_icon_templated(tray_icon())
             .build()
             .expect("build the tray icon");
         self.tray = Some(tray);
-        self.menu.render(&self.snapshot);
+        self.menu.render(&self.snapshot, self.busy);
+        // First contact with the CLI is slow (a cold status + bridge.status run),
+        // so report alignment before the menu has anything to show.
         self.request_refresh();
     }
 
@@ -146,32 +172,92 @@ impl ApplicationHandler<UserEvent> for App {
     }
 }
 
-fn placeholder_icon() -> Icon {
-    let mut rgba = vec![0u8; (ICON_SIZE * ICON_SIZE * 4) as usize];
-    let center = ICON_SIZE as f32 / 2.0;
-    let radius = center - 2.0;
-    for y in 0..ICON_SIZE {
-        for x in 0..ICON_SIZE {
-            let dx = x as f32 + 0.5 - center;
-            let dy = y as f32 + 0.5 - center;
-            let inside = dx * dx + dy * dy <= radius * radius;
-            let offset = ((y * ICON_SIZE + x) * 4) as usize;
-            if inside {
-                rgba[offset] = 0x4c;
-                rgba[offset + 1] = 0x6e;
-                rgba[offset + 2] = 0xf5;
-                rgba[offset + 3] = 0xff;
+/// The menu-bar glyph: a whiteboard with a pen, drawn as a template image so
+/// macOS tints it correctly in both light and dark menu bars.
+///
+/// Drawn on a 64px canvas for a ~18pt status item: a stroke is 5px, which lands
+/// at ~1.4pt on screen — the weight macOS gives its own status glyphs. Thin
+/// 1px strokes (the first attempt) rendered at 0.5pt and looked like a hairline
+/// next to the system icons.
+fn tray_icon() -> Icon {
+    const S: i32 = ICON_SIZE as i32;
+    let mut rgba = vec![0u8; (S * S * 4) as usize];
+
+    // One mutable sink for every primitive below; closures taking `&mut Vec`
+    // avoid the double-borrow that nested writer closures would hit.
+    fn put(rgba: &mut [u8], x: i32, y: i32) {
+        if x < 0 || y < 0 || x >= ICON_SIZE as i32 || y >= ICON_SIZE as i32 {
+            return;
+        }
+        let o = ((y as usize) * ICON_SIZE as usize + x as usize) * 4;
+        rgba[o] = 0xff;
+        rgba[o + 1] = 0xff;
+        rgba[o + 2] = 0xff;
+        rgba[o + 3] = 0xff;
+    }
+    fn bar_h(rgba: &mut [u8], x0: i32, x1: i32, y: i32, t: i32) {
+        for dy in 0..t {
+            for x in x0..=x1 {
+                put(rgba, x, y + dy);
             }
         }
     }
-    Icon::from_rgba(rgba, ICON_SIZE, ICON_SIZE).expect("placeholder icon")
+    fn bar_v(rgba: &mut [u8], x: i32, y0: i32, y1: i32, t: i32) {
+        for dx in 0..t {
+            for y in y0..=y1 {
+                put(rgba, x + dx, y);
+            }
+        }
+    }
+
+    const T: i32 = 5; // stroke weight
+    // Board: frame filling the upper-left three quarters.
+    let (bx, by, bw, bh) = (4, 8, 40, 34);
+    bar_h(&mut rgba, bx, bx + bw, by, T); // top
+    bar_h(&mut rgba, bx, bx + bw, by + bh, T); // bottom
+    bar_v(&mut rgba, bx, by, by + bh, T); // left
+    bar_v(&mut rgba, bx + bw, by, by + bh, T); // right
+
+    // Board content: two bars standing in for "a drawing".
+    bar_h(&mut rgba, bx + T + 4, bx + T + 18, by + T + 6, 4);
+    bar_h(&mut rgba, bx + T + 4, bx + T + 12, by + T + 14, 4);
+
+    // Stand legs.
+    bar_v(&mut rgba, bx + bw / 2 - 8, by + bh + T, by + bh + T + 6, 4);
+    bar_v(&mut rgba, bx + bw / 2 + 5, by + bh + T, by + bh + T + 6, 4);
+
+    // Pen: a diagonal shaft crossing the board's lower-right corner, with a nib
+    // that pokes outside the frame — the "drawing" half of the mark.
+    for i in 0..22i32 {
+        let x = 26 + i;
+        let y = 40 - i;
+        for w in 0..6i32 {
+            put(&mut rgba, x + w, y);
+            put(&mut rgba, x, y - w);
+        }
+    }
+    // Nib tip.
+    for i in 0..6i32 {
+        for j in 0..6i32 {
+            if i + j <= 7 {
+                put(&mut rgba, 47 + i, 17 + j);
+            }
+        }
+    }
+
+    Icon::from_rgba(rgba, ICON_SIZE, ICON_SIZE).expect("tray icon")
 }
 
 fn align_sidecar() {
     let Some(bundled) = sidecar::bundled_bin_path() else {
+        // A bare `cargo build` tree has no CLI beside the exe. Say so — the menu
+        // then reads "not installed" everywhere, and silence here is the one
+        // thing that makes that state unexplainable.
+        sidecar::log("no bundled excali-bridge beside the executable — skipping sidecar alignment");
         return;
     };
     let Some(canonical) = cli::canonical_bin_path() else {
+        sidecar::log("cannot resolve the canonical CLI path — skipping sidecar alignment");
         return;
     };
     report_alignment(

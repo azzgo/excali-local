@@ -104,6 +104,11 @@ impl DaemonControl for SystemDaemon {
     }
 }
 
+/// Locate the CLI bundled beside this binary (release layout) or a sibling
+/// resource dir (app-bundle layout). Returns None in a bare `cargo build` tree,
+/// where there is nothing to align — the caller logs that rather than failing
+/// silently, because "menu says not installed and nothing explains why" is the
+/// single most confusing state this program can be in.
 pub fn bundled_bin_path() -> Option<PathBuf> {
     let exe = env::current_exe().ok()?;
     let dir = exe.parent()?;
