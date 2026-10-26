@@ -221,6 +221,22 @@ org→room 绑定。
 
 **代码做了什么**：daemon 只在内存中保留要约元数据并带超时，在接受之前不存储任何画布内容。发送方看到的是超时——永远不会静默成功，也不会被错误地报告为"被拒绝"。
 
+### Linux 托盘无法启动
+
+**现象**：`excali-presence-linux-x86_64` 在画出任何东西之前就 panic：
+`GTK has not been initialized. Call gtk::init first.` v1.9.0 的资产里不再包含它。
+
+**原因**：`packages/presence` 从不初始化 GTK。macOS 上菜单栈是 AppKit；Linux 上
+`tray-icon` 用 GTK 3 AppIndicator 后端、`muda` 有 GTK 后端，两者都假设 GTK 已经
+就绪。最先碰到 GTK 的是 `MenuState::new()`，它在 `App::new()` 里、事件循环之前执行，
+所以 panic 发生在构造阶段。`winit` 帮不上忙：Linux 上它直接驱动 X11/Wayland，从不调
+`gtk::init`。
+
+**代码做了什么**：暂未修复——需要先决定事件循环归谁（macOS 是 winit，Linux 是否换成
+GTK 主循环），以及 muda 的 GTK 后端在没有主循环时能否工作。跟踪在
+[#11](https://github.com/azzgo/excali-local/issues/11)。macOS 的 `.app` 不受影响，
+daemon 本身在 Linux 上运行正常。
+
 ### Peering 没有发送端界面
 
 **现象**：画布传输只能从命令行发起

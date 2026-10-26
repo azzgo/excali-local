@@ -306,6 +306,25 @@ failure mode than a failed transfer.
 deadline, and stores no canvas content before acceptance. The sender sees a
 timeout — never a silent success and never a misreported rejection.
 
+### The Linux tray does not launch
+
+**What**: `excali-presence-linux-x86_64` panics before drawing anything:
+`GTK has not been initialized. Call gtk::init first.` It is not shipped in
+v1.9.0's assets.
+
+**Why**: `packages/presence` never initialises GTK. On macOS the menu stack is
+AppKit; on Linux, `tray-icon` uses the GTK 3 AppIndicator backend and `muda` has
+a GTK backend, and both assume GTK is already up. The first thing to touch GTK
+is `MenuState::new()`, which runs in `App::new()` — before the event loop — so
+the panic fires during construction. `winit` does not help: on Linux it drives
+X11/Wayland directly and never calls `gtk::init`.
+
+**What the code does**: nothing yet — the fix needs a decision about event-loop
+ownership (winit on macOS vs a GTK main loop on Linux) and about whether muda's
+GTK backend can work without one. Tracked in
+[#11](https://github.com/azzgo/excali-local/issues/11). The macOS `.app` bundles
+are unaffected, and the daemon itself runs fine on Linux.
+
 ### Peering has no sender-side UI
 
 **What**: a canvas transfer can only be started from the CLI
