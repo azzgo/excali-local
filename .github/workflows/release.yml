@@ -132,9 +132,10 @@ jobs:
           path: dist
       - name: Download presence assets
         uses: actions/download-artifact@v4
-        pattern: excali-presence-*
-        path: dist
-        merge-multiple: true
+        with:
+          pattern: excali-presence-*
+          path: dist
+          merge-multiple: true
       - name: Re-checksum all assets
         run: |
           find dist -type f ! -name checksums.txt -print0 \
