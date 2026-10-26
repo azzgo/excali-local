@@ -41,19 +41,41 @@ impl Outcome {
 
 /// Announce an outcome. Never panics, never blocks longer than the OS call.
 pub fn announce(title: &str, outcome: &Outcome) {
+    log_outcome(title, outcome);
+    post(title, outcome);
+}
+
+/// Write the outcome to the log without posting a notification.
+///
+/// Separate from [`announce`] because posting is main-thread-only on macOS while
+/// the action runs on a worker thread: the worker logs, then hands the notice to
+/// the event loop, which posts it from the main thread. Logging from the worker
+/// keeps the record even if the app exits before the UI turn arrives.
+pub fn log_outcome(title: &str, outcome: &Outcome) {
     let prefix = if outcome.is_ok() { "" } else { "failed: " };
     sidecar_log(&format!("{title}: {prefix}{}", outcome.message()));
-    post(title, outcome);
+}
+
+/// Post an already-logged outcome. Main thread only on macOS.
+pub fn post(title: &str, outcome: &Outcome) {
+    post_impl(title, outcome);
 }
 
 #[cfg(target_os = "macos")]
 #[allow(deprecated)] // deliberate: see the module docs on why not UserNotifications
-fn post(title: &str, outcome: &Outcome) {
+fn post_impl(title: &str, outcome: &Outcome) {
     use objc2_foundation::{
         NSString, NSUserNotification, NSUserNotificationCenter, NSUserNotificationDefaultSoundName,
     };
 
+    // Silently returning here was the original bug: the action's worker thread
+    // called announce(), this guard bailed, and the log line was the only trace
+    // — the user saw nothing. Callers now post from the event loop instead, so
+    // reaching this branch means someone skipped that step.
     let Some(_mtm) = objc2::MainThreadMarker::new() else {
+        sidecar_log(&format!(
+            "{title}: not posted — notifications must be delivered from the main thread"
+        ));
         return;
     };
     objc2::rc::autoreleasepool(|_pool| unsafe {
@@ -72,7 +94,7 @@ fn post(title: &str, outcome: &Outcome) {
 }
 
 #[cfg(not(target_os = "macos"))]
-fn post(_title: &str, _outcome: &Outcome) {}
+fn post_impl(_title: &str, _outcome: &Outcome) {}
 
 fn sidecar_log(message: &str) {
     crate::sidecar::log(message);

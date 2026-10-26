@@ -215,8 +215,9 @@ impl BridgeCli {
             return notice::Outcome::failed(format!("LAN {flag} was rejected by the CLI"));
         }
         // "off" must actually close the port: report what the daemon says, not
-        // what we asked for.
-        let listening = self.bridge_status().lan_listening();
+        // what we asked for. Binding/closing is asynchronous on the daemon side,
+        // so poll — reading once raced it and reported a false failure.
+        let listening = self.wait_until_lan_settled(on, self.timeout);
         match (on, listening) {
             (true, true) => notice::Outcome::ok("LAN listener open"),
             (false, false) => notice::Outcome::ok("LAN listener closed"),
@@ -279,6 +280,17 @@ impl BridgeCli {
             std::thread::sleep(Duration::from_millis(100));
         }
         self.status().pid.is_none()
+    }
+
+    /// Poll until the LAN listener matches `want`. Returns the settled state.
+    fn wait_until_lan_settled(&self, want: bool, budget: Duration) -> bool {
+        let deadline = Instant::now() + budget;
+        let mut listening = self.bridge_status().lan_listening();
+        while listening != want && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(100));
+            listening = self.bridge_status().lan_listening();
+        }
+        listening
     }
 
     /// Poll `status` until a daemon answers. Returns its port on success.

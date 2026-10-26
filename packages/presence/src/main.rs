@@ -22,6 +22,9 @@ const ICON_SIZE: u32 = 64;
 enum UserEvent {
     Snapshot(Snapshot),
     Menu(MenuEvent),
+    /// An action finished. Carried to the event loop because posting a macOS
+    /// notification is main-thread-only, and actions run on a worker thread.
+    Notice(&'static str, notice::Outcome),
 }
 
 struct App {
@@ -116,17 +119,20 @@ impl App {
         F: FnOnce(&BridgeCli) -> notice::Outcome + Send + 'static,
     {
         if !self.cli.installed() {
-            notice::announce(
-                title,
-                &notice::Outcome::failed("the bridge CLI is not installed"),
-            );
+            let outcome = notice::Outcome::failed("the bridge CLI is not installed");
+            notice::log_outcome(title, &outcome);
+            notice::post(title, &outcome); // already on the main thread
             return;
         }
         let cli = self.cli.clone();
         let proxy = self.proxy.clone();
         std::thread::spawn(move || {
             let outcome = act(&cli);
-            notice::announce(title, &outcome);
+            // Log from the worker so the record survives even if the app exits
+            // before the UI turn; post from the event loop, where AppKit allows
+            // it. Doing both here is what made notifications never appear.
+            notice::log_outcome(title, &outcome);
+            let _ = proxy.send_event(UserEvent::Notice(title, outcome));
             let _ = proxy.send_event(UserEvent::Snapshot(cli.snapshot()));
         });
     }
@@ -154,6 +160,7 @@ impl ApplicationHandler<UserEvent> for App {
         match event {
             UserEvent::Snapshot(snapshot) => self.apply(snapshot),
             UserEvent::Menu(event) => self.handle_menu(event),
+            UserEvent::Notice(title, outcome) => notice::post(title, &outcome),
         }
     }
 
