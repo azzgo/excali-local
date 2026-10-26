@@ -21,7 +21,7 @@
 | `pnpm bridge:build` | `go build` the Go bridge daemon into `bridge/bin/` (gitignored).
 | `pnpm bridge:test` | `go test ./...` for the Go daemon. |
 | `pnpm skill:pack` | Cross-compile the daemon (4 static targets: darwin-arm64/amd64, linux-amd64, windows-amd64; CGO off, symbols stripped, reproducible via `-buildvcs=false`) + static-verify + stage the release assets (binaries + `checksums.txt`); then runs `presence:pack` into the same staging dir. No longer writes into the repo (ADR 0012). |
-| `pnpm presence:pack` | Build the Rust tray (ADR 0014 matrix: macos-aarch64, macos-x86_64, linux-x86_64) with `cargo build --release --target <triple>` and stage `excali-presence-*` next to the daemon assets (same `checksums.txt`). Unbuildable targets are skipped with a `WARN`; `--target <triple> --strict` builds one target and fails instead. Windows is a welcome-PR placeholder. |
+| `pnpm presence:pack` | Build the Rust tray (ADR 0014 matrix: macos-aarch64, macos-x86_64, linux-x86_64) with `cargo build --release --target <triple>` and stage `excali-presence-*` next to the daemon assets (same `checksums.txt`). Unbuildable targets are skipped with a `WARN`; `--target <triple> --strict` builds one target and fails instead. Windows is a welcome-PR placeholder. Tray install/uninstall instructions live in `packages/presence/README.md`. |
 | `pnpm skill:check` | Zero-drift gate: the skill's documented commands == the wire contract. |
 
 > There is no `local:dev` script. For the editor UI use `page:dev`; for the full

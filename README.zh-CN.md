@@ -12,7 +12,7 @@ Excali Local 是一个浏览器扩展，让 **Excalidraw 完全离线可用**：
 
 ## v1.9.0 新特性（未发布）
 
-- **菜单栏 Presence** — 可选的 macOS 菜单栏应用（`Excali Presence`），一眼看到 daemon 是否在运行、当前画布以及 LAN / 登录项状态，并可直接启停 daemon 或切换它们。不装它也不损失任何能力（CLI 与扩展 Options 页始终等价）。→ [ADR 0014](docs/adr/0014-presence-host-tray.md)
+- **菜单栏 Presence** — 可选的 macOS 菜单栏应用（`Excali Presence`），一眼看到 daemon 是否在运行、当前画布以及 LAN / 登录项状态，并可直接启停 daemon 或切换它们。不装它也不损失任何能力（CLI 与扩展 Options 页始终等价）。→ [安装与卸载](packages/presence/README.md) · [ADR 0014](docs/adr/0014-presence-host-tray.md)
 - **Firefox 支持** — Agent Bridge 现在在 Firefox 上可用（`moz-extension://` origin 与 `/health` 的 CORS）。→ [issue #10](https://github.com/azzgo/excali-local/issues/10)
 - **开机自启** — `excali-bridge autostart on|off` 在 macOS、Linux 和 Windows 上注册与移除登录项。
 - **跨机画布传输（Peering）** — 把画布交给同一局域网内的另一台机器：接收方右上角弹出带倒计时的浮层，点接受，画布即落地——无需文件、无需房间、无需中继。按设计采用手工地址交换（无发现、无 mDNS）；传输为明文，由接收方确认。→ [Peering](docs/PEERING.md) · [测试指南](docs/PEERING-TESTING.md) · [ADR 0013](docs/adr/0013-cross-machine-canvas-transfer.md)

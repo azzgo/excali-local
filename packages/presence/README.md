@@ -55,6 +55,33 @@ macOS assets ship as `excali-presence-macos-<arch>.app.zip` containing
 Linux ships as a bare `excali-presence-linux-x86_64` binary — drop it anywhere
 on your `PATH` (or run it directly); there is no `.desktop` packaging.
 
+Related paths you may want to clean up later:
+
+- `~/.local/bin/excali-bridge` — the canonical CLI the tray drives and keeps in
+  sync with its sidecar.
+- `~/Library/Logs/excali-bridge.log` — daemon log.
+
+## Uninstall
+
+1. In the tray menu, switch `start at login` off first — this removes the login
+   item.
+2. `Quit` the tray.
+3. Delete the app: `/Applications/Excali Presence.app` (macOS) or the bare
+   binary (Linux).
+
+If you deleted the app **without** turning `start at login` off first, the
+launchd job and its plist are left behind. Clean them up:
+
+```bash
+launchctl bootout gui/$(id -u)/com.excali-local.bridge
+rm -f ~/Library/LaunchAgents/com.excali-local.bridge.plist
+```
+
+Optionally also remove `~/.local/bin/excali-bridge` and
+`~/Library/Logs/excali-bridge.log` if you no longer use the CLI.
+
+Windows builds do not exist yet.
+
 ## Build
 
 ```bash
