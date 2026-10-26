@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/excali-local/excali-bridge/internal/client"
 	"github.com/excali-local/excali-bridge/internal/contract"
 	"github.com/excali-local/excali-bridge/internal/pidfile"
 	"github.com/excali-local/excali-bridge/internal/ws"
@@ -127,4 +129,89 @@ func readJSON(c *ws.Conn) (map[string]any, error) {
 		return nil, err
 	}
 	return m, nil
+}
+
+// --- status reads must never start a daemon ---------------------------------
+//
+// Regression for the Presence tray's "stop never sticks" bug: the tray refreshes
+// `bridge.status` every 2 seconds, and cmdCall used to hand client.Call a zero
+// Options. Call -> EnsureDaemon spawns a daemon when none is up, so clicking ⏹
+// stopped the daemon and the next refresh resurrected it ~2s later. Nothing
+// errored, which is exactly why it read as a UI glitch.
+
+func TestReadOnlyStatusNeverSpawnsADaemon(t *testing.T) {
+	readOnly := []string{
+		"ping",
+		contract.BridgeStatusMethod,
+		"commands.list",
+		"protocol.version",
+		"lan.status",
+		"autostart.status",
+		"peers.list",
+		"fonts.system.list",
+	}
+	for _, method := range readOnly {
+		if !isReadOnlyStatus(method) {
+			t.Errorf("%s must be read-only — a status query would spawn a daemon", method)
+		}
+		if !callOptions(method).NoSpawn {
+			t.Errorf("callOptions(%q).NoSpawn = false, want true", method)
+		}
+	}
+}
+
+func TestWritesKeepTheLazySpawn(t *testing.T) {
+	// The lazy spawn is load-bearing for real work: an agent calling scene.get
+	// with no daemon up expects one to appear. Only reads are excluded.
+	writes := []string{
+		"scene.get",
+		"scene.update",
+		"elements.add",
+		"elements.clear",
+		"gallery.list",
+		"files.add",
+		"lan.on",
+		"lan.off",
+		"bridge.stop",
+		"peers.transferOffer",
+	}
+	for _, method := range writes {
+		if isReadOnlyStatus(method) {
+			t.Errorf("%s is not a read-only status method", method)
+		}
+		if callOptions(method).NoSpawn {
+			t.Errorf("callOptions(%q).NoSpawn = true — writes must still lazy-spawn", method)
+		}
+	}
+}
+
+func TestStatusWithNoDaemonLeavesNoPidfileBehind(t *testing.T) {
+	// The behavioural half: with NoSpawn set, EnsureDaemon must fail without
+	// touching the pidfile or starting a process. A spawned daemon would write
+	// the pidfile within the SpawnTimeout window.
+	dir := t.TempDir()
+	pidfilePath := filepath.Join(dir, "bridge.pid")
+	t.Setenv("EXCALI_BRIDGE_PIDFILE", pidfilePath)
+
+	opts := callOptions(contract.BridgeStatusMethod)
+	opts.Pidfile = pidfilePath
+	opts.BinPath = "/nonexistent/excali-bridge" // a spawn attempt would fail loudly
+	opts.SpawnTimeout = 500 * time.Millisecond
+
+	start := time.Now()
+	_, err := client.EnsureDaemon(context.Background(), opts)
+	elapsed := time.Since(start)
+
+	if err == nil {
+		t.Fatal("EnsureDaemon succeeded with no daemon running and NoSpawn set")
+	}
+	if !errors.Is(err, client.ErrDaemonNotRunning) {
+		t.Fatalf("err = %v, want ErrDaemonNotRunning (a spawn error means NoSpawn was ignored)", err)
+	}
+	if elapsed >= opts.SpawnTimeout {
+		t.Fatalf("took %v — it waited for a spawn instead of failing fast", elapsed)
+	}
+	if _, statErr := os.Stat(pidfilePath); !os.IsNotExist(statErr) {
+		t.Fatalf("a pidfile appeared at %s — something spawned", pidfilePath)
+	}
 }

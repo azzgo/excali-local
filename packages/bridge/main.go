@@ -157,6 +157,48 @@ func cmdServe() int {
 	return 0
 }
 
+// callOptions is the client configuration for one CLI-invoked method.
+//
+// Read-only status methods carry NoSpawn: a status query must never start a
+// daemon as a side effect. Without this the Presence tray's 2-second refresh
+// (bridge.status) silently resurrected a daemon the user had just stopped, and
+// the page's activation button flicked from Waiting back to Controlling with no
+// error anywhere to explain it.
+func callOptions(method string) client.Options {
+	opts := client.Options{}
+	if method == "peers.transferOffer" {
+		// The sender waits out the receiver's offer deadline (60s) plus the
+		// carry, so the transport default of 10s would abort a healthy transfer.
+		opts.CallTimeout = 120 * time.Second
+	}
+	if isReadOnlyStatus(method) {
+		opts.NoSpawn = true
+	}
+	return opts
+}
+
+// isReadOnlyStatus reports whether a method only reads daemon state.
+//
+// The line is drawn at "does answering this require a live daemon?" — if the
+// answer to "no daemon" is already the answer (not running / no peers / no
+// commands), spawning one to ask would change the state the caller is asking
+// about. Writes (`scene.update`, `elements.add`, `lan.on`, …) keep the lazy
+// spawn: they genuinely need a daemon and starting it is the point.
+func isReadOnlyStatus(method string) bool {
+	switch method {
+	case "ping",
+		contract.BridgeStatusMethod,
+		"commands.list",
+		"protocol.version",
+		"lan.status",
+		"autostart.status",
+		"peers.list",
+		"fonts.system.list":
+		return true
+	}
+	return false
+}
+
 // cmdCall runs a JSON-RPC method as a CLI subcommand: `excali-bridge <method> [json]`.
 // Prints the result JSON on success (exit 0); the RPC error on failure (exit 1).
 func cmdCall(method, paramsJSON string) int {
@@ -169,12 +211,7 @@ func cmdCall(method, paramsJSON string) int {
 	} else {
 		params = map[string]any{}
 	}
-	opts := client.Options{}
-	if method == "peers.transferOffer" {
-		// The sender waits out the receiver's offer deadline (60s) plus the
-		// carry, so the transport default of 10s would abort a healthy transfer.
-		opts.CallTimeout = 120 * time.Second
-	}
+	opts := callOptions(method)
 	result, err := client.Call(context.Background(), opts, method, params)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "excali-bridge %s: %v\n", method, err)
