@@ -172,7 +172,7 @@ try {
       skipped.push({ target: t, reason });
       continue;
     }
-    ok(`cargo build ${t.triple} → ${t.os === "macos" ? "(bundle)" : name}`);
+    ok(`cargo build ${t.triple} → ${binName(t)}`);
 
     const rawPath = join(targetDir, t.triple, "release", `excali-presence${t.exe}`);
     if (!existsSync(rawPath)) {
