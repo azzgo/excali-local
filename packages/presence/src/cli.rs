@@ -23,6 +23,12 @@ pub struct BridgeStatus {
 }
 
 impl BridgeStatus {
+    /// The live LAN listener: true only while the daemon holds a LAN port.
+    ///
+    /// Currently unused by the menu — the LAN row is hidden until Peering has a
+    /// sender-side UI (see Known Limitations) — but kept wired because the CLI
+    /// still exposes `lan on|off` and the row returns unchanged.
+    #[allow(dead_code)]
     pub fn lan_listening(&self) -> bool {
         self.lan_port != 0
     }
@@ -206,6 +212,11 @@ impl BridgeCli {
         }
     }
 
+    /// Toggle the LAN switch and report the settled result.
+    ///
+    /// No menu item calls this while the LAN row is hidden; the CLI path
+    /// (`excali-bridge lan on|off`) is the live one.
+    #[allow(dead_code)]
     pub fn set_lan(&self, on: bool) -> notice::Outcome {
         let flag = if on { "on" } else { "off" };
         let Some(outcome) = self.run(&["lan", flag]) else {
@@ -283,6 +294,7 @@ impl BridgeCli {
     }
 
     /// Poll until the LAN listener matches `want`. Returns the settled state.
+    #[allow(dead_code)]
     fn wait_until_lan_settled(&self, want: bool, budget: Duration) -> bool {
         let deadline = Instant::now() + budget;
         let mut listening = self.bridge_status().lan_listening();

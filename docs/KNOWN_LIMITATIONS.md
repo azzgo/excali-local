@@ -306,6 +306,25 @@ failure mode than a failed transfer.
 deadline, and stores no canvas content before acceptance. The sender sees a
 timeout — never a silent success and never a misreported rejection.
 
+### Peering has no sender-side UI
+
+**What**: a canvas transfer can only be started from the CLI
+(`excali-bridge peers.transferOffer '{"address":"<ip>:<port>"}'`). The editor
+ships the receiving side (the top-right offer toast) but nothing that offers to
+send. The tray's LAN row is hidden for the same reason: exposing the switch
+would advertise a feature a user cannot reach.
+
+**Why**: the send side without discovery is an address-typing form either way.
+With no mDNS (a deliberate decision, above) a dialog would ask for exactly the
+`ip:port` the CLI asks for, so the UI would decorate the interaction without
+removing its one hard step. A genuinely useful sender needs remembered peers or
+a QR/link hand-off, and that is design work, not a missing button.
+
+**What the code does**: the full transfer path works end to end — receiver toast,
+consent, 200KB chunks, sha256, canvas load — and is exercised by the double-machine
+runbook ([PEERING-TESTING.md](PEERING-TESTING.md)). The LAN row returns to the tray
+when the send side ships.
+
 ### The tray's "Canvas" row lags a deactivation
 
 **What**: turning a canvas off in the editor can take a few seconds to reach the

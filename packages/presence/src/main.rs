@@ -87,11 +87,6 @@ impl App {
                     }
                 });
             }
-            MenuAction::ToggleLan => {
-                let target = !self.snapshot.bridge.lan_on;
-                self.mark_busy(menu::Busy::Lan);
-                self.spawn_action("LAN", move |cli| cli.set_lan(target));
-            }
             MenuAction::ToggleAutostart => {
                 let target = !self.snapshot.autostart_enabled;
                 self.mark_busy(menu::Busy::Autostart);

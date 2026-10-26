@@ -12,10 +12,9 @@ Excali Local is a browser extension that brings **Excalidraw fully offline**: sc
 
 ## New in v1.9.0 (unreleased)
 
-- **Menu-bar Presence** — an optional macOS menu-bar app (`Excali Presence`) that shows at a glance whether the daemon is running, the active canvas, and LAN / login-item state, and lets you start/stop the daemon or toggle them directly. Skipping it loses nothing (the CLI and the extension Options page are always equivalent). → [Install & Uninstall](packages/presence/README.md) · [ADR 0014](docs/adr/0014-presence-host-tray.md)
+- **Menu-bar Presence** — an optional macOS menu-bar app (`Excali Presence`) that shows at a glance whether the daemon is running, the active canvas and login-item state, and lets you start/stop the daemon or toggle autostart directly. Skipping it loses nothing (the CLI and the extension Options page are always equivalent). → [Install & Uninstall](packages/presence/README.md) · [ADR 0014](docs/adr/0014-presence-host-tray.md)
 - **Firefox support** — the Agent Bridge now works on Firefox (`moz-extension://` origin and `/health` CORS). → [issue #10](https://github.com/azzgo/excali-local/issues/10)
 - **Autostart** — `excali-bridge autostart on|off` registers and removes a login item on macOS, Linux, and Windows.
-- **Cross-machine canvas transfer (Peering)** — hand a canvas to another machine on the same network: the receiver gets a top-right toast with a countdown, accepts, and the canvas lands — no file, no room, no relay. Manual address exchange by design (no discovery, no mDNS); plaintext wire, receiver-confirmed. → [Peering](docs/PEERING.md) · [Testing Guide](docs/PEERING-TESTING.md) · [ADR 0013](docs/adr/0013-cross-machine-canvas-transfer.md)
 
 ## New in v1.8.0
 

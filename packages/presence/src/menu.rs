@@ -29,7 +29,6 @@ pub struct MenuState {
     pub menu: Menu,
     pub daemon_toggle: MenuItem,
     pub canvas: MenuItem,
-    pub lan: MenuItem,
     pub autostart: MenuItem,
     pub quit: MenuItem,
 }
@@ -73,18 +72,19 @@ impl MenuState {
     pub fn new() -> Self {
         let daemon_toggle = MenuItem::new("Daemon", true, None);
         let canvas = MenuItem::new("Canvas", false, None);
-        let lan = MenuItem::new("LAN", false, None);
         let autostart = MenuItem::new("Start at Login", false, None);
         let quit = MenuItem::new("Quit", true, None);
         let header = MenuItem::new("Excali Local", false, None);
         let menu = Menu::new();
+        // No LAN row: Peering has no sender-side UI (see Known Limitations), so
+        // exposing the switch would advertise a feature a user cannot reach. The
+        // CLI keeps `lan on|off`; the row returns when the send side ships.
         menu.append_items(&[
             &header,
             &PredefinedMenuItem::separator(),
             &daemon_toggle,
             &canvas,
             &PredefinedMenuItem::separator(),
-            &lan,
             &autostart,
             &PredefinedMenuItem::separator(),
             &quit,
@@ -94,7 +94,6 @@ impl MenuState {
             menu,
             daemon_toggle,
             canvas,
-            lan,
             autostart,
             quit,
         }
@@ -104,7 +103,6 @@ impl MenuState {
     /// snapshot lands (≤2s later) and reflects the real outcome.
     pub fn render(&self, snapshot: &Snapshot, busy: Option<Busy>) {
         let toggles = toggles_enabled(snapshot.installed);
-        self.lan.set_enabled(toggles);
         self.autostart.set_enabled(toggles);
 
         let running = snapshot.daemon.running && snapshot.daemon.port.is_some();
@@ -122,21 +120,10 @@ impl MenuState {
         } else {
             "none"
         };
-        // LAN shows the *live* listener: "on" only when the daemon actually
-        // holds a LAN port. The persisted switch still matters — "pending"
-        // means it is on but the listener is not up yet (≤7 chars each).
-        let lan_value = if snapshot.bridge.lan_listening() {
-            "on"
-        } else if snapshot.bridge.lan_on {
-            "pending"
-        } else {
-            "off"
-        };
         let autostart_value = if snapshot.autostart_enabled { "on" } else { "off" };
         let column_x = columns::column_x([
             (daemon_label.as_str(), daemon_value),
             ("Canvas", canvas_value),
-            ("LAN", lan_value),
             ("AutoStart", autostart_value),
         ]);
 
@@ -144,7 +131,6 @@ impl MenuState {
             paint(&self.daemon_toggle, &Row::new(&daemon_label, "not installed"), column_x);
             self.daemon_toggle.set_enabled(false);
             paint(&self.canvas, &Row::new("Canvas", "not installed"), column_x);
-            paint(&self.lan, &Row::new("LAN", "not installed"), column_x);
             paint(&self.autostart, &Row::new("AutoStart", "not installed"), column_x);
             return;
         }
@@ -163,10 +149,6 @@ impl MenuState {
         paint(&self.canvas, &Row::new("Canvas", canvas_value), column_x);
 
         match busy {
-            Some(Busy::Lan) => paint(&self.lan, &Row::new("LAN", "…"), column_x),
-            _ => paint(&self.lan, &Row::new("LAN", lan_value), column_x),
-        }
-        match busy {
             Some(Busy::Autostart) => paint(&self.autostart, &Row::new("AutoStart", "…"), column_x),
             _ => paint(&self.autostart, &Row::new("AutoStart", autostart_value), column_x),
         }
@@ -183,7 +165,6 @@ const STOP: &str = "⏹";
 #[derive(Clone, Copy)]
 pub enum Busy {
     Daemon,
-    Lan,
     Autostart,
 }
 
@@ -196,7 +177,6 @@ pub fn toggles_enabled(installed: bool) -> bool {
 
 pub enum MenuAction {
     ToggleDaemon,
-    ToggleLan,
     ToggleAutostart,
     Quit,
     Ignore,
@@ -208,8 +188,6 @@ pub fn classify(state: &MenuState, event: &MenuEvent) -> MenuAction {
         MenuAction::Quit
     } else if id == state.daemon_toggle.id() {
         MenuAction::ToggleDaemon
-    } else if id == state.lan.id() {
-        MenuAction::ToggleLan
     } else if id == state.autostart.id() {
         MenuAction::ToggleAutostart
     } else {
