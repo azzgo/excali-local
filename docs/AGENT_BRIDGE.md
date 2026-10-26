@@ -35,10 +35,19 @@ page is a conservative kill-switch.
 2. **Start the bridge daemon.** The browser can't launch a local process, so this
    one step is external. Two equivalent paths — pick either:
    - **Option A — let the agent start it (default).** Just ask your agent to draw.
-     Its first command (e.g. `excali-bridge ping`) lazily starts the daemon; the
-     canvas activates the moment it answers.
+     Starting the daemon is the agent's job: it runs `excali-bridge serve &`, then
+     polls `ping` until it answers, and the canvas activates the moment it does.
+     (Status reads such as `ping` deliberately never spawn a daemon — see the
+     note below.)
    - **Option B — start it yourself.** Run `excali-bridge serve` in a terminal
      (see Part C for the binary), then the canvas activates.
+   - **Why reads never spawn one.** The Presence tray polls `bridge.status`
+     every 2 seconds; a lazy spawn there resurrected a daemon the user had just
+     stopped, and the canvas silently reverted from *Waiting* to *Controlling*.
+     So `ping`, `bridge.status`, `commands.list`, `protocol.version`,
+     `lan.status`, `autostart.status`, `peers.list` and `fonts.system.list` fail
+     with `no bridge daemon is running` instead of starting one. Canvas-bound and
+     write methods (`scene.get`, `elements.add`, …) still spawn it lazily.
    - If you turned on before the daemon was up, the button shows **"Waiting for
      the bridge daemon"** (amber) — click it for these two start options. Order
      does not matter: turning on before vs after the daemon starts reaches the
@@ -104,7 +113,8 @@ cd ~/.agents/skills/excali-local     # or wherever you installed it
 BIN=bin/excali-bridge-darwin-arm64  # Apple Silicon Mac; use -darwin-amd64 on Intel,
                                     # -linux-amd64 on Linux, -windows-amd64.exe on Windows
 chmod +x $BIN
-$BIN ping                # → "pong"  (spawns the daemon lazily on first use)
+$BIN serve &             # start the daemon yourself (reads never spawn one)
+$BIN ping                # → "pong"
 $BIN commands.list       # → the 33-method inventory
 ```
 If `ping` returns `"pong"`, the daemon + CLI are healthy. (The daemon binds `127.0.0.1`

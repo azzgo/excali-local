@@ -46,19 +46,37 @@ single-instance bridge (pidfile `~/.excali-local/bridge.pid`), shared by every c
 (you, another agent, or the user at a terminal). Starting it never claims an
 exclusive session.
 
-### Starting the daemon — two equivalent paths
+### Starting the daemon — you own it
 
-The daemon is lazy, so either of these brings it up; once `$BIN ping` answers,
-proceed normally:
+**Nothing starts the daemon for you.** Before v1.9.0 the CLI lazily spawned a
+daemon on first use, so any command appeared to "just work". That behaviour is
+gone: status reads (`ping`, `bridge.status`, `commands.list`, …) must never
+start a process as a side effect — the Presence tray polls `bridge.status` every
+2 seconds, and a lazy spawn there resurrected a daemon the user had explicitly
+stopped. Starting the daemon is now **the agent's job**, not the CLI's:
 
-- **Option A (default) — you start it.** Just run your first command (e.g.
-  `$BIN ping`). The CLI spawns `serve` detached if no live daemon is found.
-- **Option B — the user started it.** The user may run `excali-bridge serve`
-  (or any command) in a terminal themselves. Your `$BIN ping` then finds it
-  already running and reuses it — a second start never double-launches.
+```bash
+$BIN ping              # no daemon → `no bridge daemon is running`, exit 1
+$BIN serve &           # start it yourself, detached
+$BIN ping              # → "pong"
+```
 
-You cannot tell (and need not care) who started it. `$BIN bridge.status` tells
-you whether a daemon is up and which canvas/profiles are connected.
+- **Start it explicitly with `serve`.** Run it detached (`serve &`,
+  `nohup $BIN serve >/dev/null 2>&1 &`, or your harness's background mode) and
+  then poll `$BIN ping` until it answers. It is machine-wide and
+  single-instance (pidfile `~/.excali-local/bridge.pid`): a second `serve`
+  reuses the live daemon instead of double-launching, and starting it never
+  claims an exclusive agent session.
+- **Canvas-bound methods still don't need you to pre-start.** A real draw call
+  (`scene.get`, `elements.add`, …) keeps the lazy spawn — it genuinely needs a
+  daemon, so the CLI brings one up. Only *status reads* refuse to.
+- **The user may have started it already.** If `$BIN ping` answers immediately,
+  reuse it. You cannot tell (and need not care) who started it.
+- **Never `stop` a daemon you didn't start.** The user's tray may be relying on
+  it. See the lifecycle caveat under [`bridge.stop`](#daemon-local).
+
+If `$BIN ping` fails with `no bridge daemon is running`, that is a **startup
+instruction, not an error to report**: start the daemon and retry.
 
 > **Active control route (Wayfinder 043/044).** The extension has two
 > mutually-exclusive routes: **ws + daemon** (the default — everything in this

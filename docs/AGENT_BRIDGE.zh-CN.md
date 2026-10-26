@@ -26,9 +26,15 @@
    **和**配对连接（门 1），并且——一旦本地桥接守护进程在运行——直接把当前画布激活（门 2）
    进入 **控制中** 状态。冷启动路径上不需要单独的配对或激活步骤。（快速编辑器从不激活。）
 2. **启动桥接守护进程。** 浏览器无法启动本地进程，所以这一步在外部完成。两条等效路径——任选其一：
-   - **方式 A —— 让智能体来启动（默认）。** 直接请你的智能体绘图。它的第一条命令（例如
-     `excali-bridge ping`）会懒加载启动守护进程；画布在它应答的瞬间激活。
+   - **方式 A —— 让智能体来启动（默认）。** 直接请你的智能体绘图。启动守护进程是 agent 的职责：
+     它先跑 `excali-bridge serve &`，再轮询 `ping` 直到应答，画布随之激活。
+     （`ping` 这类状态查询有意不再拉起守护进程——见下方说明。）
    - **方式 B —— 你自己启动。** 在终端运行 `excali-bridge serve`（二进制见第三部分），然后画布激活。
+   - **为什么状态查询不再拉起守护进程。** 菜单栏 Presence 每 2 秒轮询一次 `bridge.status`；那里的
+     懒启动会把用户刚刚停掉的守护进程重新拉起来，画布按钮便从*等待*悄悄跳回*控制中*。因此
+     `ping`、`bridge.status`、`commands.list`、`protocol.version`、`lan.status`、`autostart.status`、
+     `peers.list`、`fonts.system.list` 在没有守护进程时会以 `no bridge daemon is running` 失败，
+     而不是启动一个。画布绑定与写入类方法（`scene.get`、`elements.add` 等）仍会懒启动。
    - 如果你在守护进程启动之前就开启了开关，按钮会显示 **"等待桥接守护进程"**（琥珀色）——点击它
      可查看这两种启动方式。顺序无关紧要：在守护进程启动前还是后开启，最终都会到达相同的状态。
 
@@ -85,7 +91,8 @@ cd ~/.agents/skills/excali-local     # 或你安装它的任何位置
 BIN=bin/excali-bridge-darwin-arm64  # Apple Silicon Mac；Intel 用 -darwin-amd64，
                                     # Linux 用 -linux-amd64，Windows 用 -windows-amd64.exe
 chmod +x $BIN
-$BIN ping                # → "pong"（首次使用时懒加载启动守护进程）
+$BIN serve &             # 自行启动守护进程（状态查询不会拉起它）
+$BIN ping                # → "pong"
 $BIN commands.list       # → 33 个方法的清单
 ```
 如果 `ping` 返回 `"pong"`，守护进程 + CLI 就是健康的。（守护进程绑定 `127.0.0.1` 上

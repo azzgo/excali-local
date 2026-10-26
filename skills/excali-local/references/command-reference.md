@@ -26,10 +26,14 @@ excali-bridge <method> [params-json]
   exit code `0`.
 - On failure: `rpc error <code>: <message>` on stderr, exit code `1`.
   Invalid params JSON → exit code `2`. Unknown subcommand → exit code `2`.
-- The daemon is spawned automatically on first use (lazy daemon). You may also
-  start it explicitly with `serve`; both paths reach the same machine-wide,
-  single-instance bridge (a second start reuses the live one — never
-  double-launches).
+- The daemon is **not** spawned by status reads. `ping`, `bridge.status`,
+  `commands.list`, `protocol.version`, `lan.status`, `autostart.status`,
+  `peers.list` and `fonts.system.list` carry `NoSpawn`: with nothing running
+  they fail with `no bridge daemon is running` (exit 1) instead of starting a
+  process as a side effect. Start it yourself with `serve &` — machine-wide,
+  single-instance, a second start reuses the live one, never double-launches.
+  Canvas-bound and write methods (`scene.get`, `elements.add`, …) keep the lazy
+  spawn and bring a daemon up on their own.
 
 Environment: `EXCALI_BRIDGE_PIDFILE` overrides the pidfile path;
 `EXCALI_BRIDGE_ORIGIN` overrides the strict origin allow-list.
@@ -49,7 +53,9 @@ requirement** for that method (see SKILL.md):
 
 Resolved by the daemon itself — no page, no canvas, no user confirmation.
 
-- `ping` — round-trip liveness check. No params. Result: `"pong"`.
+- `ping` — round-trip liveness check. No params. Result: `"pong"`. It does
+  **not** start the daemon: with nothing running it exits 1 with
+  `no bridge daemon is running`. Treat that as "start `serve`, then retry".
 - `commands.list` — the full callable method inventory (deduped). No params.
   Result: `["ping", "scene.get", ...]`.
 - `protocol.version` — the contract version. No params. Result:

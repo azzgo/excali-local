@@ -12,7 +12,8 @@ offline) through one small CLI: `excali-bridge`.
   workflows).
 - **The daemon** is bundled pre-built for four platforms under [`bin/`](bin/).
   It is BOTH the WS server the editor page connects to (Leg B) AND the agent
-  CLI you invoke (Leg A) — one binary, launched lazily on first use.
+  CLI you invoke (Leg A) — one binary. Status reads never start it; run
+  `serve &` to bring the daemon up (or let a draw call spawn it).
 
 ## Install
 
@@ -51,8 +52,10 @@ Then start the daemon by telling your agent:
 Or run it yourself from the skill folder (see [Picking your binary](#picking-your-binary) below).
 
 > **Installing is not enough — you must start the daemon.**
-> The pairing condition is a **running daemon**, and the daemon only spawns
-> lazily on first use. Only then does the extension detect it and offer pairing.
+> The pairing condition is a **running daemon**. Status reads never start one
+> (`ping` exits 1 with `no bridge daemon is running`); start it with
+> `excali-bridge serve &`. Only then does the extension detect it and offer
+> pairing.
 
 ## Picking your binary
 
@@ -63,10 +66,11 @@ Or run it yourself from the skill folder (see [Picking your binary](#picking-you
 | Linux (x86-64) | `bin/excali-bridge-linux-amd64` |
 | Windows (x86-64) | `bin/excali-bridge-windows-amd64.exe` |
 
-Verify: `bin/excali-bridge-<your-platform> ping` → prints `"pong"`. The
-human-facing way to start it is to tell your agent: **"Use the excali-local
-skill: run excali-bridge ping"** — the first invocation starts the daemon
-(lazy spawn) — the local bridge your canvas connects to (or run `excali-bridge serve` yourself).
+Verify: `bin/excali-bridge-<your-platform> ping` → prints `"pong"`. If it exits
+1 with `no bridge daemon is running`, start the daemon first:
+`bin/excali-bridge-<your-platform> serve &`. The human-facing way to do all of
+this is to tell your agent: **"Use the excali-local skill: start the bridge and
+run ping"** — the skill tells the agent that starting `serve` is its job.
 
 ## Building from source
 
