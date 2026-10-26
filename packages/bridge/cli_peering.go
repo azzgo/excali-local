@@ -97,8 +97,20 @@ func cmdLANSet(lan config.LANSwitch, args []string) int {
 	}
 
 	report := lanStatusReport{LAN: string(cfg.LAN)}
+	running := false
+	var liveResult map[string]any
 	if info, err := pidfile.Read(); err == nil && pidfile.Alive(info.PID) && healthOK(info.Port) {
 		report.Port = info.Port
+		running = true
+		method := "lan.off"
+		if lan == config.LANOn {
+			method = "lan.on"
+		}
+		liveResult, err = callLANSet(method)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "excali-bridge lan %s: %v\n", lan, err)
+			return 1
+		}
 	}
 
 	if jsonOut {
@@ -108,12 +120,33 @@ func cmdLANSet(lan config.LANSwitch, args []string) int {
 
 	fmt.Printf("LAN listener: %s (persisted)\n", lanSwitchLabel(cfg.LAN))
 	fmt.Printf("config file: %s\n", configPathLabel())
-	if report.Port == 0 {
+	if !running {
 		fmt.Println("the bridge daemon is not running — the switch takes effect on the next start")
+		return 0
+	}
+	if msg, _ := liveResult["error"].(string); msg != "" {
+		fmt.Printf("the bridge daemon is running, but the listener did not open: %s\n", msg)
+	} else if port, _ := liveResult["lanPort"].(float64); port > 0 {
+		fmt.Printf("the bridge daemon is running — LAN listener open on port %d\n", int(port))
 	} else {
-		fmt.Println("the bridge daemon is running — restart it to apply the switch")
+		fmt.Println("the bridge daemon is running — LAN listener closed")
 	}
 	return 0
+}
+
+func callLANSet(method string) (map[string]any, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), peersProbeTimeout)
+	defer cancel()
+
+	result, err := client.Call(ctx, client.Options{NoSpawn: true, Timeout: peersProbeTimeout}, method, map[string]any{})
+	if err != nil {
+		return nil, err
+	}
+	var state map[string]any
+	if err := json.Unmarshal(result, &state); err != nil {
+		return nil, fmt.Errorf("malformed %s result: %w", method, err)
+	}
+	return state, nil
 }
 
 func cmdPeers(args []string) int {

@@ -112,6 +112,9 @@ type Server struct {
 	rpcTimeout time.Duration
 	peering    *peering.Handler
 	offers     map[string]chan peering.Decision
+	lanMu      sync.Mutex
+	lanParent  context.Context
+	lanCancel  context.CancelFunc
 	lanSrv     atomic.Pointer[lan.Server]
 	lanPort    atomic.Int32
 	peerAddrs  atomic.Pointer[[]string]
@@ -187,6 +190,7 @@ func (s *Server) ListenAndServe() error {
 // Shutdown stops accepting connections and closes all live WS connections.
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.closeOnce.Do(func() {
+		s.closeLAN() // the per-listener context stops with the daemon too
 		if srv := s.srv.Load(); srv != nil {
 			_ = srv.Close() // stops the listener + idle conns
 		}
@@ -441,29 +445,68 @@ func (s *Server) handleRPC(cl *client, m map[string]any, raw []byte) {
 // (ADR 0013 decision 2). A listener that is off, or that fails to bind, leaves
 // the daemon fully functional on loopback: Peering is an addition, never a
 // precondition.
+//
+// The listener's lifetime is bound to ctx, but on its own per-listener child
+// context: setLAN can close just the listener at runtime without touching the
+// daemon's own context.
 func (s *Server) StartLAN(ctx context.Context) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
 	}
+	s.lanMu.Lock()
+	s.lanParent = ctx
+	s.lanMu.Unlock()
 	if !cfg.LANEnabled() {
 		return nil
 	}
-	srv, err := lan.ListenAndServe(ctx, lan.Config{
+	return s.openLAN(cfg)
+}
+
+// openLAN binds the LAN listener on a child of the daemon's start context. It
+// is a no-op when a listener is already open.
+func (s *Server) openLAN(cfg config.Config) error {
+	s.lanMu.Lock()
+	defer s.lanMu.Unlock()
+	if s.lanSrv.Load() != nil {
+		return nil
+	}
+	parent := s.lanParent
+	if parent == nil {
+		parent = context.Background()
+	}
+	lanCtx, cancel := context.WithCancel(parent)
+	srv, err := lan.ListenAndServe(lanCtx, lan.Config{
 		LAN:     cfg,
 		Handler: s.peering,
 		Logger:  s.log,
 	})
 	if err != nil {
+		cancel()
 		return err
 	}
+	s.lanCancel = cancel
 	s.lanSrv.Store(srv)
 	s.lanPort.Store(int32(srv.Endpoint().Port))
-	go func() {
-		<-ctx.Done()
-		_ = srv.Close()
-	}()
 	return nil
+}
+
+// closeLAN stops the current LAN listener and releases its port. Calling it
+// when no listener is open is a no-op.
+func (s *Server) closeLAN() {
+	s.lanMu.Lock()
+	cancel := s.lanCancel
+	srv := s.lanSrv.Load()
+	s.lanCancel = nil
+	s.lanSrv.Store(nil)
+	s.lanPort.Store(0)
+	s.lanMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if srv != nil {
+		_ = srv.Close()
+	}
 }
 
 // LANPort reports the LAN listener's port, or 0 when it is not open.
@@ -499,8 +542,26 @@ func (s *Server) setLAN(cl *client, id json.RawMessage, on bool) {
 		s.sendRPCError(cl, id, contract.JSONRPCErrorNotFound, "could not persist the LAN switch")
 		return
 	}
+
+	var liveErr error
+	if on {
+		if s.LANPort() == 0 {
+			cfg, err := config.Load()
+			if err != nil {
+				liveErr = err
+			} else {
+				liveErr = s.openLAN(cfg)
+			}
+		}
+	} else {
+		s.closeLAN()
+	}
+
 	state := s.lanStatus()
-	state["takesEffectOnRestart"] = true
+	state["live"] = true
+	if liveErr != nil {
+		state["error"] = "lan listen failed: " + liveErr.Error()
+	}
 	s.sendRPCResult(cl, id, state)
 }
 

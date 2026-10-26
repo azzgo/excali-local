@@ -101,8 +101,8 @@ Usage:
   excali-bridge status       report daemon status from pidfile + /health
   excali-bridge version      print this binary's semver (bare, one line)
   excali-bridge lan status   report the LAN listener switch (the single source of truth);
-  excali-bridge lan on      persist "LAN listener open" (takes effect on the next daemon start);
-  excali-bridge lan off     persist "LAN listener closed"
+  excali-bridge lan on      open the LAN listener now (persists the switch);
+  excali-bridge lan off     close the LAN listener now (persists the switch)
   excali-bridge peers        list the discovered peer devices (needs a running daemon);
   excali-bridge autostart status
                              report the OS login item that starts the daemon

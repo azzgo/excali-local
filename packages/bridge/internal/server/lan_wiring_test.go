@@ -2,7 +2,10 @@ package server
 
 import (
 	"context"
+	"fmt"
+	"net"
 	"testing"
+	"time"
 
 	"github.com/excali-local/excali-bridge/internal/config"
 	"github.com/excali-local/excali-bridge/internal/contract"
@@ -66,6 +69,72 @@ func TestStartLANOpensTheListenerWhenTheSwitchIsOn(t *testing.T) {
 	if status["lanPort"] != port {
 		t.Fatalf("lanPort = %v, want %d", status["lanPort"], port)
 	}
+}
+
+// The switch is live: turning it off closes the current listener (the port
+// refuses new connections) and turning it back on opens a fresh one, all
+// without restarting the daemon.
+func TestLANOffClosesTheLiveListener(t *testing.T) {
+	isolateConfig(t)
+	if err := config.SetLAN(config.LANOn); err != nil {
+		t.Fatalf("SetLAN: %v", err)
+	}
+	s := startServer(t)
+	if err := s.StartLAN(context.Background()); err != nil {
+		t.Fatalf("StartLAN: %v", err)
+	}
+	firstPort := s.LANPort()
+	if firstPort == 0 {
+		t.Fatal("LANPort = 0 after the switch was on at start")
+	}
+
+	agent, err := dialAgent(t, s, contract.LegAProtocolVersion)
+	if err != nil {
+		t.Fatalf("dialAgent: %v", err)
+	}
+
+	sendRPC(t, agent, 1, "lan.off", nil)
+	reply := rpcReply(t, agent, 1)
+	result, _ := reply["result"].(map[string]any)
+	if result["lan"] != string(config.LANOff) {
+		t.Fatalf("lan = %v, want off", result["lan"])
+	}
+	if result["live"] != true {
+		t.Fatalf("live = %v, want true", result["live"])
+	}
+	if port := s.LANPort(); port != 0 {
+		t.Fatalf("LANPort = %d after lan.off, want 0", port)
+	}
+	if err := dialLANPort(firstPort); err == nil {
+		t.Fatalf("port %d still accepts connections after lan.off", firstPort)
+	}
+	if status := s.bridgeStatus(); status["lanPort"] != 0 {
+		t.Fatalf("bridge.status lanPort = %v after lan.off, want 0", status["lanPort"])
+	}
+
+	sendRPC(t, agent, 2, "lan.on", nil)
+	reply = rpcReply(t, agent, 2)
+	result, _ = reply["result"].(map[string]any)
+	if result["lan"] != string(config.LANOn) {
+		t.Fatalf("lan = %v, want on", result["lan"])
+	}
+	secondPort := s.LANPort()
+	if secondPort == 0 {
+		t.Fatal("LANPort = 0 after lan.on")
+	}
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", secondPort), time.Second)
+	if err != nil {
+		t.Fatalf("new LAN port %d does not accept connections: %v", secondPort, err)
+	}
+	_ = conn.Close()
+}
+
+func dialLANPort(port int) error {
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 500*time.Millisecond)
+	if err != nil {
+		return err
+	}
+	return conn.Close()
 }
 
 func TestHealthAndStatusReportLANState(t *testing.T) {
