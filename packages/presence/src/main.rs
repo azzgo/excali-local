@@ -1,6 +1,7 @@
 mod cli;
 mod columns;
 mod menu;
+mod notice;
 mod sidecar;
 
 use std::path::Path;
@@ -75,23 +76,23 @@ impl App {
             MenuAction::ToggleDaemon => {
                 let running = self.snapshot.daemon.running;
                 self.mark_busy(menu::Busy::Daemon);
-                self.spawn_toggle(move |cli| {
+                self.spawn_action("Daemon", move |cli| {
                     if running {
-                        cli.stop_daemon();
+                        cli.stop_daemon()
                     } else {
-                        cli.start_daemon();
+                        cli.start_daemon()
                     }
                 });
             }
             MenuAction::ToggleLan => {
                 let target = !self.snapshot.bridge.lan_on;
                 self.mark_busy(menu::Busy::Lan);
-                self.spawn_toggle(move |cli| cli.set_lan(target));
+                self.spawn_action("LAN", move |cli| cli.set_lan(target));
             }
             MenuAction::ToggleAutostart => {
                 let target = !self.snapshot.autostart_enabled;
                 self.mark_busy(menu::Busy::Autostart);
-                self.spawn_toggle(move |cli| cli.set_autostart(target));
+                self.spawn_action("AutoStart", move |cli| cli.set_autostart(target));
             }
             MenuAction::Ignore => {}
         }
@@ -104,17 +105,28 @@ impl App {
         self.menu.render(&self.snapshot, self.busy);
     }
 
-    fn spawn_toggle<F>(&mut self, act: F)
+    /// Run an action off the UI thread, then report how it ended.
+    ///
+    /// The report is the point: a tray menu has no other channel, so a click
+    /// that silently did nothing is indistinguishable from a click that worked.
+    /// The action also blocks until the CLI's effect is observable, which is why
+    /// the row no longer flips for a moment and then flips back.
+    fn spawn_action<F>(&mut self, title: &'static str, act: F)
     where
-        F: FnOnce(&BridgeCli) + Send + 'static,
+        F: FnOnce(&BridgeCli) -> notice::Outcome + Send + 'static,
     {
         if !self.cli.installed() {
+            notice::announce(
+                title,
+                &notice::Outcome::failed("the bridge CLI is not installed"),
+            );
             return;
         }
         let cli = self.cli.clone();
         let proxy = self.proxy.clone();
         std::thread::spawn(move || {
-            act(&cli);
+            let outcome = act(&cli);
+            notice::announce(title, &outcome);
             let _ = proxy.send_event(UserEvent::Snapshot(cli.snapshot()));
         });
     }
@@ -300,6 +312,14 @@ fn report_alignment(bundled: &Path, canonical: &Path, outcome: sidecar::Alignmen
 }
 
 fn main() {
+    // A hidden test hook for the outcome notice: posting a notification from a
+    // menu-bar accessory needs a bundle identifier, which only the installed
+    // .app has, so verifying it by clicking is the only honest check. This
+    // reports through the same path the menu uses, from the same process.
+    if std::env::args().any(|arg| arg == "--selftest-notice") {
+        notice::announce("Excali Local", &notice::Outcome::ok("Notification path works"));
+        return;
+    }
     align_sidecar();
     let mut builder = EventLoop::<UserEvent>::with_user_event();
     #[cfg(target_os = "macos")]

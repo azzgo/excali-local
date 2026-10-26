@@ -4,6 +4,8 @@ use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use crate::notice;
+
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -204,39 +206,113 @@ impl BridgeCli {
         }
     }
 
-    pub fn set_lan(&self, on: bool) {
-        let _ = self.run(&["lan", if on { "on" } else { "off" }]);
+    pub fn set_lan(&self, on: bool) -> notice::Outcome {
+        let flag = if on { "on" } else { "off" };
+        let Some(outcome) = self.run(&["lan", flag]) else {
+            return notice::Outcome::failed("the bridge CLI did not answer");
+        };
+        if !outcome.success {
+            return notice::Outcome::failed(format!("LAN {flag} was rejected by the CLI"));
+        }
+        // "off" must actually close the port: report what the daemon says, not
+        // what we asked for.
+        let listening = self.bridge_status().lan_listening();
+        match (on, listening) {
+            (true, true) => notice::Outcome::ok("LAN listener open"),
+            (false, false) => notice::Outcome::ok("LAN listener closed"),
+            (true, false) => notice::Outcome::failed("LAN on, but the port is not listening"),
+            (false, true) => {
+                notice::Outcome::failed("LAN off, but the port is still listening")
+            }
+        }
     }
 
-    pub fn set_autostart(&self, on: bool) {
-        let _ = self.run(&["autostart", if on { "on" } else { "off" }]);
+    pub fn set_autostart(&self, on: bool) -> notice::Outcome {
+        let flag = if on { "on" } else { "off" };
+        let Some(outcome) = self.run(&["autostart", flag]) else {
+            return notice::Outcome::failed("the bridge CLI did not answer");
+        };
+        if !outcome.success {
+            return notice::Outcome::failed(format!("autostart {flag} failed"));
+        }
+        let enabled = self.autostart_enabled();
+        match (on, enabled) {
+            (true, true) => notice::Outcome::ok("Starts at login"),
+            (false, false) => notice::Outcome::ok("No longer starts at login"),
+            (true, false) => notice::Outcome::failed("autostart on did not register a login item"),
+            (false, true) => notice::Outcome::failed("autostart off left a login item behind"),
+        }
     }
 
     /// SIGTERM the running daemon (its signal handler shuts it down cleanly).
     /// The pid comes from the same `status` read the menu row renders from, so
     /// the target can never be a daemon this tray didn't observe.
-    pub fn stop_daemon(&self) {
-        if let Some(pid) = self.status().pid {
-            let _ = run_bounded(
-                std::path::Path::new("kill"),
-                &["-TERM", &pid.to_string()],
-                self.timeout,
-            );
+    pub fn stop_daemon(&self) -> notice::Outcome {
+        let Some(pid) = self.status().pid else {
+            return notice::Outcome::failed("no daemon was running");
+        };
+        let killed = run_bounded(
+            std::path::Path::new("kill"),
+            &["-TERM", &pid.to_string()],
+            self.timeout,
+        )
+        .is_some_and(|outcome| outcome.success);
+        if !killed {
+            return notice::Outcome::failed(format!("could not signal pid {pid}"));
         }
+        // Verify rather than assume: SIGTERM is asynchronous, and the tray's
+        // whole complaint was a row that flipped without the state following.
+        if self.wait_until_stopped(self.timeout) {
+            notice::Outcome::ok("Daemon stopped")
+        } else {
+            notice::Outcome::failed(format!("pid {pid} did not exit in time"))
+        }
+    }
+
+    /// Poll `status` until no daemon is running. Returns false on timeout.
+    fn wait_until_stopped(&self, budget: Duration) -> bool {
+        let deadline = Instant::now() + budget;
+        while Instant::now() < deadline {
+            if self.status().pid.is_none() {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        self.status().pid.is_none()
+    }
+
+    /// Poll `status` until a daemon answers. Returns its port on success.
+    fn wait_until_started(&self, budget: Duration) -> Option<u16> {
+        let deadline = Instant::now() + budget;
+        while Instant::now() < deadline {
+            if let Some(port) = self.status().port {
+                return Some(port);
+            }
+            std::thread::sleep(Duration::from_millis(100));
+        }
+        self.status().port
     }
 
     /// Spawn `excali-bridge serve` detached: own process group, output dropped.
     /// The pidfile single-instance protocol makes a second serve a no-op, so a
     /// race with an external spawner is safe.
-    pub fn start_daemon(&self) {
+    pub fn start_daemon(&self) -> notice::Outcome {
         let Some(bin) = self.bin.as_deref() else {
-            return;
+            return notice::Outcome::failed("the bridge CLI is not installed");
         };
-        let _ = std::process::Command::new(bin)
+        let spawned = std::process::Command::new(bin)
             .arg("serve")
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .spawn();
+            .spawn()
+            .is_ok();
+        if !spawned {
+            return notice::Outcome::failed(format!("could not run {}", bin.display()));
+        }
+        match self.wait_until_started(self.timeout) {
+            Some(port) => notice::Outcome::ok(format!("Daemon running on port {port}")),
+            None => notice::Outcome::failed("daemon did not come up in time"),
+        }
     }
 
     pub fn snapshot(&self) -> Snapshot {

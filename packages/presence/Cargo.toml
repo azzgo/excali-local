@@ -7,6 +7,7 @@ publish = false
 
 [dependencies]
 libc = "0.2"
+
 muda = "0.21"
 serde_json = "1"
 tray-icon = "0.26"
@@ -18,5 +19,5 @@ path = "src/main.rs"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
-objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSAttributedString", "NSString", "NSDictionary", "NSGeometry", "NSValue"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSAttributedString", "NSString", "NSDictionary", "NSGeometry", "NSValue", "NSUserNotification"] }
 objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSMenuItem", "NSParagraphStyle", "NSText", "NSFont", "NSStringDrawing", "objc2-core-foundation"] }
