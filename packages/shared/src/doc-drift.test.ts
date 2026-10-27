@@ -24,6 +24,8 @@ const WORKFLOW = readFileSync(join(SKILL_DIR, "references/workflows/draw-a-diagr
 const TEMPLATES = readFileSync(join(SKILL_DIR, "references/element-templates.md"), "utf8");
 const SKILL_MD = readFileSync(join(SKILL_DIR, "SKILL.md"), "utf8");
 const COMMAND_REF = readFileSync(join(SKILL_DIR, "references/command-reference.md"), "utf8");
+const PRESETS = readFileSync(join(SKILL_DIR, "references/style-presets.md"), "utf8");
+const PALETTE = readFileSync(join(SKILL_DIR, "references/color-palette.md"), "utf8");
 
 describe("doc/code drift — spacing numbers", () => {
   test("the spacing table matches LAYOUT_SPACING", () => {
@@ -108,6 +110,44 @@ describe("doc/code drift — the 'compute geometry' rule is stated consistently"
   test("the gap-marker discipline is documented", () => {
     expect(SKILL_MD).toContain("[excali-gap]");
     expect(SKILL_MD).toContain("Declare every degradation");
+  });
+});
+
+describe("doc/code drift — the liveliness toolbox does not contradict routing", () => {
+  test("presets state that connections are orthogonal, not curved", () => {
+    // Regression guard: the toolbox used to say "curved connections for
+    // non-spine routes", which the router cannot honour — a bound curve is
+    // re-routed by the renderer and can cross boxes.
+    expect(PRESETS).toContain("Connections stay orthogonal");
+    expect(PRESETS).toContain("Routing is orthogonal");
+    expect(PRESETS).not.toContain("curved connections for non-spine");
+    expect(PRESETS).not.toContain("curved routes, freedraw accents");
+  });
+
+  test("the workflow does not re-introduce curved routing", () => {
+    expect(WORKFLOW).toContain("Connections are orthogonal polylines, not curves");
+    expect(WORKFLOW).not.toContain("curved routes for non-spine");
+  });
+});
+
+describe("doc/code drift — the colour seams are intact", () => {
+  test("the palette still defines both named palettes", () => {
+    expect(PALETTE).toContain("Warm");
+    expect(PALETTE).toContain("Slate");
+    expect(PALETTE).toMatch(/#[0-9a-fA-F]{6}/);
+  });
+
+  test("the default preset is still the colourful one", () => {
+    expect(SKILL_MD).toContain("rich, colorful, lively hand-drawn");
+    expect(WORKFLOW).toContain("多色同框允许");
+  });
+
+  test("the layout solver decides no colours of its own", () => {
+    // The solver receives `style` from the caller; a hex literal appearing in
+    // it would mean the palette seam had leaked into the geometry layer.
+    const layoutSource = readFileSync(join(SKILL_DIR, "../../packages/shared/src/scene-layout.ts"), "utf8");
+    expect(layoutSource).not.toMatch(/#[0-9a-fA-F]{6}/);
+    expect(layoutSource).not.toContain("backgroundColor");
   });
 });
 

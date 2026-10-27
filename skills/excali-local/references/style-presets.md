@@ -47,10 +47,12 @@ produces unless the user signals otherwise.
 - **Font hierarchy:** handwriting slot (`fontFamily: 5`) is the primary face for
   titles, labels, and body. Code slot (`fontFamily: 8`) is reserved for actual
   code / evidence snippets only.
-- **Liveliness toolbox:** **default-on** — curved connections for non-spine
-  routes, freedraw underline/circle accents on key terms, hachure on non-text
-  regions, semantically varied arrowheads. Every accent must still argue (no
-  decoration for its own sake).
+- **Liveliness toolbox:** **default-on** — freedraw underline/circle accents on
+  key terms, hachure on non-text regions, semantically varied arrowheads. Every
+  accent must still argue (no decoration for its own sake).
+  **Connections stay orthogonal**: a curve on a BOUND arrow is re-routed by the
+  renderer and can cross boxes (see `element-templates.md`), so curvature is
+  for unbound decorative strokes only, never for the routing itself.
 
 ## Clean / Technical
 
@@ -136,7 +138,7 @@ are the only style knobs Excalidraw exposes; nothing else affects character.
 | Knob | Values | Meaning |
 | --- | --- | --- |
 | `roughness` | `0` clean · `1` hand-drawn · `2` cartoon | stroke jitter |
-| `roundness` | `null` sharp · `{ "type": 3 }` soft | shape corners (arrows use it for straight-vs-curved routing) |
+| `roundness` | `null` sharp · `{ "type": 3 }` soft | shape corners. On an arrow it softens the polyline's bends — a rendering effect; the geometry stays orthogonal |
 | `fillStyle` | `solid` · `hachure` · `cross-hatch` · `zigzag` | non-solid only on **light** fills; dark/inverted always `solid` |
 | `strokeWidth` | `1` hairline · `2` structure · `3` hero/emphasis | |
 | `strokeStyle` | `solid` · `dashed` (optional/weak link) · `dotted` (tentative/inferred) | second channel of meaning, not decoration |
@@ -144,9 +146,14 @@ are the only style knobs Excalidraw exposes; nothing else affects character.
 | `fontFamily` | `5` handwriting · `6` normal · `8` code | `5` primary in Sketch/Notebook/Cartoon; `6` primary in Clean; `8` only for real code |
 
 ### Liveliness toolbox (Sketch / Notebook / Cartoon; closed in Clean)
-> **In Sketch this toolbox is default-on** — curved routes, freedraw accents,
-> hachure regions, and varied arrowheads are the Sketch default; accents still
-> argue, decoration is noise. Notebook leans in further; Cartoon is maximal.
+> **In Sketch this toolbox is default-on** — freedraw accents, hachure regions,
+> and varied arrowheads are the Sketch default; accents still argue, decoration
+> is noise. Notebook leans in further; Cartoon is maximal.
+>
+> The toolbox does **not** include curved connections. Routing is orthogonal
+> polylines: their bends are points you placed, so they can be verified, and
+> they are emitted unbound so the renderer cannot re-route them. Curvature
+> belongs to free-floating decorative strokes, which carry no binding.
 
 - **Arrowhead variety** — encode semantics in the head itself (dot = origin,
   bar = terminate, triangle = strong direction).

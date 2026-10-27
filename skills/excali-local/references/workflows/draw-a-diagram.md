@@ -281,9 +281,11 @@ These follow the preset you picked in step 0 (see
   **Slate** for Clean.
 - Neutral boxes default to the light-warm fill `#fff9db` (浅暖奶油底); roles
   use the full Warm palette (多色同框允许) — see `color-palette.md`.
-- Liveliness toolbox **default-on** in Sketch: curved routes for non-spine
-  connections, freedraw underline/circle accents on key terms, hachure on
-  non-text regions, semantically varied arrowheads.
+- Liveliness toolbox **default-on** in Sketch: freedraw underline/circle
+  accents on key terms, hachure on non-text regions, semantically varied
+  arrowheads. **Connections are orthogonal polylines, not curves** — a curve on
+  a bound arrow gets re-routed by the renderer and can cross boxes; curvature
+  is for unbound decorative strokes only.
 
 ## 5. What NOT to do
 
