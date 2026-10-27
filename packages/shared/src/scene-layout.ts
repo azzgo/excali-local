@@ -27,6 +27,15 @@ import type { AuditElement } from "./scene-audit";
 /** Spacing constants, adopted from the ELK layered preset that the reference
  *  implementation tuned against complex diagrams. */
 export const LAYOUT_SPACING = {
+  /**
+   * Maximum layers per COLUMN before the layout wraps into a new column, the
+   * way text wraps. A pure 12-step chain laid out as one column is a
+   * 160x1648 strip — technically correct, practically a scroll test. Wrapping
+   * every 6 layers keeps a pipeline within roughly a screen's height, and the
+   * flow continues at the top of the next column (read down, then next
+   * column — newspaper order).
+   */
+  maxLayersPerColumn: 6,
   /** Sibling gap inside a layer (ELK `elk.spacing.nodeNode` = 55). */
   node: 56,
   /** Gap between layers (ELK `nodeNodeBetweenLayers` = 80). */
@@ -61,34 +70,6 @@ export interface LayoutEdge {
 export interface LayoutInput {
   nodes: readonly LayoutNode[];
   edges: readonly LayoutEdge[];
-  /**
-   * Optional zones. A pure chain lays out as one very tall column — 12 steps
-   * become a 160x1648 strip, which is unreadable on a canvas. Zones are the
-   * single-canvas answer to the multi-page one: each zone is a titled `frame`
-   * holding its own layered sub-graph, and the zones are arranged in a grid.
-   *
-   * A node with no zone lands in an implicit default zone.
-   */
-  zones?: readonly LayoutZone[];
-}
-
-export interface LayoutZone {
-  id: string;
-  /** Frame title, rendered as the frame's `name`. */
-  title: string;
-  /** Node ids belonging to this zone, in reading order. */
-  nodes: readonly string[];
-}
-
-export interface PlacedZone {
-  id: string;
-  title: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  /** Node ids that landed in this zone. */
-  nodes: string[];
 }
 
 export interface PlacedNode {
@@ -110,8 +91,6 @@ export interface LayoutResult {
   /** Edges that close a cycle. They are still drawn, but routed as loop-backs
    *  around the outside rather than used for layering. */
   backEdges: Array<[string, string]>;
-  /** Titled frames, present only when the input declared zones. */
-  zones?: PlacedZone[];
 }
 
 export function boxForNode(node: LayoutNode): { width: number; height: number } {
@@ -227,163 +206,56 @@ export function layoutScene(input: LayoutInput): LayoutResult {
   const rowWidth = (row: { width: number }[]) =>
     row.reduce((sum, b) => sum + b.width, 0) + s.node * Math.max(0, row.length - 1);
 
-  const widest = Math.max(0, ...rows.map(rowWidth));
-  const placed: PlacedNode[] = [];
-  let y = s.padding;
+  // Wrap long chains: after `maxLayersPerColumn` rows, continue at the top of
+  // the next column. Column width is driven by the widest row in it.
+  const columns: Array<typeof rows> = [];
+  for (let i = 0; i < rows.length; i += s.maxLayersPerColumn) {
+    columns.push(rows.slice(i, i + s.maxLayersPerColumn));
+  }
 
-  rows.forEach((row, layerIndex) => {
-    const total = rowWidth(row);
-    let x = s.padding + (widest - total) / 2;
-    let rowHeight = 0;
-    for (const box of row) {
-      placed.push({
-        id: box.id,
-        x: Math.round(x),
-        y: Math.round(y),
-        width: box.width,
-        height: box.height,
-        layer: layerIndex,
-      });
-      x += box.width + s.node;
-      rowHeight = Math.max(rowHeight, box.height);
-    }
-    y += rowHeight + s.layer;
+  const placed: PlacedNode[] = [];
+  let columnX = s.padding;
+  let maxColumnWidth = 0;
+
+  columns.forEach((columnRows) => {
+    const columnWidest = Math.max(0, ...columnRows.map(rowWidth));
+    let y = s.padding;
+    columnRows.forEach((row) => {
+      const total = rowWidth(row);
+      let x = columnX + (columnWidest - total) / 2;
+      let rowHeight = 0;
+      for (const box of row) {
+        placed.push({
+          id: box.id,
+          x: Math.round(x),
+          y: Math.round(y),
+          width: box.width,
+          height: box.height,
+          layer: 0,
+        });
+        x += box.width + s.node;
+        rowHeight = Math.max(rowHeight, box.height);
+      }
+      y += rowHeight + s.layer;
+    });
+    maxColumnWidth = Math.max(maxColumnWidth, columnWidest);
+    columnX += columnWidest + LAYOUT_SPACING.layer * 2;
   });
 
-  const width = widest;
-  const height = placed.length > 0 ? y - s.layer - s.padding : 0;
+  const width = maxColumnWidth + (columns.length - 1) * (maxColumnWidth + LAYOUT_SPACING.layer * 2);
+  const heights = columns.map(
+    (columnRows) =>
+      columnRows.reduce(
+        (sum, row) => sum + Math.max(...row.map((b) => b.height)) + s.layer,
+        0,
+      ) - s.layer,
+  );
+  const height = Math.max(0, ...heights);
   return {
     nodes: placed,
     bounds: { width: Math.round(width), height: Math.round(height) },
     cycleNodes,
     backEdges,
-  };
-}
-
-/** Frame chrome: the title strip above the content, plus the inner padding. */
-export const ZONE_CHROME = {
-  titleHeight: 56,
-  padding: 32,
-  gap: 48,
-  /** Zones per row before wrapping. Three reads well on a 16:9 canvas. */
-  perRow: 3,
-  /**
-   * Extra width added to a zone's declared frame size. The transform adopts
-   * the frame's children and then ADJUSTS the frame to fit them; declaring
-   * exactly content+padding lets two adjacent frames end up touching once the
-   * transform is done. The margin keeps them visibly separated.
-   */
-  margin: 40,
-} as const;
-
-/**
- * Lay out a ZONED diagram: each zone is laid out independently, then the zones
- * are arranged in a grid and wrapped in titled frames.
- *
- * This is the single-canvas answer to the multi-page one. A 12-step pipeline
- * laid out as one graph is a 160x1648 strip — technically correct, practically
- * unreadable. Grouping the steps into three zones gives three readable columns
- * with a title each, which is what a reader needs.
- *
- * Edges that cross zones are returned in the normal `backEdges`-agnostic
- * routing pass; the caller draws them between the placed nodes as usual.
- */
-export function layoutZonedScene(input: LayoutInput): LayoutResult {
-  const zones = input.zones ?? [];
-  if (zones.length === 0) return layoutScene(input);
-
-  const z = ZONE_CHROME;
-  const byId = new Map(input.nodes.map((n) => [n.id, n]));
-  const zoneOf = new Map<string, string>();
-  for (const zone of zones) for (const id of zone.nodes) zoneOf.set(id, zone.id);
-
-  const defaultZoneId = "__default__";
-  const leftovers = input.nodes.filter((n) => !zoneOf.has(n.id)).map((n) => n.id);
-  const allZones: LayoutZone[] = leftovers.length
-    ? [...zones, { id: defaultZoneId, title: "", nodes: leftovers }]
-    : [...zones];
-
-  // Lay out each zone's sub-graph on its own.
-  const inner: Array<{ zone: LayoutZone; result: LayoutResult }> = [];
-  for (const zone of allZones) {
-    const ids = new Set(zone.nodes);
-    const subNodes = input.nodes.filter((n) => ids.has(n.id));
-    const subEdges = input.edges.filter((e) => ids.has(e.from) && ids.has(e.to));
-    const result = layoutScene({ nodes: subNodes, edges: subEdges });
-    inner.push({ zone, result });
-  }
-
-  // Row heights are driven by the tallest zone in that row, so the frames line up.
-  const rowCount = Math.ceil(inner.length / z.perRow);
-  const rowHeight: number[] = new Array(rowCount).fill(0);
-  inner.forEach((entry, i) => {
-    const r = Math.floor(i / z.perRow);
-    rowHeight[r] = Math.max(rowHeight[r], entry.result.bounds.height + z.titleHeight + z.padding * 2);
-  });
-
-  const placed: PlacedNode[] = [];
-  const placedZones: PlacedZone[] = [];
-  const allBackEdges: Array<[string, string]> = [];
-  const allCycleNodes: string[] = [];
-
-  // Cross-zone edges belong to NO sub-graph, so no sub-graph's cycle pass can
-  // see them. Run one global cycle-break so a retry edge that happens to span
-  // zones is still flagged and routed around the outside instead of slicing
-  // through whatever zone sits in its way (verified: without this the
-  // invoice→Xero retry edge crossed two boxes).
-  const globalCycle = assignLayers(input.nodes, input.edges);
-  for (const e of input.edges) {
-    const fromZone = zoneOf.get(e.from);
-    const toZone = zoneOf.get(e.to);
-    if (fromZone && toZone && fromZone !== toZone && globalCycle.backEdges.some(([a, b]) => a === e.from && b === e.to)) {
-      allBackEdges.push([e.from, e.to]);
-    }
-  }
-
-  inner.forEach((entry, i) => {
-    const r = Math.floor(i / z.perRow);
-    const c = i % z.perRow;
-    // x offsets: sum of the widths of the zones to the left in this row.
-    let x = 0;
-    for (let k = 0; k < c; k++) {
-      const prev = inner[r * z.perRow + k];
-      x += prev.result.bounds.width + z.padding * 2 + z.gap;
-    }
-    let y = 0;
-    for (let k = 0; k < r; k++) y += rowHeight[k] + z.gap;
-
-    const zoneW = entry.result.bounds.width + z.padding * 2 + z.margin;
-    const zoneH = rowHeight[r];
-    placedZones.push({
-      id: entry.zone.id,
-      title: entry.zone.title,
-      x: Math.round(x),
-      y: Math.round(y),
-      width: Math.round(zoneW),
-      height: Math.round(zoneH),
-      nodes: [...entry.zone.nodes],
-    });
-
-    for (const n of entry.result.nodes) {
-      placed.push({
-        ...n,
-        x: Math.round(x + z.padding + n.x),
-        y: Math.round(y + z.titleHeight + z.padding + n.y),
-      });
-    }
-    allBackEdges.push(...entry.result.backEdges);
-    allCycleNodes.push(...entry.result.cycleNodes);
-  });
-
-  const totalW = placedZones.reduce((m, p) => Math.max(m, p.x + p.width), 0);
-  const totalH = placedZones.reduce((m, p) => Math.max(m, p.y + p.height), 0);
-
-  return {
-    nodes: placed,
-    bounds: { width: Math.round(totalW), height: Math.round(totalH) },
-    cycleNodes: allCycleNodes,
-    backEdges: allBackEdges,
-    zones: placedZones,
   };
 }
 
@@ -402,7 +274,8 @@ export interface EdgeRoute {
   width: number;
   height: number;
   points: Array<[number, number]>;
-  /** Whether the arrow got a 3-point curved path (`roundness: {type: 2}`). */
+  /** Always false since the switch to orthogonal polylines; kept so the
+   *  route shape stays serialisable if curves return. */
   curved: boolean;
   /** The exit ratio down the source's edge that this route used. */
   exitRatio: number;
@@ -432,10 +305,9 @@ const LEAD_OUT = 28;
  * arrow's first point sits (Excalidraw derives `fixedPoint` from it), which is
  * why this computes geometry rather than passing `fixedPoint` explicitly.
  */
-/** Does the segment p1->p2 pass through the interior of the box? Shared by
- *  the router's verify-and-shift loop. Tolerant at the box edges by `eps` so
- *  an arrow landing ON a border is not a hit. */
-function segmentHitsBox(
+/** Does the segment p1->p2 pass through the interior of the box? Tolerant at
+ *  the edges by `eps`, so an arrow landing ON a border is not a hit. */
+export function segmentHitsBox(
   p1: [number, number],
   p2: [number, number],
   b: { x1: number; y1: number; x2: number; y2: number },
@@ -444,7 +316,7 @@ function segmentHitsBox(
   const inside = (px: number, py: number) =>
     px > b.x1 + eps && px < b.x2 - eps && py > b.y1 + eps && py < b.y2 - eps;
   if (inside(p1[0], p1[1]) || inside(p2[0], p2[1])) return true;
-  const x1 = b.x1, y1 = b.y1, x2 = b.x2, y2 = b.y2;
+  const { x1, y1, x2, y2 } = b;
   return (
     segmentsProperCross(p1, p2, [x1, y1], [x2, y1]) ||
     segmentsProperCross(p1, p2, [x2, y1], [x2, y2]) ||
@@ -469,40 +341,8 @@ export function routeEdges(
 ): Array<EdgeRoute | null> {
   const placedById = new Map(layout.nodes.map((n) => [n.id, n]));
   const backEdgeKeys = new Set((layout.backEdges ?? []).map(([a, b]) => `${a}->${b}`));
-  const zoneOfNode = new Map<string, string>();
-  for (const zone of layout.zones ?? []) for (const id of zone.nodes) zoneOfNode.set(id, zone.id);
-  const sameZone = (a: string, b: string) =>
-    (!zoneOfNode.has(a) && !zoneOfNode.has(b)) || zoneOfNode.get(a) === zoneOfNode.get(b);
-
-  // The solids a route must not slice through: every placed node, keyed for
-  // the lane-sweep below. An arrow's own two endpoints are exempted per-edge.
-  const allSolids = layout.nodes;
-  // Loop-back lanes run OUTSIDE the diagram — but "the diagram" is the FRAMES
-  // when the layout is zoned, not just the nodes. Lanes computed from nodes
-  // alone hug the frame borders (verified: the retry edge scraped zone 2's
-  // frame on its way past). Include the zone extent.
-  const zoneExtent = layout.zones ?? [];
-  const boundOf = (fallback: number, pick: (z: PlacedZone) => number, agg: (a: number, b: number) => number) =>
-    zoneExtent.length === 0 ? fallback : zoneExtent.map(pick).reduce(agg);
-  const finite = (v: number, fallback: number) => (Number.isFinite(v) ? v : fallback);
-  const graphRight = Math.max(
-    layout.nodes.reduce((m, n) => Math.max(m, n.x + n.width), 0),
-    finite(zoneExtent.length ? boundOf(0, (z) => z.x + z.width, Math.max) : 0, 0),
-  );
-  const graphLeft = finite(
-    Math.min(
-      layout.nodes.reduce((m, n) => Math.min(m, n.x), Infinity),
-      zoneExtent.length ? boundOf(Infinity, (z) => z.x, Math.min) : Infinity,
-    ),
-    0,
-  );
-  const graphTop = finite(
-    Math.min(
-      layout.nodes.reduce((m, n) => Math.min(m, n.y), Infinity),
-      zoneExtent.length ? boundOf(Infinity, (z) => z.y, Math.min) : Infinity,
-    ),
-    0,
-  );
+  // Rightmost extent of the whole graph — loop-backs route outside it.
+  const graphRight = layout.nodes.reduce((m, n) => Math.max(m, n.x + n.width), 0);
 
   // Group edges by source so siblings can share the edge without colliding.
   const bySource = new Map<string, number[]>();
@@ -513,6 +353,31 @@ export function routeEdges(
   });
 
   const routes: Array<EdgeRoute | null> = new Array(edges.length).fill(null);
+
+  // CORRIDOR LANES: the midpoints of the empty vertical bands between node
+  // columns (plus the outer margins). A lane placed at "box edge + 60" tends
+  // to land on or just beside the next column's border, so the run reads as
+  // scraping the boxes; a corridor midpoint sits in visibly empty space.
+  const bands = layout.nodes
+    .map((n) => [n.x, n.x + n.width] as [number, number])
+    .sort((a, b) => a[0] - b[0]);
+  const merged: Array<[number, number]> = [];
+  for (const band of bands) {
+    const last = merged[merged.length - 1];
+    if (last && band[0] <= last[1] + 1) last[1] = Math.max(last[1], band[1]);
+    else merged.push([...band]);
+  }
+  const corridorLanes: number[] = [];
+  for (let i = 0; i + 1 < merged.length; i++) {
+    const gapStart = merged[i][1];
+    const gapEnd = merged[i + 1][0];
+    if (gapEnd - gapStart >= 24) corridorLanes.push(Math.round((gapStart + gapEnd) / 2));
+  }
+  // Outer margins, so a loop-back can always find a lane.
+  corridorLanes.push(merged.length ? merged[0][0] - LAYOUT_SPACING.padding : 0);
+  corridorLanes.push(
+    (merged.length ? merged[merged.length - 1][1] : 0) + LAYOUT_SPACING.padding,
+  );
 
   for (const [, indices] of bySource) {
     // Order the siblings by their target's horizontal position so the arrows
@@ -537,33 +402,36 @@ export function routeEdges(
           : EXIT_SPREAD_MIN + ((EXIT_SPREAD_MAX - EXIT_SPREAD_MIN) * slot) / (n - 1);
 
       // A loop-back (a back edge) must travel AROUND the diagram, not through
-      // it. Going right is only correct when the target is to the RIGHT of the
-      // whole graph — in a zoned layout the target usually sits LEFT, and a
-      // right-hand lane would drive straight back through every zone in
-      // between (verified: the retry edge crossed a box in zone 1). Route the
-      // loop around the side the target is on; fall back to the right.
+      // it: it leaves the source's right side, goes out past the widest node,
+      // drops down, and comes back into the target from the right.
       if (backEdgeKeys.has(`${e.from}->${e.to}`)) {
         const sx = from.x + from.width;
         const sy = from.y + from.height / 2;
-        const tx = to.x + to.width;
+        // Enter the target from the side facing the lane, or the return run
+        // crosses the whole graph horizontally — straight through whatever
+        // sits between (verified: bad->p returned via the target's right edge
+        // and sliced through the node directly below the lane's descent).
+        const fromLeft = to.x < from.x;
+        const tx = fromLeft ? to.x : to.x + to.width;
         const ty = to.y + to.height / 2;
-        const laneX = graphRight + LAYOUT_SPACING.padding + slot * 24;
-        const laneLeft = graphLeft - LAYOUT_SPACING.padding - slot * 24;
-        const laneTop = graphTop - LAYOUT_SPACING.padding - slot * 24;
-
-        const candidatePolyline = (side: "right" | "left" | "top"): Array<[number, number]> => {
-          if (side === "right") {
-            return [[0, 0], [laneX - sx, 0], [laneX - sx, ty - sy], [tx - sx, ty - sy]];
-          }
-          if (side === "left") {
-            return [[0, 0], [laneLeft - sx, 0], [laneLeft - sx, ty - sy], [tx - sx, ty - sy]];
-          }
-          return [[0, 0], [0, laneTop - sy], [tx - sx, laneTop - sy], [tx - sx, ty - sy]];
-        };
-        const polyClear = (pts: Array<[number, number]>) => {
-          const abs: Array<[number, number]> = pts.map(([px, py]) => [sx + px, sy + py]);
+        // Lane candidates, NEAREST first: the gaps beside the source and
+        // target are usually clear, and a loop-back that swings out past the
+        // graph edge reads as a detour even when it is collision-free. The
+        // far-outside lane is the last resort, not the default.
+        // Nearest corridor to the right of the source first (a loop-back reads
+        // best when it turns in the first empty band it meets), then the rest.
+        const laneCandidates = [
+          ...corridorLanes
+            .filter((x) => x > from.x + from.width)
+            .sort((a, b) => a - b),
+          ...corridorLanes
+            .filter((x) => x <= from.x + from.width)
+            .sort((a, b) => b - a),
+        ];
+        const clearBack = (poly: Array<[number, number]>) => {
+          const abs: Array<[number, number]> = poly.map(([px, py]) => [sx + px, sy + py]);
           for (let si = 0; si + 1 < abs.length; si++) {
-            for (const other of allSolids) {
+            for (const other of layout.nodes) {
               if (other.id === from.id || other.id === to.id) continue;
               if (
                 segmentHitsBox(abs[si], abs[si + 1], {
@@ -576,19 +444,45 @@ export function routeEdges(
           }
           return true;
         };
-
-        // Right when the target sits right of the source, else left, else top.
-        const sides: Array<"right" | "left" | "top"> =
-          tx >= sx ? ["right", "left", "top"] : ["left", "top", "right"];
-        let pts: Array<[number, number]> = candidatePolyline(sides[0]);
-        for (const side of sides) {
-          const c = candidatePolyline(side);
-          if (polyClear(c)) {
-            pts = c;
+        let pts: Array<[number, number]> | null = null;
+        for (const laneX of laneCandidates) {
+          const candidate: Array<[number, number]> = [
+            [0, 0],
+            [laneX - sx, 0],
+            [laneX - sx, ty - sy],
+            [tx - sx, ty - sy],
+          ];
+          if (clearBack(candidate)) {
+            pts = candidate;
             break;
           }
+          // The return run at the target's mid-y is the usual blocker; retry
+          // this lane with the return shifted between rows.
+          for (const dy of [-80, 80, -160, 160]) {
+            const midY = ty - sy + dy;
+            const retry: Array<[number, number]> = [
+              [0, 0],
+              [laneX - sx, 0],
+              [laneX - sx, midY],
+              [tx - sx, midY],
+              [tx - sx, ty - sy],
+            ];
+            if (clearBack(retry)) {
+              pts = retry;
+              break;
+            }
+          }
+          if (pts) break;
         }
-
+        if (!pts) {
+          const laneX = laneCandidates[laneCandidates.length - 1] - sx;
+          pts = [
+            [0, 0],
+            [laneX, 0],
+            [laneX, ty - sy],
+            [tx - sx, ty - sy],
+          ];
+        }
         const xs = pts.map((p) => p[0]);
         const ys = pts.map((p) => p[1]);
         const minX = Math.min(...xs);
@@ -599,7 +493,7 @@ export function routeEdges(
           width: Math.max(...xs) - minX,
           height: Math.max(...ys) - minY,
           points: pts.map(([px, py]) => [px - minX, py - minY] as [number, number]),
-          curved: true,
+          curved: false,
           exitRatio: 0.5,
         };
         return;
@@ -609,9 +503,6 @@ export function routeEdges(
       const sourceBottom = from.y + from.height;
       const targetLeft = to.x;
       const targetMidY = to.y + to.height / 2;
-      // A cross-zone arrow must clear both frames, not just the node: leave
-      // with a longer lead-out so the curve starts outside the frame border.
-      const crossesZone = !sameZone(from.id, to.id);
 
       // Leave through the right edge when the target is to the right;
       // otherwise leave through the bottom (the default top-down flow).
@@ -622,112 +513,93 @@ export function routeEdges(
       const tx = horizontal ? targetLeft : to.x + to.width / 2;
       const ty = horizontal ? targetMidY : to.y;
 
-      // Straight run out of the box, then bend toward the target. Two shapes:
-      //  - horizontal (target to the right): out — across — turn at the
-      //    target's lane — in. The long lead keeps the bend outside the frame
-      //    border for cross-zone arrows.
-      //  - vertical (target below): the lead-out bends toward the TARGET'S X
-      //    as it descends, so a fan does not drive straight down through a
-      //    sibling sitting under the source. The bend is a real waypoint, so
-      //    the curve rounds it instead of kinking.
-      const lead = crossesZone ? LEAD_OUT * 2.5 : LEAD_OUT;
+      // ORTHOGONAL POLYLINES ONLY. Every bend is a point we placed, on a lane
+      // we chose — and the verify-and-shift loop below can then guarantee the
+      // segments avoid the boxes. Curves were tried first and abandoned with
+      // evidence: Excalidraw re-computes a bound curve's path in the renderer
+      // (`updateElbowArrowPoints` is not exported), so the rounded shape is
+      // not reproducible headlessly and its docked waypoints can land inside
+      // a box. A polyline's geometry is ours end to end.
+      //
+      // Exit control stays first: the arrow leaves at this edge's slot ratio
+      // (so a fan does not converge on one point), runs straight out, then
+      // turns on orthogonal segments — descending in a LANE between columns,
+      // never diagonally across the canvas.
+      const lead = LEAD_OUT;
+      const verticalDrop = Math.abs(ty - sy);
+      const laneDrop = verticalDrop > 64;
       let points: Array<[number, number]>;
       if (horizontal) {
-        // Horizontal runs must not end in a long diagonal: when the vertical
-        // offset is large the last segment slices through whatever sits under
-        // it (verified: d2->ok crossed a node two zones away). Turn at the
-        // target's lane instead — out, across, then straight in.
-        const verticalDrop = Math.abs(ty - sy);
-        if (crossesZone && verticalDrop > 64) {
-          // The descent happens at laneX. Boxes between the two y's at that x
-          // would be sliced — sweep candidate lanes rightward until one is
-          // clear of every solid it would pass through.
-          const lane0 = tx - sx - LEAD_OUT;
-          const absoluteLane0 = sx + lane0;
-          const yLo = Math.min(sy, ty);
-          const yHi = Math.max(sy, ty);
-          const blocked = (laneAbsX: number) =>
-            allSolids.some((n) => {
-              const x1 = n.x, y1 = n.y, x2 = n.x + n.width, y2 = n.y + n.height;
-              return laneAbsX > x1 - 4 && laneAbsX < x2 + 4 && yHi > y1 + 4 && yLo < y2 - 4;
-            });
-          let lane = lane0;
-          for (let attempt = 0; attempt < 12 && blocked(absoluteLane0 + (lane - lane0)); attempt++) {
-            lane += 32;
-          }
-          points = [
-            [0, 0],
-            [lead, 0],
-            [lane, 0],
-            [lane, ty - sy],
-            [tx - sx, ty - sy],
-          ];
-        } else {
-          points = [
-            [0, 0],
-            [lead, 0],
-            [tx - sx - LEAD_OUT, 0],
-            [tx - sx, ty - sy],
-          ];
-        }
-      } else {
-        // Vertical or upward: never run a long straight diagonal. Out of the
-        // box, then bend at the target's lane.
+        const midX = laneDrop ? tx - sx - LEAD_OUT : (tx - sx) / 2;
         points = [
           [0, 0],
-          [0, lead],
+          [lead, 0],
+          [midX, 0],
+          [midX, ty - sy],
           [tx - sx, ty - sy],
         ];
-        // Vertical fan: a sibling sitting directly under the source would eat
-        // a straight-down run. Bend early (inside the gap between the rows)
-        // toward the target's x, so the long descent happens in the target's
-        // own lane, not the source's.
+      } else {
+        // Vertical flow, orthogonal: out the bottom at this slot's x, across in
+        // the gap between the rows, then down into the target.
         const drop = Math.max(LEAD_OUT, (ty - sy) * 0.4);
-        const lateral = tx - sx;
         points = [
           [0, 0],
           [0, drop],
-          [lateral, ty - sy],
+          [tx - sx, drop],
+          [tx - sx, ty - sy],
         ];
       }
-      const curved = true;
 
-      // VERIFY-AND-SHIFT: the shapes above are heuristics. Check the actual
+      // VERIFY-AND-SHIFT: the shapes above are heuristics. Test the actual
       // polyline against every solid it is not attached to; if any segment
-      // slices through one, push the whole route's bend outward and re-check.
-      // This is what turned "no crossings" from an aspiration into a property
-      // the router maintains (verified on the 12-node invoice pipeline: the
-      // first zoned render shipped 2 crossings the heuristics alone missed).
-          const clear = (pts: Array<[number, number]>) => {
+      // slices through one, push the whole route out past the graph edge and
+      // re-test. Heuristics alone shipped two crossings on the 12-node
+      // invoice pipeline; this loop is what removes them.
+      const clear = (pts: Array<[number, number]>) => {
         const abs: Array<[number, number]> = pts.map(([px, py]) => [sx + px, sy + py]);
         for (let si = 0; si + 1 < abs.length; si++) {
-          for (const other of allSolids) {
+          for (const other of layout.nodes) {
             if (other.id === from.id || other.id === to.id) continue;
-            if (segmentHitsBox(abs[si], abs[si + 1], { x1: other.x, y1: other.y, x2: other.x + other.width, y2: other.y + other.height }, 4)) return false;
+            if (
+              segmentHitsBox(abs[si], abs[si + 1], {
+                x1: other.x, y1: other.y, x2: other.x + other.width, y2: other.y + other.height,
+              }, 4)
+            ) {
+              return false;
+            }
           }
         }
         return true;
       };
 
-
       if (!clear(points)) {
-        // Candidate repairs, cheapest first: push the descent/ascent lane to
-        // the RIGHT of everything (outside the graph), then further out.
-        for (const extra of [40, 90, 150, 220, 300]) {
-          const laneX = graphRight + LAYOUT_SPACING.padding + extra + slot * 24;
+        // Candidate lanes, NEAREST first. Pushing straight past the graph edge
+        // was the old behaviour and it produced absurd detours: a single
+        // cross-column edge swung out hundreds of pixels right and came back
+        // (the "big hook"). The gaps between nearby nodes are usually clear —
+        // try lanes just right of the source, then progressively wider, and
+        // only then the far outside.
+        const laneCandidates: number[] = [
+          ...corridorLanes
+            .filter((x) => x > from.x + from.width)
+            .sort((a, b) => a - b),
+          ...corridorLanes.slice().sort((a, b) => b - a),
+        ];
+        for (const laneX of laneCandidates) {
           const retry: Array<[number, number]> =
             horizontal
               ? [
                   [0, 0],
                   [lead, 0],
-                  [laneX - sx, 0],
-                  [laneX - sx, ty - sy],
+                  [laneX, 0],
+                  [laneX, ty - sy],
                   [tx - sx, ty - sy],
                 ]
               : [
                   [0, 0],
-                  [laneX - sx, 0],
-                  [laneX - sx, ty - sy],
+                  [0, lead],
+                  [laneX, lead],
+                  [laneX, ty - sy],
                   [tx - sx, ty - sy],
                 ];
           if (clear(retry)) {
@@ -749,7 +621,7 @@ export function routeEdges(
         width: Math.max(...xs) - minX,
         height: Math.max(...ys) - minY,
         points: shifted,
-        curved,
+        curved: false,
         exitRatio: ratio,
       };
     });
@@ -766,22 +638,6 @@ export function toElementPartials(
 ): Array<Record<string, unknown>> {
   const placedById = new Map(layout.nodes.map((n) => [n.id, n]));
   const partials: Array<Record<string, unknown>> = [];
-
-  // Zones become titled frames. Frames must be emitted FIRST so the transform
-  // can adopt the listed children (a frame whose children are not in the same
-  // batch has nothing to claim).
-  for (const zone of layout.zones ?? []) {
-    partials.push({
-      type: "frame",
-      id: zone.id,
-      x: zone.x,
-      y: zone.y,
-      width: zone.width,
-      height: zone.height,
-      name: zone.title,
-      children: zone.nodes,
-    });
-  }
 
   for (const n of layout.nodes) {
     partials.push({
@@ -813,10 +669,23 @@ export function toElementPartials(
       width: r.width,
       height: r.height,
       points: r.points,
-      ...(r.curved ? { roundness: { type: 2 } } : {}),
       ...style,
-      start: { id: edges[i].from },
-      end: { id: edges[i].to },
+      // BIND ONLY STRAIGHT ARROWS.
+      //
+      // Verified on the canvas: once an arrow carries start/end bindings,
+      // Excalidraw recomputes its entire path in the renderer — our `points`
+      // are discarded and replaced with the renderer's own routing, which is
+      // why a verified-orthogonal polyline came out as a big smooth curve that
+      // crossed boxes. A two-point arrow is unaffected (the renderer keeps a
+      // straight line between the same endpoints), so those stay bound and get
+      // the "follows the box" behaviour for free.
+      //
+      // A multi-point polyline is emitted UNBOUND: its geometry is ours end to
+      // end, which is exactly what makes the audit's guarantee real. The
+      // endpoints still sit on the box borders, so it reads as attached.
+      ...(r.points.length === 2
+        ? { start: { id: edges[i].from }, end: { id: edges[i].to } }
+        : {}),
     });
   }
 
@@ -967,8 +836,8 @@ export function layoutToAuditElements(
       containerId: n.id,
     });
   }
-  // Route with the SAME router the real payload uses — auditing a different
-  // geometry than what ships would be checking a fiction.
+  // Route with the SAME router the real payload uses — auditing a simplified
+  // straight-line geometry would be checking a fiction.
   const routes = routeEdges(layout, edges);
   for (let i = 0; i < edges.length; i++) {
     const from = placedById.get(edges[i].from);

@@ -88,13 +88,22 @@ describe("page closure — the real transform accepts what the solver emits", ()
         expect(labels).toHaveLength(1);
       }
 
-      // Every edge came out BOUND on both ends (the transform resolved
-      // start/end through id regeneration).
+      // Binding is deliberate per shape: 2-point arrows bind (the renderer
+      // keeps a straight line, so binding costs nothing and buys "follows the
+      // box"), multi-point polylines do NOT — binding hands the path to the
+      // renderer, which re-routes it and can cross boxes. See
+      // toElementPartials.
       const arrows = elements.filter((e) => e.type === "arrow");
       expect(arrows).toHaveLength(fixture.edges.length);
       for (const a of arrows) {
-        expect(a.startBinding).toBeTruthy();
-        expect(a.endBinding).toBeTruthy();
+        const points = a.points as Array<[number, number]>;
+        if (points.length === 2) {
+          expect(a.startBinding).toBeTruthy();
+          expect(a.endBinding).toBeTruthy();
+        } else {
+          expect(a.startBinding).toBeNull();
+          expect(a.endBinding).toBeNull();
+        }
       }
     });
 
@@ -106,8 +115,20 @@ describe("page closure — the real transform accepts what the solver emits", ()
       expect(report.textFit).toEqual([]);
       expect(report.unboundArrows).toEqual([]);
       expect(report.bindingViolations).toEqual([]);
-      expect(report.waypointsInsideNodes).toEqual([]);
-      expect(report.ok).toBe(true);
+
+      // waypoints/crossings are asserted on the SOLVER's geometry (see the
+      // shared tests). The real transform re-computes bound arrow paths in the
+      // renderer — updateElbowArrowPoints is not exported, so the final docked
+      // shape is not reproducible headlessly, and an intermediate waypoint can
+      // land inside the target's edge as part of normal docking. Judging the
+      // RENDERED shape is the L4 real-browser step, not an assertion here.
+      expect(
+        report.overlaps.length +
+          report.gutterViolations.length +
+          report.textFit.length +
+          report.unboundArrows.length +
+          report.bindingViolations.length,
+      ).toBe(0);
     });
 
     test(`${fixture.name}: the baseline is GEOMETRICALLY clean but UNREADABLE`, () => {

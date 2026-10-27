@@ -187,11 +187,14 @@ The binding-close input form uses `start`/`end` (linear-element style) —
   skews `scene.bounds`, hit-testing and export clipping — and it is exactly
   the kind of thing the render→view→fix loop misses until you audit
   absolute points.
-- **Route loop-backs with curves, not raw 90° elbows**: a long return arrow
-  drawn as two hard right-angle corners (right → up → left) reads as a stiff
-  zigzag. Give it 3+ points and `roundness: { type: 2 }` so the corners
-  curve, and keep a dedicated routing lane with ≥ 40 px gutter away from
-  captions.
+- **Route loop-backs as orthogonal polylines with soft corners**: a long
+  return arrow drawn as two hard right-angle corners reads as a stiff zigzag.
+  Give it 3+ points in a dedicated routing lane (≥ 40 px from anything) and
+  `roundness: { type: 2 }` — the corners render softened WITHOUT the geometry
+  changing. Prefer polylines over multi-point "curves": a polyline's bends are
+  points you placed on lanes you chose, so `scene.audit` can verify them; a
+  bound curve's final shape is re-computed by the renderer and cannot be
+  checked headlessly (it can dock a waypoint inside a box).
 - **Default arrows are straight** (2 points, no `roundness`) — the structural
   spine stays reliable to bind and route. Curved arrows live in the liveliness
   toolbox below.
@@ -207,9 +210,32 @@ problems at all.
 | arrow floats detached from both boxes | the binding was dropped | `scene.audit` → `unboundArrows`. Bind with `start`/`end` **in the same batch**, or via `scene.update` with serialized `startBinding`/`endBinding` |
 | arrow attaches but enters the wrong edge | `fixedPoint` unset or written in pixels | set the normalized ratio (table below) |
 | arrow crosses an unrelated box | no routing lane | `scene.audit` → `waypointsInsideNodes`; reroute around it |
-| arrow zigzags stiffly on a loop-back | 2-point right-angle path | 3+ points + `roundness: { type: 2 }` + a dedicated lane |
+| arrow zigzags stiffly on a loop-back | 2-point right-angle path | 3+ orthogonal points in a dedicated lane + `roundness: { type: 2 }` |
 
-### Binding is the whole game
+### Bind straight arrows; leave polylines unbound
+
+**Verified on the canvas:** once an arrow carries `startBinding`/`endBinding`,
+Excalidraw recomputes its entire path in the renderer — the `points` you wrote
+are discarded. A carefully orthogonally-routed polyline therefore comes out as
+the renderer's own smooth curve, and that curve can cross boxes your route
+avoided.
+
+So the rule is per shape:
+
+- **Two-point arrow → bind it.** The renderer keeps a straight line between the
+  same two points, so binding changes nothing visually and buys you "the arrow
+  follows the box when it moves".
+- **Three-or-more-point polyline → leave it unbound.** Its geometry then stays
+  exactly what you computed, which is the only way `scene.audit`'s
+  no-crossing guarantee is real. Place the first and last points on the box
+  borders so it still reads as attached.
+
+`scene.audit` knows the difference: `allowUnboundPolylines` (default on) exempts
+multi-point arrows from `unboundArrows`, and it infers a polyline's endpoints
+geometrically (by which boxes its first/last point touches) so a box it docks
+into is not reported as a crossing.
+
+### Binding is the rest of the game
 
 An arrow's position is **not** determined by the `x`/`y`/`points` you write —
 once bound, Excalidraw recomputes the route from the binding. Your numbers are

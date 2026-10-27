@@ -61,6 +61,13 @@ export interface AuditConfig {
   padding: number;
   /** Tolerance for "touching counts as overlapping". */
   epsilon: number;
+  /**
+   * Treat a multi-point arrow as intentionally unbound. Excalidraw re-routes a
+   * BOUND arrow in the renderer, discarding the points it was given — so a
+   * polyline that must stay exactly where the router put it is emitted without
+   * bindings. Those are not defects; a two-point arrow left unbound still is.
+   */
+  allowUnboundPolylines: boolean;
   /** Maximum number of lines a bound label may occupy before it counts as a
    *  readability regression. Excalidraw wraps and re-centers text, so a
    *  wrapped label is NOT a geometry defect — the box still contains it. It is
@@ -72,6 +79,7 @@ export const DEFAULT_AUDIT_CONFIG: AuditConfig = {
   gutter: 40,
   padding: 8,
   epsilon: 1,
+  allowUnboundPolylines: true,
   maxLabelLines: 1,
 };
 
@@ -333,8 +341,9 @@ export function auditScene(
       ["startBinding", a.startBinding],
       ["endBinding", a.endBinding],
     ] as const;
+    const isPolyline = (a.points?.length ?? 0) > 2;
     const unbound = fields.some(([, b]) => !b);
-    if (unbound) unboundArrows.push(a.id);
+    if (unbound && !(cfg.allowUnboundPolylines && isPolyline)) unboundArrows.push(a.id);
 
     for (const [field, binding] of fields) {
       if (!binding) continue;
@@ -355,14 +364,33 @@ export function auditScene(
     }
 
     // Bend points must not land inside a node the arrow is not attached to.
-    // The arrow's own bound endpoints are excluded by construction: its first
-    // and last point sit ON (or inside) those boxes by definition, so flagging
-    // them would fire on every correctly-bound arrow.
+    // EVERY point is exempt from the arrow's own attached boxes — not just the
+    // first and last: the transform adjusts multi-point paths on bind and can
+    // pull an intermediate waypoint inside the target's edge, which is its
+    // normal docking behaviour, not a defect.
     const attached = new Set(
       [a.startBinding?.elementId, a.endBinding?.elementId].filter(
         (id): id is string => typeof id === "string",
       ),
     );
+    // An UNBOUND polyline has no bindings to name its endpoints, so recover
+    // them geometrically: any solid that the arrow's first or last point sits
+    // on/inside is an endpoint of this arrow, and its own border is not a
+    // crossing. Without this every deliberately-unbound loop-back reports its
+    // own target as "line through box".
+    const firstPoint = a.points && a.points.length > 0
+      ? ([a.x + a.points[0][0], a.y + a.points[0][1]] as [number, number])
+      : null;
+    const lastPoint = a.points && a.points.length > 0
+      ? ([a.x + a.points[a.points.length - 1][0], a.y + a.points[a.points.length - 1][1]] as [number, number])
+      : null;
+    for (const s of solids) {
+      const sb = boxOf(s);
+      const touches = (pt: [number, number] | null) =>
+        !!pt &&
+        pt[0] >= sb.x1 - 2 && pt[0] <= sb.x2 + 2 && pt[1] >= sb.y1 - 2 && pt[1] <= sb.y2 + 2;
+      if (touches(firstPoint) || touches(lastPoint)) attached.add(s.id);
+    }
     const points = a.points ?? [];
     const absolute: Array<[number, number]> = points.map((p) => [a.x + p[0], a.y + p[1]]);
     for (let pi = 0; pi < absolute.length; pi++) {

@@ -119,6 +119,11 @@ describe("doc/code drift — arrow routing rules", () => {
     expect(TEMPLATES).toContain("`[0.5, 0]` top-center");
   });
 
+  test("the bind-straight / unbound-polyline rule is documented", () => {
+    expect(TEMPLATES).toContain("Bind straight arrows; leave polylines unbound");
+    expect(TEMPLATES).toContain("allowUnboundPolylines");
+  });
+
   test("the four causes of a misplaced arrow are enumerated", () => {
     expect(TEMPLATES).toContain("the binding was dropped");
     expect(TEMPLATES).toContain("`fixedPoint` unset or written in pixels");

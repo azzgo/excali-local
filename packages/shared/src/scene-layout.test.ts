@@ -244,17 +244,45 @@ describe("toElementPartials — the payload contract", () => {
     expect(partials.some((p) => p.type === "text")).toBe(false);
   });
 
-  test("arrows bind with start/end (the input form), one per edge", () => {
+  test("straight arrows bind; multi-point polylines do not", () => {
+    // Binding hands the arrow's path to the renderer, which re-routes it and
+    // can cross boxes. So only 2-point arrows are bound; polyline geometry
+    // stays ours end to end (see toElementPartials).
     const fixture = ALL_FIXTURES[1];
     const layout = layoutScene(layoutInput(fixture));
     const partials = toElementPartials(layout, labelsOf(fixture), edgesOf(fixture));
     const arrows = partials.filter((p) => p.type === "arrow");
     expect(arrows).toHaveLength(fixture.edges.length);
     for (const a of arrows) {
-      expect(a.start).toBeDefined();
-      expect(a.end).toBeDefined();
+      const points = a.points as Array<[number, number]>;
+      if (points.length === 2) {
+        expect(a.start).toBeDefined();
+        expect(a.end).toBeDefined();
+      } else {
+        expect(a.start).toBeUndefined();
+        expect(a.end).toBeUndefined();
+      }
       expect(a.startBinding).toBeUndefined();
       expect(a.endBinding).toBeUndefined();
+    }
+  });
+
+  test("every arrow keeps orthogonal segments (no diagonals)", () => {
+    for (const fixture of ALL_FIXTURES) {
+      const layout = layoutScene(layoutInput(fixture));
+      const partials = toElementPartials(layout, labelsOf(fixture), edgesOf(fixture));
+      for (const a of partials.filter((p) => p.type === "arrow")) {
+        const pts = a.points as Array<[number, number]>;
+        for (let i = 0; i + 1 < pts.length; i++) {
+          const dx = Math.abs(pts[i + 1][0] - pts[i][0]);
+          const dy = Math.abs(pts[i + 1][1] - pts[i][1]);
+          // A segment must be axis-aligned (one delta ~0) unless it is the
+          // single straight run between two points.
+          if (pts.length > 2) {
+            expect(Math.min(dx, dy)).toBeLessThan(1);
+          }
+        }
+      }
     }
   });
 
