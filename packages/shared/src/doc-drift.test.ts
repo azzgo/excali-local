@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { DEFAULT_AUDIT_CONFIG } from "./scene-audit";
 import { LAYOUT_SPACING } from "./scene-layout";
 
@@ -18,7 +19,7 @@ import { LAYOUT_SPACING } from "./scene-layout";
  * the wire contract), applied to the layout numbers.
  */
 
-const SKILL_DIR = join(__dirname, "../../../skills/excali-local");
+const SKILL_DIR = join(dirname(fileURLToPath(import.meta.url)), "../../../skills/excali-local");
 const WORKFLOW = readFileSync(join(SKILL_DIR, "references/workflows/draw-a-diagram.md"), "utf8");
 const TEMPLATES = readFileSync(join(SKILL_DIR, "references/element-templates.md"), "utf8");
 const SKILL_MD = readFileSync(join(SKILL_DIR, "SKILL.md"), "utf8");

@@ -53,3 +53,6 @@ excali-skill-dist/
 
 # local agent tooling (not part of the product)
 .pig/
+
+# L4 real-browser acceptance screenshots (local evidence, not source)
+.l4/

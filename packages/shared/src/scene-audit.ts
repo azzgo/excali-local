@@ -180,7 +180,11 @@ function pointStrictlyInside(px: number, py: number, b: Box, eps: number): boole
  *  Arrows legitimately cross everything; bound labels live inside a container
  *  (the container is the thing that must not collide). */
 function solidElements(elements: readonly AuditElement[]): AuditElement[] {
-  return elements.filter((e) => isLive(e) && !isArrow(e) && !isText(e));
+  // Frames are excluded: a frame is a REGION that contains its children by
+  // definition, so it necessarily "overlaps" them. Counting it as a solid
+  // would flag every zoned diagram as broken. Zone membership is the frame's
+  // contract, not a collision.
+  return elements.filter((e) => isLive(e) && !isArrow(e) && !isText(e) && e.type !== "frame");
 }
 
 export function auditScene(

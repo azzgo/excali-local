@@ -142,13 +142,34 @@ describe("layout — layering", () => {
     expect(layers[1]).toHaveLength(6);
   });
 
-  test("a cycle is reported, not silently dropped", () => {
+  test("a cycle is BROKEN for layering but still reported as back edges", () => {
+    // A retry loop is normal in a flowchart. Breaking it is what keeps the
+    // rest of the graph layered — a plain topological sort would collapse
+    // every node downstream of the cycle into one trailing row.
     const input = layoutInput(ALL_FIXTURES[2]);
-    const { layers, cycleNodes } = assignLayers(input.nodes, input.edges);
-    expect(cycleNodes.length).toBeGreaterThan(0);
-    // Every node still appears exactly once across the layers.
+    const { layers, cycleNodes, backEdges } = assignLayers(input.nodes, input.edges);
+    expect(backEdges.length).toBeGreaterThan(0);
+    expect(cycleNodes).toEqual([]);
+    // Every node appears exactly once, and the chain is genuinely layered.
     const seen = layers.flat();
+    expect(seen).toHaveLength(input.nodes.length);
     expect(new Set(seen).size).toBe(input.nodes.length);
+    expect(layers.length).toBeGreaterThan(2);
+  });
+
+  test("a long pipeline with a late back edge does not collapse into one row", () => {
+    // Regression: 12 nodes + one retry edge used to produce layers=[1,1,1,1,8].
+    const ids = ["a","b","c","d","e","f","g","h","i","j","k","l"];
+    const nodes = ids.map((id) => ({ id, labelWidth: 100, labelHeight: 20 }));
+    const edges = [
+      ...ids.slice(0, -1).map((id, i) => ({ from: id, to: ids[i + 1] })),
+      { from: "l", to: "d" },
+      { from: "e", to: "l" },
+    ];
+    const { layers, backEdges } = assignLayers(nodes, edges);
+    expect(backEdges.length).toBeGreaterThan(0);
+    expect(Math.max(...layers.map((l) => l.length))).toBeLessThanOrEqual(2);
+    expect(layers.flat()).toHaveLength(12);
   });
 
   test("unknown edge endpoints are ignored, not crashed on", () => {
