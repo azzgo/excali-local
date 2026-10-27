@@ -68,6 +68,7 @@ var CanvasV1Methods = [...]string{
 	"scene.elements",
 	"scene.state",
 	"scene.bounds",
+	"scene.audit",
 	"scene.exportPng",
 	"scene.exportSvg",
 	"scene.update",

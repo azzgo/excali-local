@@ -317,6 +317,7 @@ export const CANVAS_V1_METHODS = [
   "scene.elements",
   "scene.state",
   "scene.bounds",
+  "scene.audit",
   "scene.exportPng",
   "scene.exportSvg",
   "scene.update",

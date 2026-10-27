@@ -88,3 +88,6 @@ export function getFileNameWithoutExtension(fileName: string) {
 }
 
 export * from "./agent-bridge"
+export * from "./scene-audit"
+export * from "./scene-layout"
+export * from "./diagram-fixtures"

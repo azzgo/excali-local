@@ -24,6 +24,7 @@
  * indicator (003/011) — never a blocking modal.
  */
 
+import { auditScene, type AuditElement } from "excali-shared";
 /** JSON-RPC error codes (mirror excali-shared / Go contract). */
 export const JSON_RPC_PARSE_ERROR = -32700;
 export const JSON_RPC_INVALID_REQUEST = -32600;
@@ -242,6 +243,20 @@ async function dispatch(method: string, params: unknown, deps: CanvasV1Deps): Pr
       if (!Array.isArray(elements)) invalidParams("scene.bounds: elements must be an array");
       const [x1, y1, x2, y2] = helpers.getCommonBounds(elements as readonly unknown[]);
       return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
+    }
+    case "scene.audit": {
+      // Geometry audit over the LIVE scene (or a supplied element array). The
+      // algorithm lives in excali-shared (shared/src/scene-audit.ts) so the
+      // daemon can run the same rules over a wire-read scene; the page runs it
+      // against renderer-measured elements, which is the authoritative input.
+      const p = asRecord(params);
+      const elements = p.elements ?? api.getSceneElements();
+      if (!Array.isArray(elements)) invalidParams("scene.audit: elements must be an array");
+      const config: { gutter?: number; padding?: number; epsilon?: number } = {};
+      if (typeof p.gutter === "number") config.gutter = p.gutter;
+      if (typeof p.padding === "number") config.padding = p.padding;
+      if (typeof p.epsilon === "number") config.epsilon = p.epsilon;
+      return auditScene(elements as readonly AuditElement[], config);
     }
     case "scene.exportPng": {
       const p = asRecord(params);

@@ -9,6 +9,8 @@
     "page:build": "BUILD_FOR_EXTENSION=1 pnpm --filter ./packages/page build",
     "local:dev": "pnpm --filter ./packages/local dev",
     "page:test": "pnpm --filter ./packages/page test",
+    "shared:test": "pnpm --filter ./packages/shared test",
+    "layout:verify": "pnpm shared:test && pnpm page:test",
     "collab:test": "pnpm --filter ./packages/collab-core test && pnpm --filter ./packages/collab-relay test",
     "local:clean": "tsx scripts/clean.ts",
     "local:build": "tsx scripts/build.ts",
