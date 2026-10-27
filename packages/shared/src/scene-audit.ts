@@ -121,6 +121,14 @@ export interface WaypointViolation {
   point: [number, number];
 }
 
+export interface SegmentCrossing {
+  edge: string;
+  node: string;
+  /** The segment's endpoints in scene coordinates. */
+  from: [number, number];
+  to: [number, number];
+}
+
 export interface AuditReport {
   /** Hard geometry defects only (overlap, gutter, text overflow, binding,
    *  waypoint). Readability is reported separately — see `readabilityOk`. */
@@ -137,6 +145,15 @@ export interface AuditReport {
   unboundArrows: string[];
   bindingViolations: BindingViolation[];
   waypointsInsideNodes: WaypointViolation[];
+  /**
+   * Places where an arrow's SEGMENT passes through a node it is not attached
+   * to. Distinct from `waypointsInsideNodes`: a bend point can sit outside
+   * every box while the straight run BETWEEN two bends slices through one.
+   * That is the "line goes through a box" defect, and checking only the bend
+   * points misses it — which is exactly what happened on the first zoned
+   * render: every metric green, arrows visibly crossing boxes.
+   */
+  segmentCrossings: SegmentCrossing[];
   /** A label that had to wrap — the "crammed into a fixed card" defect. */
   wrappedLabels: number;
   /** Container area not covered by its label, as a ratio of total box area. */
@@ -174,6 +191,69 @@ function overlapArea(a: Box, b: Box): number {
 
 function pointStrictlyInside(px: number, py: number, b: Box, eps: number): boolean {
   return px > b.x1 + eps && px < b.x2 - eps && py > b.y1 + eps && py < b.y2 - eps;
+}
+
+/** Does segment (p1->p2) cross the INTERIOR of box b? Both endpoints strictly
+ *  inside count as a crossing too. */
+function segmentCrossesBox(
+  p1: [number, number],
+  p2: [number, number],
+  b: Box,
+  eps: number,
+): boolean {
+  // Either endpoint inside the interior is a crossing.
+  if (pointStrictlyInside(p1[0], p1[1], b, eps) || pointStrictlyInside(p2[0], p2[1], b, eps)) {
+    return true;
+  }
+  // Otherwise: Cohen–Sutherland style — a segment crosses the interior iff its
+  // two endpoints are on strictly opposite sides of at least one box edge AND
+  // the intersection point lies within the edge's span. Simplest correct form:
+  // check the segment against each of the four box edges.
+  const edges: Array<[[number, number], [number, number]]> = [
+    [[b.x1, b.y1], [b.x2, b.y1]],
+    [[b.x2, b.y1], [b.x2, b.y2]],
+    [[b.x2, b.y2], [b.x1, b.y2]],
+    [[b.x1, b.y2], [b.x1, b.y1]],
+  ];
+  return edges.some(([c, d]) => segmentsCross(p1, p2, c, d, eps));
+}
+
+function cross(o: [number, number], a: [number, number], b: [number, number]): number {
+  return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+}
+
+function segmentsCross(
+  p1: [number, number],
+  p2: [number, number],
+  p3: [number, number],
+  p4: [number, number],
+  eps: number,
+): boolean {
+  const d1 = cross(p3, p4, p1);
+  const d2 = cross(p3, p4, p2);
+  const d3 = cross(p1, p2, p3);
+  const d4 = cross(p1, p2, p4);
+  if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) {
+    return true;
+  }
+  // Collinear overlap counts only if it spans more than epsilon.
+  return (
+    Math.abs(d1) <= eps &&
+    Math.abs(d2) <= eps &&
+    Math.abs(d3) <= eps &&
+    Math.abs(d4) <= eps &&
+    (between(p1, p3, p4, eps) || between(p2, p3, p4, eps))
+  );
+}
+
+function between(p: [number, number], a: [number, number], b: [number, number], eps: number): boolean {
+  return (
+    Math.abs(cross(a, b, p)) <= eps &&
+    Math.min(a[0], b[0]) - eps <= p[0] &&
+    p[0] <= Math.max(a[0], b[0]) + eps &&
+    Math.min(a[1], b[1]) - eps <= p[1] &&
+    p[1] <= Math.max(a[1], b[1]) + eps
+  );
 }
 
 /** Elements that occupy space for overlap purposes: shapes and containers.
@@ -247,6 +327,7 @@ export function auditScene(
   const unboundArrows: string[] = [];
   const bindingViolations: BindingViolation[] = [];
   const waypointsInsideNodes: WaypointViolation[] = [];
+  const segmentCrossings: SegmentCrossing[] = [];
   for (const a of arrows) {
     const fields = [
       ["startBinding", a.startBinding],
@@ -283,10 +364,9 @@ export function auditScene(
       ),
     );
     const points = a.points ?? [];
-    for (let pi = 0; pi < points.length; pi++) {
-      const p = points[pi];
-      const px = a.x + p[0];
-      const py = a.y + p[1];
+    const absolute: Array<[number, number]> = points.map((p) => [a.x + p[0], a.y + p[1]]);
+    for (let pi = 0; pi < absolute.length; pi++) {
+      const [px, py] = absolute[pi];
       for (const s of solids) {
         if (attached.has(s.id)) continue;
         const sb = boxOf(s);
@@ -297,6 +377,25 @@ export function auditScene(
             point: [Math.round(px), Math.round(py)],
           });
           break;
+        }
+      }
+    }
+
+    // The straight run BETWEEN waypoints can slice through a node even when
+    // every waypoint sits outside one — the defect the bend-point check above
+    // cannot see.
+    for (let si = 0; si + 1 < absolute.length; si++) {
+      const seg: [[number, number], [number, number]] = [absolute[si], absolute[si + 1]];
+      for (const s of solids) {
+        if (attached.has(s.id)) continue;
+        const sb = boxOf(s);
+        if (segmentCrossesBox(seg[0], seg[1], sb, cfg.epsilon)) {
+          segmentCrossings.push({
+            edge: a.id,
+            node: s.id,
+            from: seg[0].map(Math.round) as [number, number],
+            to: seg[1].map(Math.round) as [number, number],
+          });
         }
       }
     }
@@ -317,6 +416,7 @@ export function auditScene(
   const readabilityOk = wrappedLabels === 0;
   const ok =
     overlaps.length === 0 &&
+    segmentCrossings.length === 0 &&
     gutterViolations.length === 0 &&
     textFit.length === 0 &&
     unboundArrows.length === 0 &&
@@ -333,6 +433,7 @@ export function auditScene(
     unboundArrows,
     bindingViolations,
     waypointsInsideNodes,
+    segmentCrossings,
     wrappedLabels,
     deadSpaceRatio: boxArea > 0 ? Math.round((deadSpace / boxArea) * 100) / 100 : 0,
     bounds: {
@@ -358,5 +459,6 @@ function summarize(r: AuditReport): string {
   if (r.unboundArrows.length) parts.push(`${r.unboundArrows.length} unbound arrow`);
   if (r.bindingViolations.length) parts.push(`${r.bindingViolations.length} binding`);
   if (r.waypointsInsideNodes.length) parts.push(`${r.waypointsInsideNodes.length} waypoint-in-node`);
+  if (r.segmentCrossings.length) parts.push(`${r.segmentCrossings.length} line-through-box`);
   return `FAILED — ${parts.join(", ")}`;
 }

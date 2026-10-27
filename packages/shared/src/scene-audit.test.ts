@@ -244,6 +244,63 @@ describe("auditScene — waypoints", () => {
   });
 });
 
+describe("auditScene — segment crossings (the line-through-box defect)", () => {
+  test("catches a segment that slices through an unrelated node even when every waypoint is outside", () => {
+    // This is the exact shape the first zoned render shipped: waypoints clean,
+    // the straight run between two of them cutting through a box two zones
+    // away. The bend-point check alone returned green on it.
+    // Geometry checked by hand: the run (230,600)->(450,0) passes x=303 at
+    // y=400 — inside mid's 150..350 x 300..400 box. (Two earlier drafts of
+    // this fixture missed the box; kept the numbers that actually cross.)
+    const r = auditScene([
+      { id: "a", type: "rectangle", x: 0, y: 600, width: 100, height: 50,
+        boundElements: [{ id: "e", type: "arrow" }] },
+      { id: "mid", type: "rectangle", x: 150, y: 300, width: 200, height: 100 },
+      { id: "b", type: "rectangle", x: 500, y: 0, width: 100, height: 50,
+        boundElements: [{ id: "e", type: "arrow" }] },
+      { id: "e", type: "arrow", x: 100, y: 0, width: 450, height: 600,
+        points: [[0, 600], [130, 600], [350, 0]],
+        startBinding: { elementId: "a" }, endBinding: { elementId: "b" } },
+    ]);
+    expect(r.segmentCrossings).toHaveLength(1);
+    expect(r.segmentCrossings[0]).toMatchObject({ edge: "e", node: "mid" });
+    expect(r.ok).toBe(false);
+    expect(r.summary).toContain("line-through-box");
+  });
+
+  test("the touching case — segment grazing a border — is not a crossing", () => {
+    const r = auditScene([
+      { id: "a", type: "rectangle", x: 0, y: 0, width: 100, height: 50,
+        boundElements: [{ id: "e", type: "arrow" }] },
+      { id: "b", type: "rectangle", x: 300, y: 0, width: 100, height: 50,
+        boundElements: [{ id: "e", type: "arrow" }] },
+      { id: "edge_case", type: "rectangle", x: 140, y: -200, width: 100, height: 100 },
+      { id: "e", type: "arrow", x: 100, y: 25, width: 200, height: 0,
+        points: [[0, 0], [200, 0]],
+        startBinding: { elementId: "a" }, endBinding: { elementId: "b" } },
+    ]);
+    // The arrow runs at y=25 — outside that box entirely. A graze along a
+    // border is NOT a crossing; name the fixture for what it asserts.
+    expect(r.segmentCrossings).toEqual([]);
+  });
+
+  test("an L-routed arrow around a node is clean", () => {
+    const r = auditScene([
+      { id: "a", type: "rectangle", x: 0, y: 600, width: 100, height: 50,
+        boundElements: [{ id: "e", type: "arrow" }] },
+      { id: "mid", type: "rectangle", x: 150, y: 300, width: 200, height: 100 },
+      { id: "b", type: "rectangle", x: 500, y: 0, width: 100, height: 50,
+        boundElements: [{ id: "e", type: "arrow" }] },
+      // Out right, up at x=450 (right of mid's 350 edge), then in.
+      { id: "e", type: "arrow", x: 100, y: 0, width: 500, height: 600,
+        points: [[0, 600], [350, 600], [450, 600], [450, 0], [500, 0]],
+        startBinding: { elementId: "a" }, endBinding: { elementId: "b" } },
+    ]);
+    expect(r.segmentCrossings).toEqual([]);
+    expect(r.ok).toBe(true);
+  });
+});
+
 describe("auditScene — negative controls", () => {
   test("a clean scene is clean and reports its bounds", () => {
     const r = auditScene([
