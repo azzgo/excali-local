@@ -65,11 +65,37 @@ different surfaces, so they are styled independently. Detail: [`references/color
 
 ## Structural verification
 
-The arithmetic audit of readback geometry: label-vs-container fit, pairwise overlap
-and gutter checks, composition centering, and binding closure — computed from
-`scene.get`/`scene.bounds` numbers, never from a picture. The baseline every model
-runs; on text-only agents it is the whole verification. Detail:
+The `scene.audit` call — a deterministic geometry audit of the live scene:
+overlaps, gutter violations, label-vs-container fit, unbound arrows, dangling
+bindings, and bend points inside unrelated nodes. Computed from numbers, never
+from a picture. The baseline every model runs; on text-only agents it is the
+whole verification. It returns two separate verdicts: **`ok`** for hard
+geometry defects, and **`readabilityOk`** for quality (see *Wrapped label*
+below). Detail:
 [`references/workflows/draw-a-diagram.md`](references/workflows/draw-a-diagram.md).
+
+## Measure-then-place
+
+The layout protocol: emit labels first, read their renderer-measured
+`width`/`height` back from `scene.get`, then derive container sizes from the
+measurement and pack rows by measured width. The alternative — assigning a
+fixed box size and a fixed grid step — is what forces labels to wrap and boxes
+to collide. Detail: [`references/workflows/draw-a-diagram.md`](references/workflows/draw-a-diagram.md) §1.
+
+## Wrapped label
+
+A bound label that Excalidraw broke across lines because its container was too
+narrow. **Not a geometry error** — the text is re-centered and the box still
+contains it, so `ok` stays `true`. It is the "crammed into a fixed card" look,
+reported as `readabilityOk: false` with a `wrappedLabels` count. The signal that
+the box was sized by a guess instead of a measurement.
+
+## Gap marker
+
+A one-line declaration of a degradation: `[excali-gap] feature=… action=…`.
+Required whenever you substitute something the workflow asked for — no vision,
+an unconfigured font slot, a cross-batch binding workaround, a split canvas.
+A silent fallback is the failure mode this exists to prevent.
 
 ## Visual verification
 

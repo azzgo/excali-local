@@ -140,6 +140,33 @@ These methods write/read the live scene of the activated canvas.
 - `scene.bounds` — bounding box of the scene (or of explicit elements).
   Params: `{ "elements"?: […] }` (default: current scene). Result:
   `{ "x": …, "y": …, "width": …, "height": … }`.
+- `scene.audit` — **the structural-verification method**: a deterministic
+  geometry audit of the scene (or of explicit elements). Replaces the
+  hand-arithmetic the workflow used to ask for — run it after every
+  `elements.add` instead of comparing bounding boxes in your head.
+  Params: `{ "elements"?: […], "gutter"?: 40, "padding"?: 8, "epsilon"?: 1, "maxLabelLines"?: 1 }`.
+  Result:
+  ```json
+  { "ok": false, "readabilityOk": false, "elementCount": 12,
+    "overlaps": [{ "a": "box_a", "b": "box_b", "area": 3000 }],
+    "gutterViolations": [{ "a": "box_a", "b": "box_c", "gap": 12 }],
+    "textFit": [{ "text": "t1", "container": "box_a", "kind": "too-tall", "overflow": 18 }],
+    "unboundArrows": ["arrow_3"],
+    "bindingViolations": [{ "arrow": "arrow_7", "field": "startBinding", "kind": "missing-reverse", "detail": "box_b" }],
+    "waypointsInsideNodes": [{ "edge": "arrow_7", "node": "box_b", "point": [320, 180] }],
+    "wrappedLabels": 2, "deadSpaceRatio": 0.69,
+    "bounds": { "width": 1680, "height": 290, "aspect": 5.79 },
+    "summary": "FAILED — 1 overlap, 1 gutter" }
+  ```
+  **`ok` covers hard geometry defects only** (overlap, gutter, text overflow,
+  unbound/dangling bindings, a bend point inside an unrelated node).
+  **`readabilityOk` is separate** — `wrappedLabels > maxLabelLines` means a
+  label had to wrap. That is NOT a geometry error (Excalidraw wraps and
+  re-centers text, so the box still contains it); it is the "crammed into a
+  fixed card" look, and it is exactly what measuring before placing removes.
+  Note the audit deliberately does **not** check where an arrow's fold points
+  land relative to its own endpoints (those sit inside their boxes by
+  definition) — and it does not judge aesthetics.
 - `scene.exportPng` — render the scene (or explicit elements) to a PNG.
   Params: `{ "elements"?: […], "mimeType"?: "image/png", "scale"?: number }`.
   Result: `{ "dataURL": "data:image/png;base64,…", "width": …, "height": … }`.
@@ -284,6 +311,6 @@ and appear exactly once:
 
 daemon-local: `ping`, `commands.list`, `protocol.version`, `bridge.status`, `bridge.stop`, `fonts.system.list`, `peers.list`, `peers.transferOffer`, `peers.transferStatus`, `peers.transferRespond`, `lan.status`, `lan.on`, `lan.off`, `autostart.status`, `autostart.on`, `autostart.off`
 
-activated (canvas-bound): `scene.get`, `scene.elements`, `scene.state`, `scene.bounds`, `scene.exportPng`, `scene.exportSvg`, `scene.update`, `elements.add`, `elements.clear`, `scene.reset`, `files.add`, `tool.setActive`, `view.scrollTo`, `history.clear`, `gallery.load`, `gallery.save`
+activated (canvas-bound): `scene.get`, `scene.elements`, `scene.state`, `scene.bounds`, `scene.audit`, `scene.exportPng`, `scene.exportSvg`, `scene.update`, `elements.add`, `elements.clear`, `scene.reset`, `files.add`, `tool.setActive`, `view.scrollTo`, `history.clear`, `gallery.load`, `gallery.save`
 
 paired: `gallery.list`, `gallery.get`, `gallery.rename`, `gallery.delete`, `gallery.collections.list`, `gallery.collections.create`, `gallery.collections.rename`, `gallery.collections.delete`, `fonts.get`, `fonts.assign`, `fonts.install`, `fonts.clear`

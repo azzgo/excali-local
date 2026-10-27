@@ -39,20 +39,65 @@ Prerequisites: a **paired connection** and an **activated canvas** (see
 
 ## 1. Layout discipline
 
-- **Hierarchy through scale** (px units):
-  - Hero `300 × 150`, Primary `180 × 90`, Secondary `120 × 60`,
-    Small `60 × 40`.
-  - Whitespace = importance: ≥ 200 px of clear space around the hero.
-  - Scale tiers encode rank; text size follows the tier.
+### Measure, then place — never guess a size
+
+**This is the single most important rule in the file.** Every layout defect
+this skill used to produce — labels crammed into two lines, boxes covering
+each other, arrows landing nowhere — traces back to placing elements by a
+*guessed* size. The canvas measures text exactly; use that instead of a
+number you made up.
+
+The protocol, in three steps:
+
+1. **Measure.** Emit your labels as bare `text` elements (any position — you
+   are going to move them) in one `elements.add`. Read `scene.get` back: the
+   returned `width`/`height` on each text element are the renderer's measured
+   sizes, including whatever wrapping Excalidraw applied.
+2. **Place.** Derive each container from its measured label:
+   `boxWidth = max(160, labelWidth + 28)`, `boxHeight = max(64, labelHeight + 22)`.
+   Then pack. Do **not** reuse a fixed box size for every node — that is what
+   forces a long label to wrap.
+3. **Emit.** Send the containers (with `label`) and the arrows in one
+   `elements.add`, then `scene.audit` (see §3.1).
+
+A fixed size tier cannot be correct for a set of labels of different lengths.
+Use tiers only to rank *relative* importance (font size, stroke weight,
+whitespace around the hero) — never as a literal `width`/`height` for a
+container that holds text.
+
+### Spacing numbers
+
+Use these gaps rather than "a grid of your choosing". They come from the
+layered-graph preset (ELK) that has been stress-tested on complex diagrams;
+they are also what `scene.audit` checks against:
+
+| Gap | Value | Between |
+| --- | --- | --- |
+| sibling gap | **56 px** | two nodes in the same row |
+| layer gap | **80 px** | one row of nodes and the next |
+| edge-to-node | **32 px** | an arrow and a node it does not touch |
+| edge-to-edge | **24 px** | two arrows running in parallel |
+| canvas padding | **48 px** | the outermost element and the scene edge |
+| minimum gutter | **40 px** | anything at all (`scene.audit`'s floor) |
+
+A uniform gutter is not the same as a *correct* gutter: two nodes 40 px apart
+are still wrong if their labels are 300 px wide and they overlap.
+
+### The rest
+
+- **Hierarchy through scale**: hero / primary / secondary / small still ranks
+  elements — but express rank through `fontSize` (20 / 16 / 14 / 12),
+  `strokeWidth` (3 / 2 / 1) and surrounding whitespace, **not** through a
+  fixed box size. Whitespace = importance: ≥ 200 px of clear space around the
+  hero.
 - **Explicit flow direction** — left→right by default, or top→bottom.
   If A relates to B, **there must be an arrow** between them
   (`arrow` with `start`/`end` bindings — see `element-templates.md`).
 - **Container discipline**: default to free-floating text; **target < 30% of
   text elements inside containers**. A box must earn its border.
-- **Coordinates**: place elements on a grid of your choosing (e.g. x = 100,
-  400, 700…; y = 100, 300, 500…) and keep a consistent gutter (≥ 40 px)
-  between elements. Compute `scene.bounds` to catch layout bleed.
-
+- **Verify with `scene.bounds` and `scene.audit`**, not by eyeballing
+  coordinates. `scene.bounds` catches layout bleed; `scene.audit` catches
+  everything else (see §3.1).
 ## 2. Build section by section (never one shot)
 
 Large diagrams are built in sections. Emit one section per `elements.add`
@@ -94,10 +139,21 @@ revising earlier steps is expected** — re-emit only the changed elements read
 back from `scene.get` via `scene.update` (never a serialized `scene.get`
 scene through `elements.add` — it regenerates ids and drops bindings).
 
-> **Hand-craft the JSON. No generator script. No JSON sub-agent.** You write
-> the element payloads yourself, directly in the `elements.add` argument.
-> Indirection (a script that builds JSON, or a sub-agent that drafts it)
-> costs you the context needed to debug and iterate.
+> **Hand-craft the payload. Coordinates may be computed; the elements may
+> not.** Two different things, and the distinction matters:
+>
+> - ✅ **Computing geometry is fine** — measuring a label, deriving
+>   `width = labelWidth + 28`, packing a row by measured widths, computing a
+>   layer's y. That is deterministic arithmetic over numbers you read back from
+>   the canvas. It removes guessing; it does not hide anything from you.
+> - ❌ **Delegating the payload is not fine** — a script that emits the whole
+>   `elements.add` JSON, or a sub-agent that drafts the element list. You lose
+>   the context needed to debug what came out, and the transform's real
+>   behaviour (id regeneration, binding closure, label normalization) becomes
+>   invisible to you.
+>
+> So: write every element's `type`, `label`, `start`/`end`, and style yourself.
+> Computing the `x`/`y`/`width`/`height` you feed them is encouraged.
 
 ## 3. The mandatory render → verify → fix loop
 
@@ -122,28 +178,56 @@ when the user explicitly wants an image.)
 
 ### 3.1 Structural verification (baseline — run this on every track)
 
-Compute the audit **before each emit** (all inputs are numbers, so mistakes are
-cheapest to fix pre-emit), then read back what you could not predict:
+Run the audit **after every emit**, and again after every fix. It is one call —
+do not hand-compute pairwise geometry:
 
 ```bash
-$BIN scene.bounds      # {x, y, width, height} — layout bleed / composition
-$BIN scene.get         # full scene — bindings, ids, measured sizes
+$BIN scene.audit              # audit the live scene with the default thresholds
+$BIN scene.audit '{"gutter":40,"maxLabelLines":1}'
+$BIN scene.bounds             # {x, y, width, height} — layout bleed / composition
 ```
 
-Audit the readback against the defect list (each visual defect has an exact
-structural counterpart):
+`scene.audit` returns `ok`, `readabilityOk`, and the defect lists. Read it in
+two passes, because the two flags mean different things:
 
-| Visual defect | Structural check |
-| --- | --- |
-| clipped / overflowing text | `label.width/height` vs container `width/height` minus padding (measurements are renderer-exact — no estimation) |
-| overlapping elements | pairwise AABB on returned `x/y/width/height` — **excluding arrows and freedraw accents** (they legitimately cross regions) |
-| misrouted arrows | every arrow's `start`/`end` (or `startBinding`/`endBinding`) resolves to a live element id; no unbound endpoint that was meant to bind |
-| lopsided composition | `scene.bounds` center vs the planned grid center |
-| stale bindings | `containerId` ↔ `boundElements` bidirectional closure on containers and labels |
-| cramped spacing | pairwise gap ≥ 40 px (the gutter rule — exact, where vision only estimates) |
+**Pass 1 — `ok` (hard geometry). If `false`, fix before continuing.**
 
-Geometry is computable — there is no daemon-side audit method, and none is
-needed: the arithmetic above is trivial per batch (a few → a dozen elements).
+| Field | Means | Fix |
+| --- | --- | --- |
+| `overlaps` | two solids share area (arrows and bound labels excluded) | move them apart; the pair is named with its overlap area |
+| `gutterViolations` | clear gap under the floor | widen to the spacing table in §1 |
+| `textFit` | a bound label exceeds its container's inner box (`too-wide` / `too-tall`) | enlarge the container from the measured label |
+| `unboundArrows` | an arrow has no `startBinding` or `endBinding` | bind it (see `element-templates.md` — cross-batch bindings need `scene.update`) |
+| `bindingViolations` | `dangling-target` (bound to an id that does not exist) or `missing-reverse` (the container's `boundElements` lacks the arrow) | re-emit both halves of the binding |
+| `waypointsInsideNodes` | a bend point landed inside a node the arrow is **not** attached to | reroute; this is the "line goes through a box" defect |
+
+**Pass 2 — `readabilityOk` (quality, not geometry). If `false`, you can still
+ship, but you should not want to.**
+
+`readabilityOk: false` means `wrappedLabels` exceeded `maxLabelLines`: a label
+had to wrap. This is **not** a geometry error — Excalidraw wraps and re-centers
+text, so the box still contains it, and `ok` stays `true`. It is the
+"crammed into a fixed card" look, and it means you placed a box by a guessed
+size instead of a measured one. Fix it by re-running the measure-then-place
+protocol from §1.
+
+Also watch `deadSpaceRatio` (container area not covered by its label — high
+means over-sized boxes) and `bounds` (composition; a very high `aspect` means a
+wide strip, which usually wants splitting into pages).
+
+**What `scene.audit` deliberately does not do**, so you do not mistake silence
+for approval:
+
+- It does not check where an arrow's fold points land relative to *its own*
+  endpoints — those sit inside their boxes by definition, and Excalidraw
+  computes the real route in the renderer.
+- It does not judge aesthetics: colour balance, whether the diagram *argues*.
+  That is the visual track (§3.2) or the user.
+- It does not check text against the scene edge; use `scene.bounds` for bleed.
+
+The algorithm is `packages/shared/src/scene-audit.ts`, and its behaviour is
+pinned by tests in both `shared` and `page` — so the thresholds above are what
+actually runs, not an aspiration.
 
 ### 3.2 Visual verification (agents with vision only)
 
@@ -204,8 +288,13 @@ These follow the preset you picked in step 0 (see
 ## 5. What NOT to do
 
 - **Don't** generate the whole diagram in one response.
-- **Don't** delegate JSON to a sub-agent, and **don't** write a generator
-  script.
+- **Don't** delegate the *payload* to a sub-agent or a generator script — but
+  **do** compute geometry (see the boxed note in §2). Measuring and packing by
+  measured size is required; emitting the element JSON blindly is not.
+- **Don't** place a text-bearing container by a guessed size, and **don't**
+  reuse one fixed box size for every node — that is what forces labels to wrap.
+  Measure first (§1).
+- **Don't** hand-compute pairwise geometry when `scene.audit` answers it.
 - **Don't** emit `version`/`versionNonce`/`seed`/`index` — transform-owned.
 - **Don't** use `scene.update` for brand-new content (it bypasses
   normalization; `elements.add` is the normalize+concat path) and **don't**
@@ -238,5 +327,11 @@ $BIN elements.add '{"elements":[
    "textAlign":"center","verticalAlign":"middle",
    "strokeColor":"#868e96","strokeWidth":2,"roughness":1,"opacity":100}
 ]}'
-$BIN scene.get && $BIN scene.bounds   # structural verify; + scene.exportPng if you have vision
+$BIN scene.audit                       # structural verify — expect "ok"
+$BIN scene.bounds                      # composition
+# + scene.exportPng only if you have vision
 ```
+
+Expected `scene.audit` result: `ok: true`, `readabilityOk: true`,
+`wrappedLabels: 0`. Both labels are short enough to sit on one line, and the
+gap between the boxes is 140 px — well above the 40 px floor.

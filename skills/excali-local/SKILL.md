@@ -158,20 +158,25 @@ to the live-canvas delivery model**. The complete methodology is in
 3. **Build section by section.** For large diagrams, emit one section at a
    time with descriptive string ids and namespaced numeric seeds
    (100xxx, 200xxx, …). Never try to emit the whole diagram in one shot.
-4. **Hand-craft the JSON.** No generator scripts, no delegating JSON
-   generation to a sub-agent — write the element payloads yourself, directly
-   as `elements.add` arguments. Indirection hurts debugging.
+4. **Hand-craft the payload; compute the geometry.** Write every element's
+   `type`/`label`/`start`/`end`/style yourself — no generator script that emits
+   the whole `elements.add` JSON, no sub-agent drafting the element list.
+   But **do** compute coordinates: measure labels and derive box sizes rather
+   than guessing them. Arithmetic removes guessing; delegating the payload
+   hides the transform's real behaviour from you. (See the boxed note in
+   `workflows/draw-a-diagram.md` §2.)
 5. **Render → verify → fix (mandatory).** This is where the
    delivery differs from disk-based skills: you never write a file and you
    never run a headless browser. The **live canvas is the renderer**, and
    verification comes in two composable tracks — **structural verification**
-   (arithmetic audit of `scene.get` / `scene.bounds` readbacks: label-vs-
-   container fit, overlaps, gutters, binding closure) is the baseline every
-   agent runs; agents with vision add **visual verification** (`scene.exportPng`
-   PNG readback) on top. If you have no vision, run structural verification
-   alone — never call `exportPng` to self-check (you cannot see the result).
+   (`scene.audit`, one call, returns `ok` + the defect lists: overlaps,
+   gutters, text fit, unbound arrows, dangling bindings, bend points inside
+   unrelated nodes) is the baseline every agent runs; agents with vision add
+   **visual verification** (`scene.exportPng` PNG readback) on top. If you
+   have no vision, run structural verification alone — never call `exportPng`
+   to self-check (you cannot see the result).
    - Render: apply your elements to the activated canvas via the CLI.
-   - Verify: structural readbacks (`scene.get` / `scene.bounds`) always;
+   - Verify: `scene.audit` after every emit (`scene.bounds` for bleed);
      `scene.exportPng` (base64 PNG, viewed with your image tool) only if you
      have vision.
    - Fix: adjust coordinates/sizes/points and re-emit; re-render. Visual
@@ -187,6 +192,29 @@ to the live-canvas delivery model**. The complete methodology is in
    `element-templates.md`). Presets live in
    [`references/style-presets.md`](references/style-presets.md), colors in
    [`references/color-palette.md`](references/color-palette.md).
+
+7. **Measure before you place.** Never assign a text-bearing container a size
+   you guessed. Emit the labels, read their measured `width`/`height` back from
+   `scene.get`, then derive the boxes (`max(160, labelWidth + 28)` ×
+   `max(64, labelHeight + 22)`) and pack rows by measured width with the
+   spacing numbers in `workflows/draw-a-diagram.md` §1. A fixed box size for
+   every node is what forces a long label to wrap — and `scene.audit` reports
+   that as `readabilityOk: false`.
+
+8. **Declare every degradation.** If you cannot do something the workflow asks
+   for, say so in one line instead of silently substituting — the user cannot
+   audit what you quietly dropped. The forms that matter here:
+
+   | Situation | Say |
+   | --- | --- |
+   | no vision, structural track only | `[excali-gap] feature=no_vision action=structural_only` |
+   | font slot unconfigured, built-in fallback | `[excali-gap] feature=font_slot_unset action=fallback_builtin` |
+   | arrow bound across batches via `scene.update` | `[excali-gap] feature=cross_batch_binding action=scene_update_workaround` |
+   | a container had to be enlarged after the fact | `[excali-gap] feature=text_overflow action=resized_container` |
+   | you split a wide diagram into pages | `[excali-gap] feature=wide_canvas action=split_pages` |
+
+   Print the marker **and** mention it in your final message. A silent
+   fallback is the failure mode this rule exists to prevent.
 
 Because the canvas is the renderer, everything is offline-safe: no CDN, no
 Playwright, no Python, no network — the same reason this skill carries its
@@ -218,10 +246,10 @@ diagram in a single `elements.add` / `scene.update` blob is a failure mode.
 
 - **Never emit the whole diagram in one call.** One section/layer per
   `elements.add`, in reading order, a few → ~a dozen elements per batch.
-- **After every batch: render → verify → fix.** Structural verification
-  (`scene.get` / `scene.bounds` — bindings, geometry, composition) after
-  every batch, plus `scene.exportPng` (view the returned dataURL with your
-  image tool) if you have vision. Fix, repeat. Visual track: 2–4 iterations
+- **After every batch: render → verify → fix.** `scene.audit` after every
+  batch (one call — `ok` for hard geometry, `readabilityOk` for wrapped
+  labels), plus `scene.exportPng` (view the returned dataURL with your image
+  tool) if you have vision. Fix, repeat. Visual track: 2–4 iterations
   is normal; text-only track: plan the audit before each emit — 1–3 fix
   iterations is normal. On the text-only track, when you finish, tell the
   user to check the canvas themselves (they own it) and offer to fix anything
@@ -231,7 +259,8 @@ diagram in a single `elements.add` / `scene.update` blob is a failure mode.
   back from `scene.get`) is the normal path, not a mistake.
 - **Skeleton first.** Default build order: (1) structure lines / region
   dividers, (2) container boxes + labels, (3) detail text inside sections,
-  (4) arrows/bindings, (5) coordinate/overlap/bleed fixes via `scene.bounds`.
+  (4) arrows/bindings, (5) overlap/bleed fixes via `scene.audit` +
+  `scene.bounds`.
 
 The full methodology — including the render→view→fix loop and the
 skeleton-first scaffold — is in
@@ -246,6 +275,7 @@ BIN=bin/excali-bridge-darwin-arm64        # your platform's binary
 $BIN ping                                  # daemon-local: pong
 $BIN commands.list                         # full method inventory
 $BIN scene.get                             # current scene (needs activated canvas)
+$BIN scene.audit                           # structural verify: ok + defect lists
 $BIN scene.exportPng '{"mimeType":"image/png"}'   # base64 PNG of the scene
 $BIN elements.add '{"elements":[{"type":"rectangle","x":100,"y":100,"width":180,"height":90,"strokeColor":"#1e1e1e","strokeWidth":2,"roughness":1,"opacity":100,"roundness":{"type":3}}]}'
 $BIN scene.bounds                          # bounding box of the scene

@@ -196,6 +196,63 @@ The binding-close input form uses `start`/`end` (linear-element style) —
   spine stays reliable to bind and route. Curved arrows live in the liveliness
   toolbox below.
 
+## Arrow routing — why a line lands where it does
+
+"The arrow went somewhere else" has exactly four causes. Identify which one
+before changing any coordinates, because three of them are not coordinate
+problems at all.
+
+| Symptom | Real cause | Fix |
+| --- | --- | --- |
+| arrow floats detached from both boxes | the binding was dropped | `scene.audit` → `unboundArrows`. Bind with `start`/`end` **in the same batch**, or via `scene.update` with serialized `startBinding`/`endBinding` |
+| arrow attaches but enters the wrong edge | `fixedPoint` unset or written in pixels | set the normalized ratio (table below) |
+| arrow crosses an unrelated box | no routing lane | `scene.audit` → `waypointsInsideNodes`; reroute around it |
+| arrow zigzags stiffly on a loop-back | 2-point right-angle path | 3+ points + `roundness: { type: 2 }` + a dedicated lane |
+
+### Binding is the whole game
+
+An arrow's position is **not** determined by the `x`/`y`/`points` you write —
+once bound, Excalidraw recomputes the route from the binding. Your numbers are
+a starting hint. So a "misplaced" arrow is almost always a **binding** problem:
+
+- `start`/`end` resolve **only within one `elements.add` batch**. An arrow
+  referring to a box emitted earlier comes out unbound — silently.
+- `startBinding`/`endBinding` are OUTPUT fields; passing them to
+  `elements.add` is ignored. They are only meaningful on the `scene.update`
+  path (which is why cross-batch binding goes through `scene.update`).
+- Check with `scene.audit`'s `unboundArrows` and `bindingViolations` — never
+  by looking at whether the arrow *appears* attached.
+
+### Choosing the exit and entry point (`fixedPoint`)
+
+`fixedPoint` is a **normalized ratio**, not pixels: the attached point is
+`element.x + width·fx, element.y + height·fy`. Use these:
+
+| Direction | exit (`startBinding.fixedPoint`) | entry (`endBinding.fixedPoint`) |
+| --- | --- | --- |
+| top → bottom (default flow) | `[0.5, 1]` bottom-center | `[0.5, 0]` top-center |
+| bottom → top | `[0.5, 0]` top-center | `[0.5, 1]` bottom-center |
+| left → right | `[1, 0.5]` right-center | `[0, 0.5]` left-center |
+| right → left | `[0, 0.5]` left-center | `[1, 0.5]` right-center |
+
+Leaving `fixedPoint` off lets Excalidraw pick the nearest edge — usually fine
+for a straight spine, unreliable once a box has several arrows. Set it
+explicitly whenever a node has more than two connections.
+
+### Routing lanes
+
+When several arrows share a direction, reserve a lane instead of letting them
+overlap:
+
+- **Sibling fan-out** (one node → many): order the children in the same order
+  as their layer's left-to-right position, so arrows do not cross. Then give
+  each a distinct exit `fixedPoint` (`[0.25, 1]`, `[0.5, 1]`, `[0.75, 1]`).
+- **Loop-backs** (a retry edge going backwards): route around the **outside**
+  of the layer, never through it. Keep ≥ 40 px from any caption.
+- **Parallel edges**: ≥ 24 px apart.
+- Verify with `scene.audit`: `waypointsInsideNodes` must be empty, and
+  `gutterViolations` catches lanes that came too close.
+
 ## Liveliness toolbox (Sketch / Notebook / Cartoon — closed in Clean; **default-on** in Sketch)
 
 The hand-drawn vocabulary the old skill never used. Schema-supported; the
