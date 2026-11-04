@@ -415,6 +415,7 @@ dependencies = [
 name = "excali-presence"
 version = "1.9.0"
 dependencies = [
+ "gtk",
  "libc",
  "muda",
  "objc2 0.6.5",

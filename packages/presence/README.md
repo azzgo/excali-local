@@ -4,7 +4,10 @@ The Presence host (ADR 0014): a macOS menu-bar tray that drives the Agent Bridge
 daemon by exec'ing the canonical `excali-bridge` CLI. No WS role, no contract
 change — the menu is bridge-only and pulled on open.
 
-```
+Linux needs GTK 3 and an AppIndicator implementation (libayatana on most
+distros) — `tray-icon`/`muda` build their tray and menu on them, and the tray
+calls `gtk::init` itself before touching either.
+
 daemon: running @17331 / not running     ← excali-bridge status
 active canvas: <profileId | none>        ← excali-bridge bridge.status
 LAN: on / off                            → excali-bridge lan on|off

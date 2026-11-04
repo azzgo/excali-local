@@ -174,6 +174,15 @@ impl ApplicationHandler<UserEvent> for App {
     }
 
     fn about_to_wait(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
+        // muda's GTK backend builds gtk::Menus that expect a GTK main loop to
+        // dispatch their events; the winit loop does not run one. Pump GTK
+        // non-blocking each turn so AppIndicator clicks still reach the
+        // MenuEvent channel.
+        #[cfg(target_os = "linux")]
+        while gtk::main_iteration_do(false) {
+            // A true return means the GTK main loop quit; there is no gtk::main
+            // running, so treat it as "nothing more to pump".
+        }
         if self.should_exit {
             event_loop.exit();
             return;
@@ -318,6 +327,15 @@ fn report_alignment(bundled: &Path, canonical: &Path, outcome: sidecar::Alignmen
 }
 
 fn main() {
+    // Linux's tray-icon/muda backends are GTK 3 (AppIndicator + gtk::Menu) and
+    // both assume GTK is already up — the first muda::Menu construction panics
+    // without it. winit never calls gtk::init on Linux (it drives X11/Wayland
+    // directly), so it is ours to do, before anything builds a menu. winit stays
+    // the loop owner on every platform; GTK is pumped from the loop instead of
+    // being given a gtk::main of its own.
+    #[cfg(target_os = "linux")]
+    gtk::init().expect("initialize GTK for the Linux tray backend");
+
     // A hidden test hook for the outcome notice: posting a notification from a
     // menu-bar accessory needs a bundle identifier, which only the installed
     // .app has, so verifying it by clicking is the only honest check. This

@@ -128,6 +128,24 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libsoup-3.0-dev
+      # Launch smoke test (issue #11): the tray compiled and linked fine for
+      # v1.9.0 yet panicked on first GTK use, because nothing ever ran it. Under
+      # xvfb the process must come up and stay alive — gtk::init, the tray, the
+      # menu all construct before the loop starts, so surviving 5s covers the
+      # panic path. `EXCALI_BRIDGE_BIN` points somewhere empty so the run does
+      # not depend on, or disturb, a real CLI install.
+      - name: Smoke-test the Linux tray under xvfb
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y xvfb
+          cargo build --release --target ${{ matrix.target }}
+          EXCALI_BRIDGE_BIN=/nonexistent timeout 5 \
+            xvfb-run -a target/${{ matrix.target }}/release/excali-presence
+          status=$?
+          if [ $status -ne 124 ]; then
+            echo "tray exited early with status $status — launch smoke test failed"
+            exit 1
+          fi
       - name: Build presence asset
         run: pnpm run presence:pack --target ${{ matrix.target }} --strict
         env:
